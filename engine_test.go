@@ -1,0 +1,451 @@
+package eval
+
+import (
+	"fmt"
+	"math/rand"
+	"reflect"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestDebugCases(t *testing.T) {
+	const onlyAllowListCases = false
+
+	type runThis string
+	const ________RunThisOne________ runThis = "________RunThisOne________"
+
+	type optimizeLevel int
+	const (
+		all optimizeLevel = iota
+		onlyFast
+		disable
+	)
+
+	cs := []struct {
+		name          string
+		s             string
+		valMap        map[string]Value
+		optimizeLevel optimizeLevel // default: all
+		fields        []string
+		want          Value
+		run           runThis
+	}{
+		{
+			run:           ________RunThisOne________,
+			want:          true,
+			optimizeLevel: disable,
+			s: `
+(not
+  (and
+    (if T
+      (!= 0 0)
+      (= 0 0))
+    (= 0 0)
+    (= 0 0)))`,
+			valMap: map[string]Value{
+				"T": true,
+				"F": false,
+			},
+		},
+		{
+
+			want:          int64(1),
+			optimizeLevel: disable,
+			s:             `(if T 1 0)`,
+			valMap: map[string]Value{
+				"T": true,
+				"F": false,
+			},
+		},
+		{
+			run:           ________RunThisOne________,
+			want:          false,
+			optimizeLevel: disable,
+			s: `
+(and
+  (if T F T)
+  (or T
+    (!= 0 0)))`,
+			valMap: map[string]Value{
+				"T": true,
+				"F": false,
+			},
+		},
+		{
+			want:          true,
+			optimizeLevel: disable,
+			s: `
+(if T
+  (or
+    (eq 1 2) T)
+  (= 3 4))`,
+			valMap: map[string]Value{
+				"T": true,
+				"F": false,
+			},
+		},
+		{
+			want:          true,
+			optimizeLevel: disable,
+			s: `
+(eq
+  (if T F T)
+  (not T))`,
+			valMap: map[string]Value{
+				"T": true,
+				"F": false,
+			},
+		},
+		{
+			want:          false,
+			optimizeLevel: disable,
+			s: `
+(if
+  (and
+    (= 0 0) T)
+  (not
+    (= 0 0))
+  (!= 0 0))`,
+			valMap: map[string]Value{
+				"T": true,
+				"F": false,
+			},
+		},
+		{
+			want:          true,
+			optimizeLevel: disable,
+			s: `
+(if
+  (= 1 2)
+  (not F)
+  (and
+    (!= 3 4) T1 T2))`,
+			valMap: map[string]Value{
+				"T1": true,
+				"T2": true,
+				"F":  false,
+			},
+		},
+		{
+			want:          int64(2),
+			optimizeLevel: disable,
+			s: `
+(if
+  (and  
+    true
+    (!= 0 0))
+  1
+  2)
+`,
+		},
+		{
+			want:          false,
+			optimizeLevel: disable,
+			s: `
+(if
+  (not
+    (and true
+      (!= 0 0)
+      (!= 0 0)))
+  (eq
+    (or true true false)
+    (!= 0 0)) 
+  true)
+`,
+			valMap: map[string]Value{
+				"select_true_1":  true,
+				"select_false_1": false,
+				"select_false":   false,
+			},
+		},
+		{
+			want: true,
+			s: `
+(<
+ (+ 1
+   (- 2 v3) (/ 6 3) 4)
+ (* 5 6 7)
+)`,
+			valMap: map[string]Value{
+				"v3": 3,
+			},
+		},
+		{
+
+			want: true,
+			s:    `(= 1 1)`,
+		},
+
+		{
+			want:          true,
+			optimizeLevel: disable,
+			s: `
+(and
+  (= 0 0)
+  (or
+    (&  ;; ok
+      (ne 1 1)
+      (!= 0 0)
+      (!= 0 0))
+    (not
+      (!= 0 0))
+    (not
+      (!= 0 0))))`,
+		},
+
+		{
+
+			want:          true,
+			optimizeLevel: onlyFast,
+			s: `
+(not
+  (and
+    (= 0 0)
+    (or
+      (!= 0 0)
+      (!= 0 0))
+    (= 0 0)))`,
+		},
+		{
+
+			want:          true,
+			optimizeLevel: onlyFast,
+			s: `
+(not
+  (&
+    (and
+      (= 0 0)
+      (= 0 0))
+    (!= 1 1)
+    (= 0 0)
+    (and
+      (= 0 0)
+      (= 0 0))))`,
+		},
+		{
+
+			want:          true,
+			optimizeLevel: onlyFast,
+			s: `
+(and
+  (not
+    (and
+      (!= 0 0)
+      (= 0 0)
+      (= 0 0)
+      (= 0 0)))
+  (or
+    (!= 0 0)
+    (!= 0 0)
+    (= 0 0)
+    (= 0 0)))`,
+		},
+		{
+			want: true,
+			s: `
+(and
+  (|
+    (eq Origin "MOW")
+    (= Country "RU"))
+  (or
+    (>= Value 100)
+    (<= Adults 1)))`,
+			valMap: map[string]Value{
+				"Origin":  "MOW",
+				"Country": "RU",
+				"Value":   100,
+				"Adults":  1,
+			},
+			//fields: []string{"scIdx", "scVal", "pIdx"},
+		},
+		{
+			want: false,
+			s: `
+			(and
+			  (= Origin "MOW1")
+			  (= Country "RU")
+			  (>= Value 100)
+			  (= Adults 1))`,
+			valMap: map[string]Value{
+				"Origin":  "MOW",
+				"Country": "RU",
+				"Value":   100,
+				"Adults":  1,
+			},
+			fields: []string{"scIdx", "scVal", "pIdx"},
+		},
+		{
+
+			want: false,
+			s: `
+;;;;optimize:false
+(and
+  (and
+    (not
+      (!= 1 1))
+    (or
+      (!= 2 2)
+      (!= 3 3)
+      (= 4 4)
+      (!= 5 5)))
+  (= 6 6)
+  (!= 7 7))`,
+		},
+	}
+
+	for _, c := range cs {
+		if onlyAllowListCases && c.run != ________RunThisOne________ {
+			continue
+		}
+
+		cc := NewCompileConfig()
+		cc.OptimizeOptions = map[OptimizeOption]bool{
+			Reordering:      false,
+			FastEvaluation:  false,
+			ConstantFolding: false,
+		}
+
+		switch c.optimizeLevel {
+		case all:
+			cc.OptimizeOptions[Reordering] = true
+			cc.OptimizeOptions[ConstantFolding] = true
+			fallthrough
+		case onlyFast:
+			cc.OptimizeOptions[FastEvaluation] = true
+		case disable:
+		}
+
+		ctx := NewCtxWithMap(cc, c.valMap)
+		ctx.Debug = true
+
+		expr, err := Compile(cc, c.s)
+		assertNil(t, err)
+
+		fmt.Println(PrintCode(expr))
+		fmt.Println()
+		fmt.Println(PrintExpr(expr, c.fields...))
+
+		res, err := expr.Eval(ctx)
+		assertNil(t, err)
+		fmt.Println(res)
+		if c.want != nil {
+			assertEquals(t, res, c.want)
+		}
+	}
+}
+
+func TestRandomExpression(t *testing.T) {
+	const (
+		size       = 5000
+		level      = 53
+		step       = size / 100
+		showSample = false
+	)
+
+	exprs := make([]GenExprResult, size)
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	cc := NewCompileConfig()
+	cc.SelectorMap = map[string]SelectorKey{
+		"select_true":  SelectorKey(1),
+		"select_false": SelectorKey(2),
+	}
+
+	valMap := map[string]Value{
+		"select_true":  true,
+		"select_false": false,
+	}
+	for i := 0; i < 20; i++ {
+		v := r.Intn(200) - 100
+		var k string
+		if v < 0 {
+			k = "select_neg_" + strconv.Itoa(-v)
+		} else {
+			k = "select_" + strconv.Itoa(v)
+		}
+		valMap[k] = int64(v)
+		_ = GetOrRegisterKey(cc, k)
+	}
+
+	ctx := NewCtxWithMap(cc, valMap)
+
+	for i := 0; i < size; i++ {
+		options := make([]GenExprOption, 0, 4)
+		v := r.Intn(0b1000)
+
+		if v&0b001 != 0 {
+			options = append(options, GenType(Bool))
+		} else {
+			options = append(options, GenType(Number))
+		}
+
+		if v&0b010 != 0 {
+			options = append(options, EnableCondition)
+		}
+
+		if v&0b100 != 0 {
+			options = append(options, EnableSelector, GenSelectors(valMap))
+		}
+
+		exprs[i] = GenerateRandomExpr((i%level)+1, r, options...)
+
+		if i%step == 0 {
+			t.Log("generating current:", i, (i*100)/size, "%")
+		}
+	}
+
+	for i, expr := range exprs {
+		v := r.Intn(0b1000)
+		// combination of optimizations
+		cc.OptimizeOptions[Reordering] = v&0b1 != 0
+		cc.OptimizeOptions[FastEvaluation] = v&0b10 != 0
+		cc.OptimizeOptions[ConstantFolding] = v&0b100 != 0
+
+		got, err := Eval(cc, expr.Expr, ctx)
+		if err != nil {
+			fmt.Println(GenerateTestCase(expr, valMap))
+			t.Fatalf("assertNil failed, got: %+v\n", err)
+		}
+
+		if got != expr.Res {
+			fmt.Println(GenerateTestCase(expr, valMap))
+			t.Fatalf("assertEquals failed, got: %+v, want: %+v\n", got, expr.Res)
+		}
+
+		if i%step == 0 {
+			t.Log("executing current:", i, (i*100)/size, "%")
+			if showSample {
+				fmt.Println(GenerateTestCase(expr, valMap))
+			}
+		}
+	}
+}
+
+func assertEquals(t *testing.T, got, want any, msg ...any) {
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("assertEquals failed, got: %+v, want: %+v, msg: %+v", got, want, msg)
+	}
+}
+
+func assertNil(t *testing.T, val any, msg ...any) {
+	if val != nil {
+		t.Fatalf("assertNil failed, got: %+v, msg: %+v", val, msg)
+	}
+}
+
+func assertNotNil(t *testing.T, val any, msg ...any) {
+	if val == nil {
+		t.Fatalf("assertNotNil failed, got: %+v, msg: %+v", val, msg)
+	}
+}
+
+func assertErrStrContains(t *testing.T, err error, errMsg string, msg ...any) {
+	if err == nil {
+		t.Fatalf("assertErrStrContains failed, err is nil, msg: %+v", msg)
+	}
+	if !strings.Contains(err.Error(), errMsg) {
+		t.Fatalf("assertErrStrContains failed, err: %v, want: %s, msg: %+v", err, errMsg, msg)
+	}
+}
