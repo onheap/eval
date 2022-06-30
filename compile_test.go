@@ -351,15 +351,7 @@ func TestOptimizeConstantFolding(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		tokens, err := lex(c.expr)
-		assertNil(t, err)
-
-		cc, err := parseConfig(c.cc, tokens)
-		assertNil(t, err)
-
-		ast, err := parseAstTree(cc, tokens)
-		assertNil(t, err)
-
+		ast, cc, err := newParser(c.cc, c.expr).parse()
 		err = optimizeConstantFolding(cc, ast)
 		if len(c.errMsg) != 0 {
 			assertErrStrContains(t, err, c.errMsg, c)
@@ -554,13 +546,7 @@ func TestOptimizeFastEvaluation(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		tokens, err := lex(c.expr)
-		assertNil(t, err)
-
-		cc, err := parseConfig(c.cc, tokens)
-		assertNil(t, err)
-
-		ast, err := parseAstTree(cc, tokens)
+		ast, cc, err := newParser(c.cc, c.expr).parse()
 		assertNil(t, err)
 
 		optimizeFastEvaluation(cc, ast)
@@ -788,13 +774,7 @@ func TestReordering(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		tokens, err := lex(c.expr)
-		assertNil(t, err)
-
-		cc, err := parseConfig(c.cc, tokens)
-		assertNil(t, err)
-
-		ast, err := parseAstTree(cc, tokens)
+		ast, cc, err := newParser(c.cc, c.expr).parse()
 		assertNil(t, err)
 
 		if c.fastEval {
@@ -963,13 +943,7 @@ func TestOptimize(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		tokens, err := lex(c.expr)
-		assertNil(t, err)
-
-		cc, err := parseConfig(c.cc, tokens)
-		assertNil(t, err)
-
-		ast, err := parseAstTree(cc, tokens)
+		ast, cc, err := newParser(c.cc, c.expr).parse()
 		assertNil(t, err)
 
 		optimize(cc, ast)
@@ -1057,20 +1031,14 @@ func TestCheck(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		tokens, err := lex(c.expr)
-		assertNil(t, err)
-
-		cc, err := parseConfig(c.cc, tokens)
-		assertNil(t, err)
-
-		ast, err := parseAstTree(cc, tokens)
+		ast, cc, err := newParser(c.cc, c.expr).parse()
 		assertNil(t, err)
 
 		if c.optimize {
 			optimize(cc, ast)
 		}
 
-		res := check(cc, ast)
+		res := check(ast)
 
 		if len(c.errMsg) != 0 {
 			assertErrStrContains(t, res.err, c.errMsg, c)
