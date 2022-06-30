@@ -35,6 +35,7 @@ func CopyCompileConfig(origin *CompileConfig) *CompileConfig {
 	for k, v := range origin.CostsMap {
 		conf.CostsMap[k] = v
 	}
+	conf.AllowUnknownSelectors = origin.AllowUnknownSelectors
 	return conf
 }
 
@@ -45,6 +46,8 @@ func NewCompileConfig() *CompileConfig {
 		OperatorMap:     make(map[string]Operator),
 		OptimizeOptions: make(map[OptimizeOption]bool),
 		CostsMap:        make(map[string]int),
+
+		AllowUnknownSelectors: false,
 	}
 }
 
@@ -54,6 +57,8 @@ type CompileConfig struct {
 	OperatorMap     map[string]Operator
 	OptimizeOptions map[OptimizeOption]bool
 	CostsMap        map[string]int // cost of performance
+
+	AllowUnknownSelectors bool
 }
 
 func (cc *CompileConfig) getCosts(nodeType uint16, nodeName string) int {
@@ -88,30 +93,20 @@ func (cc *CompileConfig) getCosts(nodeType uint16, nodeName string) int {
 	return fallback
 }
 
-func Compile(conf *CompileConfig, exprStr string) (*Expr, error) {
-	tokens, err := lex(exprStr)
+func Compile(originConf *CompileConfig, exprStr string) (*Expr, error) {
+	ast, conf, err := newParser(originConf, exprStr).parse()
 	if err != nil {
 		return nil, err
 	}
 
-	conf, err = parseConfig(conf, tokens)
-	if err != nil {
-		return nil, err
-	}
+	optimize(conf, ast)
 
-	root, err := parseAstTree(conf, tokens)
-	if err != nil {
-		return nil, err
-	}
-
-	optimize(conf, root)
-
-	res := check(conf, root)
+	res := check(ast)
 	if res.err != nil {
 		return nil, res.err
 	}
 
-	expr := compress(root, res.size)
+	expr := compress(ast, res.size)
 
 	setExtraInfo(expr)
 
@@ -531,7 +526,7 @@ type checkRes struct {
 	err  error
 }
 
-func check(conf *CompileConfig, root *astNode) checkRes {
+func check(root *astNode) checkRes {
 	if len(root.children) > math.MaxInt8 {
 		return checkRes{
 			err: fmt.Errorf("expression is too long, operators cannot exceed a maximum of 127 parameters, got: [%d]", len(root.children)),
@@ -541,7 +536,7 @@ func check(conf *CompileConfig, root *astNode) checkRes {
 	size := 0
 
 	for _, child := range root.children {
-		res := check(conf, child)
+		res := check(child)
 		if res.err != nil {
 			return res
 		}

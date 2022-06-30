@@ -98,7 +98,7 @@ func TestLex(t *testing.T) {
 			expr: `
 (<
  (+ 1
-   (- 2 v3) (/ 6 3) 4)
+   (- 2 v3) (/ -6 3) 4)
  (* 5 6 7)
 )`,
 			tokens: []token{
@@ -114,7 +114,7 @@ func TestLex(t *testing.T) {
 				{typ: rParen, val: ")"},
 				{typ: lParen, val: "("},
 				{typ: ident, val: "/"},
-				{typ: integer, val: "6"},
+				{typ: integer, val: "-6"},
 				{typ: integer, val: "3"},
 				{typ: rParen, val: ")"},
 				{typ: integer, val: "4"},
@@ -249,7 +249,7 @@ func TestLex(t *testing.T) {
      (= 1 1)))
 	(and
      ;; hhhhh3
-	(between age 18 80)
+	(between age 18 -80)
 
     (eq (+ 1 1)        (- 3 1   ) 2)
        
@@ -328,7 +328,7 @@ func TestLex(t *testing.T) {
 				{typ: ident, val: "between"},
 				{typ: ident, val: "age"},
 				{typ: integer, val: "18"},
-				{typ: integer, val: "80"},
+				{typ: integer, val: "-80"},
 				{typ: rParen, val: ")"},
 				{typ: lParen, val: "("},
 				{typ: ident, val: "eq"},
@@ -439,14 +439,23 @@ func TestLex(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		tokens, err := lex(c.expr)
+		p := &parser{source: c.expr}
+		err := p.lex()
 		if len(c.errMsg) != 0 {
 			assertErrStrContains(t, err, c.errMsg, c)
 			continue
 		}
 
 		assertNil(t, err, c)
-		assertEquals(t, tokens, c.tokens)
+
+		assertEquals(t, len(p.tokens), len(c.tokens))
+
+		for i := range p.tokens {
+			t1 := p.tokens[i]
+			t2 := c.tokens[i]
+			assertEquals(t, t1.typ, t2.typ)
+			assertEquals(t, t1.val, t2.val)
+		}
 	}
 }
 
@@ -534,18 +543,16 @@ func TestParseConfig(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		originConf := &CompileConfig{
-			OptimizeOptions: c.origin,
-		}
-		tokens, err := lex(c.expr)
+		p := newParser(&CompileConfig{OptimizeOptions: c.origin}, c.expr)
+		err := p.lex()
 		assertNil(t, err, c)
-		updatedConfig, err := parseConfig(originConf, tokens)
+		err = p.parseConfig()
 		if len(c.errMsg) != 0 {
 			assertErrStrContains(t, err, c.errMsg, c)
 			continue
 		}
 		assertNil(t, err, c)
-		updatedOption := updatedConfig.OptimizeOptions
+		updatedOption := p.conf.OptimizeOptions
 
 		for option, want := range c.want {
 			got, exist := updatedOption[option]
@@ -577,7 +584,7 @@ func TestParseAstTree(t *testing.T) {
 			expr: `
 (<
  (+ 1
-   (- 2 v3) (/ 6 3) 4)
+   (- 2 v3) (/ -6 3) 4)
  (* 5 6 7)
 )`,
 			cc: &CompileConfig{
@@ -606,7 +613,7 @@ func TestParseAstTree(t *testing.T) {
 								tpy:  operator,
 								data: "/",
 								children: []verifyNode{
-									{tpy: value, data: int64(6)},
+									{tpy: value, data: int64(-6)},
 									{tpy: value, data: int64(3)},
 								},
 							},
@@ -790,26 +797,39 @@ func TestParseAstTree(t *testing.T) {
 				},
 			},
 		},
-		// return an error when expr use unregister selector
 		{
+			cc:     &CompileConfig{AllowUnknownSelectors: false},
 			expr:   `(< age 18)`,
 			errMsg: "unknown token error",
+		},
+		// return an error when expr use unregister selector
+		{
+			cc:   &CompileConfig{AllowUnknownSelectors: true},
+			expr: `(< age 18)`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "<",
+				children: []verifyNode{
+					{tpy: selector, data: "age"},
+					{tpy: value, data: int64(18)},
+				},
+			},
 		},
 		// return an error when expr use unregister operator
 		{
 			expr:   `(is_child 18)`,
-			errMsg: "unknown operator error",
+			errMsg: "unknown token error",
 		},
 		// mismatched element types in the list
 		{
 			expr:   `(17 age 18)`,
-			errMsg: "mismatched list element types error",
+			errMsg: "token type unexpected error",
 		},
 
 		// mismatched element types in the list
 		{
 			expr:   `(17 18 "19")`,
-			errMsg: "mismatched list element types error",
+			errMsg: "token type unexpected error",
 		},
 
 		{
@@ -823,26 +843,29 @@ func TestParseAstTree(t *testing.T) {
 		},
 
 		{
+			expr:   `(< 12 18`,
+			errMsg: "parentheses unmatched error",
+		},
+
+		{
 			expr:   `(+ 1 1 ))`,
 			errMsg: "parentheses unmatched error",
 		},
 
 		{
 			expr:   `(+ 1 1) (+ 1 1)`,
-			errMsg: "invalid expression error",
+			errMsg: "parentheses unmatched error",
 		},
 	}
 
 	for _, c := range testCases {
-		tokens, err := lex(c.expr)
-		assertNil(t, err, c)
-		ast, err := parseAstTree(c.cc, tokens)
-
+		ast, _, err := newParser(c.cc, c.expr).parse()
 		if len(c.errMsg) != 0 {
 			assertErrStrContains(t, err, c.errMsg, c)
 			continue
 		}
 
+		assertNil(t, err)
 		assertAstTreeIdentical(t, ast, c.ast, c)
 	}
 }

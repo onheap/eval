@@ -336,6 +336,68 @@ func TestDebugCases(t *testing.T) {
 	}
 }
 
+func TestEval_AllowUnknownSelector(t *testing.T) {
+	testCases := []struct {
+		cc     *CompileConfig
+		expr   string
+		want   Value
+		errMsg string
+		vals   map[string]Value
+	}{
+		{
+			expr:   `(< age 18)`,
+			errMsg: "unknown token error",
+		},
+		{
+			want: false,
+			expr: `(< age 18)`,
+			cc:   &CompileConfig{AllowUnknownSelectors: true},
+			vals: map[string]Value{
+				"age": int64(20),
+			},
+		},
+		{
+			expr:   `(< not_exist_key 18)`,
+			cc:     &CompileConfig{AllowUnknownSelectors: true},
+			errMsg: "selectorKey not exist",
+		},
+		{
+			expr: `
+(-
+ (+ 1
+   (- 2 v3) (/ 6 3) 4)
+ (* 5 -6 7)
+)`,
+			errMsg: "unknown token error",
+		},
+		{
+			want: int64(216),
+			expr: `
+(-
+ (+ 1
+   (- 2 v3) (/ 6 3) 4)
+ (* 5 -6 7)
+)`,
+			cc: &CompileConfig{AllowUnknownSelectors: true},
+			vals: map[string]Value{
+				"v3": int64(3),
+			},
+		},
+	}
+
+	for _, c := range testCases {
+		got, err := Eval(c.cc, c.expr, &Ctx{Selector: NewMapSelector(c.vals)})
+
+		if len(c.errMsg) != 0 {
+			assertErrStrContains(t, err, c.errMsg)
+			continue
+		}
+		assertNil(t, err)
+		assertEquals(t, got, c.want)
+	}
+
+}
+
 func TestRandomExpression(t *testing.T) {
 	const (
 		size       = 5000
@@ -392,7 +454,7 @@ func TestRandomExpression(t *testing.T) {
 		exprs[i] = GenerateRandomExpr((i%level)+1, r, options...)
 
 		if i%step == 0 {
-			t.Log("generating current:", i, (i*100)/size, "%")
+			t.Log("generating... current:", i, (i*100)/size, "%")
 		}
 	}
 
@@ -415,7 +477,7 @@ func TestRandomExpression(t *testing.T) {
 		}
 
 		if i%step == 0 {
-			t.Log("executing current:", i, (i*100)/size, "%")
+			t.Log("executing... current:", i, (i*100)/size, "%")
 			if showSample {
 				fmt.Println(GenerateTestCase(expr, valMap))
 			}
