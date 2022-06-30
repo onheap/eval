@@ -1,7 +1,6 @@
 package eval
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -860,11 +859,7 @@ func TestParseAstTree(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-
 		ast, _, err := newParser(c.cc, c.expr).parse()
-		fmt.Println("-------------")
-		fmt.Println(c.expr)
-
 		if len(c.errMsg) != 0 {
 			assertErrStrContains(t, err, c.errMsg, c)
 			continue

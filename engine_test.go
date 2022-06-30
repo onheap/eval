@@ -454,7 +454,7 @@ func TestRandomExpression(t *testing.T) {
 		exprs[i] = GenerateRandomExpr((i%level)+1, r, options...)
 
 		if i%step == 0 {
-			t.Log("generating current:", i, (i*100)/size, "%")
+			t.Log("generating... current:", i, (i*100)/size, "%")
 		}
 	}
 
@@ -477,7 +477,7 @@ func TestRandomExpression(t *testing.T) {
 		}
 
 		if i%step == 0 {
-			t.Log("executing current:", i, (i*100)/size, "%")
+			t.Log("executing... current:", i, (i*100)/size, "%")
 			if showSample {
 				fmt.Println(GenerateTestCase(expr, valMap))
 			}
