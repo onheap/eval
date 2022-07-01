@@ -418,7 +418,7 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 
 }
 
-func TestRandomExpression(t *testing.T) {
+func TestRandomExpressions(t *testing.T) {
 	const (
 		size       = 100000
 		level      = 53
