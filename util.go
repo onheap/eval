@@ -3,7 +3,6 @@ package eval
 import (
 	"fmt"
 	"math/rand"
-	"sort"
 	"strconv"
 	"strings"
 	"unicode"
@@ -202,7 +201,10 @@ func GenerateTestCase(res GenExprResult, valMap map[string]Value) string {
 		case int64:
 			return fmt.Sprintf("int64(%d)", v)
 		case string:
-			return fmt.Sprintf(`"%s""`, v)
+			if strings.ContainsAny(v, `\n"`) {
+				return fmt.Sprintf("`%s`", v)
+			}
+			return fmt.Sprintf(`"%s"`, v)
 		default:
 			panic("unsupported type")
 		}
@@ -220,22 +222,27 @@ func GenerateTestCase(res GenExprResult, valMap map[string]Value) string {
 		maxKeyLen = max(maxKeyLen, len(key))
 	}
 
-	mapStr.WriteString("map[string]Value{\n")
-	for key, val := range valMap {
-		mapStr.WriteString(strings.Repeat(space, tab*4))
-		mapStr.WriteString(fmt.Sprintf(`"%s": `, key))
-		mapStr.WriteString(strings.Repeat(space, maxKeyLen-len(key)))
-		mapStr.WriteString(valStr(val))
-		mapStr.WriteRune('\n')
+	if valMap != nil {
+		mapStr.WriteString("map[string]Value{\n")
+		for key, val := range valMap {
+			mapStr.WriteString(strings.Repeat(space, tab*4))
+			mapStr.WriteString(fmt.Sprintf(`"%s": `, key))
+			mapStr.WriteString(strings.Repeat(space, maxKeyLen-len(key)))
+			mapStr.WriteString(valStr(val))
+			mapStr.WriteRune(',')
+			mapStr.WriteRune('\n')
+		}
+		mapStr.WriteString(strings.Repeat(space, tab*3))
+		mapStr.WriteString("}")
+	} else {
+		mapStr.WriteString("       nil")
 	}
-	mapStr.WriteString(strings.Repeat(space, tab*3))
-	mapStr.WriteString("}")
 
 	expr := IndentByParentheses(res.Expr)
 	if strings.ContainsRune(expr, '\n') {
 		expr = fmt.Sprintf("`\n%s`", expr)
 	} else {
-		expr = fmt.Sprintf("`%s`", expr)
+		expr = fmt.Sprintf(`            %s`, valStr(expr))
 	}
 
 	return fmt.Sprintf(`
@@ -245,36 +252,6 @@ func GenerateTestCase(res GenExprResult, valMap map[string]Value) string {
             s: %s,
             valMap: %s,
         },`, valStr(res.Res), expr, mapStr.String())
-}
-
-func TreeSizeStats(conf *CompileConfig, exprs []string) (map[string]string, error) {
-	l := len(exprs)
-	list := make([]int, 0, l)
-	var sum int64
-	for _, expr := range exprs {
-		tree, err := Compile(conf, expr)
-		if err != nil {
-			return nil, err
-		}
-		size := int(tree.maxStackSize)
-		sum += int64(size)
-		list = append(list, size)
-	}
-	sort.Ints(list)
-
-	res := map[string]string{
-		"AVG": fmt.Sprint(sum / int64(l)),
-		"MIN": fmt.Sprint(list[0]),
-		"MAX": fmt.Sprint(list[l-1]),
-	}
-	for i := 1; i <= 9; i++ {
-		k := "P" + strconv.Itoa(i*10)
-		idx := i * l / 10
-		v := fmt.Sprintf("value: %4d, count: %4d", list[idx], idx+1)
-		res[k] = v
-	}
-
-	return res, nil
 }
 
 func IndentByParentheses(s string) string {

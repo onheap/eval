@@ -232,3 +232,89 @@ func TestGenerateRandomExpr_Number(t *testing.T) {
 		}
 	}
 }
+
+func TestGenerateTestCase(t *testing.T) {
+	testCases := []struct {
+		expr GenExprResult
+		want string
+		vals map[string]Value
+	}{
+		{
+			expr: GenExprResult{
+				Res:  false,
+				Expr: "(not (eq select_false select_false (!= 0 0)))",
+			},
+			want: `
+        {
+            want:          false,
+            optimizeLevel: disable,
+            s: ` + "`" + `
+(not
+  (eq select_false select_false
+    (!= 0 0)))` + "`" + `,
+            valMap: map[string]Value{
+                "select_false": false,
+            },
+        },`,
+			vals: map[string]Value{
+				"select_false": false,
+			},
+		},
+		{
+			expr: GenExprResult{
+				Expr: "(if less -1 1)",
+				Res:  int64(-1),
+			},
+			want: `
+        {
+            want:          int64(-1),
+            optimizeLevel: disable,
+            s:             "(if less -1 1)",
+            valMap: map[string]Value{
+                "less": true,
+            },
+        },`,
+			vals: map[string]Value{
+				"less": true,
+			},
+		},
+		{
+			expr: GenExprResult{
+				Expr: "(+ 1 1)",
+				Res:  int64(2),
+			},
+			want: `
+        {
+            want:          int64(2),
+            optimizeLevel: disable,
+            s:             "(+ 1 1)",
+            valMap:        nil,
+        },`,
+		},
+		{
+			expr: GenExprResult{
+				Expr: `(if (< age 18) "Child" "Adult")`,
+				Res:  "Adult",
+			},
+			want: `
+        {
+            want:          "Adult",
+            optimizeLevel: disable,
+            s: ` + "`" + `
+(if
+  (< age 18) "Child" "Adult")` + "`" + `,
+            valMap: map[string]Value{
+                "age": int64(18),
+            },
+        },`,
+			vals: map[string]Value{
+				"age": int64(18),
+			},
+		},
+	}
+
+	for _, c := range testCases {
+		got := GenerateTestCase(c.expr, c.vals)
+		assertEquals(t, got, c.want)
+	}
+}
