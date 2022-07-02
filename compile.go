@@ -118,6 +118,7 @@ func setExtraInfo(e *Expr) {
 	calAndSetStackSize(e)
 	calAndSetShortCircuit(e)
 }
+
 func calAndSetParentIndex(e *Expr) {
 	size := len(e.nodes)
 	f := make([]int, size)
