@@ -352,6 +352,7 @@ func TestOptimizeConstantFolding(t *testing.T) {
 
 	for _, c := range testCases {
 		ast, cc, err := newParser(c.cc, c.expr).parse()
+		assertNil(t, err, c)
 		err = optimizeConstantFolding(cc, ast)
 		if len(c.errMsg) != 0 {
 			assertErrStrContains(t, err, c.errMsg, c)

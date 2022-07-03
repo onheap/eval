@@ -61,7 +61,7 @@ type CompileConfig struct {
 	AllowUnknownSelectors bool
 }
 
-func (cc *CompileConfig) getCosts(nodeType uint16, nodeName string) int {
+func (cc *CompileConfig) getCosts(nodeType uint8, nodeName string) int {
 	const (
 		defaultCost  = 5
 		selectorCost = 7
@@ -265,7 +265,7 @@ func calAndSetShortCircuit(e *Expr) {
 			f[i] = i
 			continue
 		}
-		var flag uint16
+		var flag uint8
 		switch {
 		case isLastChild(n):
 			flag |= scIfTrue
@@ -517,7 +517,7 @@ func optimizeFastEvaluation(cc *CompileConfig, root *astNode) {
 		return
 	}
 
-	otherPartMask := nodeTypeMask ^ uint16(0b11111111)
+	otherPartMask := nodeTypeMask ^ uint8(0b11111111)
 
 	root.node.flag = fastOperator | (root.node.flag & otherPartMask)
 }

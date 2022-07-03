@@ -15,21 +15,21 @@ type (
 
 const (
 	// node types
-	nodeTypeMask = uint16(0b111)
-	value        = uint16(0b001)
-	selector     = uint16(0b010)
-	operator     = uint16(0b011)
-	fastOperator = uint16(0b100)
-	cond         = uint16(0b101)
-	end          = uint16(0b110)
+	nodeTypeMask = uint8(0b111)
+	value        = uint8(0b001)
+	selector     = uint8(0b010)
+	operator     = uint8(0b011)
+	fastOperator = uint8(0b100)
+	cond         = uint8(0b101)
+	end          = uint8(0b110)
 
 	// short circuit flag
-	scIfFalse = uint16(0b001000)
-	scIfTrue  = uint16(0b010000)
+	scIfFalse = uint8(0b001000)
+	scIfTrue  = uint8(0b010000)
 )
 
 type node struct {
-	flag     uint16
+	flag     uint8
 	idx      int16
 	scIdx    int16
 	selKey   SelectorKey
@@ -37,7 +37,7 @@ type node struct {
 	operator Operator
 }
 
-func (n *node) getNodeType() uint16 {
+func (n *node) getNodeType() uint8 {
 	return n.flag & nodeTypeMask
 }
 
