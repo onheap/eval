@@ -46,10 +46,10 @@ type Expr struct {
 	maxStackSize int16
 	nodes        []*node
 	// extra info
-	parentIndex []int
-	scIdx       []int
-	sfSize      []int
-	osSize      []int
+	parentIdx []int
+	scIdx     []int
+	sfSize    []int
+	osSize    []int
 }
 
 func EvalBool(conf *CompileConfig, expr string, ctx *Ctx) (bool, error) {
@@ -161,7 +161,7 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 
 			res, err = curt.operator(ctx, param)
 			if debug {
-				printOperatorFunc(curt.value, param, res, err)
+				printOperator(curt.value, param, res, err)
 			}
 			if err != nil {
 				return nil, fmt.Errorf("eval error [%w], Operator: %v", err, curt.value)
@@ -199,7 +199,7 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 			}
 			res, err = curt.operator(ctx, param)
 			if debug {
-				printOperatorFunc(curt.value, param, res, err)
+				printOperator(curt.value, param, res, err)
 			}
 			if err != nil {
 				return nil, fmt.Errorf("eval error [%w], Operator: %v", err, curt.value)
@@ -351,7 +351,7 @@ func printStacks(maxId int, os []Value, osTop int, sf []*node, sfTop int) {
 	fmt.Println(sb.String())
 }
 
-func printOperatorFunc(op Value, params []Value, res Value, err error) {
+func printOperator(op Value, params []Value, res Value, err error) {
 	fmt.Printf("invoke operator, op: %v, params: %v, res: %v, err: %v\n\n", op, params, res, err)
 }
 

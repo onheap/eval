@@ -465,7 +465,7 @@ func PrintExpr(expr *Expr, fields ...string) string {
 			return e.nodes[i].value
 		},
 		pIdx: func(e *Expr, i int) Value {
-			return e.parentIndex[i]
+			return e.parentIdx[i]
 		},
 		flag: func(e *Expr, i int) Value {
 			f := e.nodes[i].flag

@@ -136,7 +136,8 @@ func calAndSetParentIndex(e *Expr) {
 		}
 	}
 
-	e.parentIndex = f
+	//e.parentIdx = f
+	copy(e.parentIdx, f)
 }
 
 func calAndSetStackSize(e *Expr) {
@@ -150,7 +151,7 @@ func calAndSetStackSize(e *Expr) {
 	}
 
 	var isFirstChild = func(e *Expr, idx int) bool {
-		parentIdx := e.parentIndex[idx]
+		parentIdx := e.parentIdx[idx]
 		return int(e.nodes[parentIdx].childIdx) == idx
 
 	}
@@ -160,7 +161,7 @@ func calAndSetStackSize(e *Expr) {
 	f2 := make([]int, size) // for operator stack
 	f1[0] = 1
 	for i := 1; i < size; i++ {
-		parentIdx := e.parentIndex[i]
+		parentIdx := e.parentIdx[i]
 
 		// f1
 		if isLeaf(e, parentIdx) {
@@ -214,14 +215,17 @@ func calAndSetStackSize(e *Expr) {
 
 	e.maxStackSize = int16(res)
 
-	e.sfSize = f1
-	e.osSize = f2
+	//e.sfSize = f1
+	//e.osSize = f2
+
+	copy(e.sfSize, f1)
+	copy(e.osSize, f2)
 }
 
 func calAndSetShortCircuit(e *Expr) {
 	var isLastChild = func(n *node) bool {
 		idx := int(n.idx)
-		parentIdx := e.parentIndex[idx]
+		parentIdx := e.parentIdx[idx]
 		if parentIdx == -1 {
 			return false
 		}
@@ -235,7 +239,7 @@ func calAndSetShortCircuit(e *Expr) {
 	}
 
 	var parentNode = func(n *node) *node {
-		parentIdx := e.parentIndex[int(n.idx)]
+		parentIdx := e.parentIdx[int(n.idx)]
 		if parentIdx == -1 {
 			return nil
 		}
@@ -278,7 +282,8 @@ func calAndSetShortCircuit(e *Expr) {
 		}
 	}
 
-	e.scIdx = f
+	//e.scIdx = f
+	copy(e.scIdx, f)
 }
 
 func optimize(cc *CompileConfig, root *astNode) {
@@ -341,9 +346,9 @@ func calculateNodeCosts(conf *CompileConfig, root *astNode) {
 	)
 
 	var (
-		baseCost      int64 = 0
-		operationCost int64 = 0
-		childrenCost  int64 = 0
+		baseCost      int64
+		operationCost int64
+		childrenCost  int64
 	)
 
 	n := root.node
@@ -546,7 +551,11 @@ func check(root *astNode) checkRes {
 
 func compress(root *astNode, size int) *Expr {
 	e := &Expr{
-		nodes: make([]*node, 0, size),
+		nodes:     make([]*node, 0, size),
+		scIdx:     make([]int, size),
+		sfSize:    make([]int, size),
+		osSize:    make([]int, size),
+		parentIdx: make([]int, size),
 	}
 	queue := make([]*astNode, 0, size)
 	queue = append(queue, root)
@@ -563,14 +572,14 @@ func compress(root *astNode, size int) *Expr {
 	return e
 }
 
-func (e *Expr) appendNode(n *node, childIndex int, childCnt int) {
+func (e *Expr) appendNode(n *node, childIdx int, childCnt int) {
 	n.idx = int16(len(e.nodes))
 	n.childCnt = int8(childCnt)
 	switch n.getNodeType() {
 	case value, selector:
 		n.childIdx = -1
 	default:
-		n.childIdx = int16(childIndex)
+		n.childIdx = int16(childIdx)
 	}
 	e.nodes = append(e.nodes, n)
 }
