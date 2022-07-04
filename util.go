@@ -368,15 +368,14 @@ func PrintCode(e *Expr) string {
 	var helper func(*node) (string, bool)
 
 	helper = func(root *node) (string, bool) {
-		idx := root.idx
-		if e.childCounts[idx] == 0 {
+		if root.childCnt == 0 {
 			return printLeafNode(root)
 		}
 
 		var sb strings.Builder
 		sb.WriteString(fmt.Sprintf("(%v", root.value))
-		for i := 0; i < int(e.childCounts[idx]); i++ {
-			childIdx := int(e.childStartIndex[idx]) + i
+		for i := 0; i < int(root.childCnt); i++ {
+			childIdx := int(root.childIdx) + i
 			child := e.nodes[childIdx]
 			cc, isLeaf := helper(child)
 			if isLeaf {
@@ -466,7 +465,7 @@ func PrintExpr(expr *Expr, fields ...string) string {
 			return e.nodes[i].value
 		},
 		pIdx: func(e *Expr, i int) Value {
-			return e.parentIndex[i]
+			return e.parentIdx[i]
 		},
 		flag: func(e *Expr, i int) Value {
 			f := e.nodes[i].flag
@@ -486,13 +485,13 @@ func PrintExpr(expr *Expr, fields ...string) string {
 			return res
 		},
 		cCnt: func(e *Expr, i int) Value {
-			return e.childCounts[i]
+			return e.nodes[i].childCnt
 		},
 		cIdx: func(e *Expr, i int) Value {
-			return e.childStartIndex[i]
+			return e.nodes[i].childIdx
 		},
 		scIdx: func(e *Expr, i int) Value {
-			return e.nodes[i].scIdx
+			return e.scIdx[i]
 		},
 		scVal: func(e *Expr, i int) Value {
 			f := e.nodes[i].flag

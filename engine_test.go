@@ -2,7 +2,6 @@ package eval
 
 import (
 	"fmt"
-	"math"
 	"math/rand"
 	"reflect"
 	"strconv"
@@ -52,7 +51,6 @@ func TestDebugCases(t *testing.T) {
 			valMap:        nil,
 		},
 		{
-			run:           ________RunThisOne________,
 			want:          true,
 			optimizeLevel: disable,
 			s: `
@@ -80,7 +78,6 @@ func TestDebugCases(t *testing.T) {
 		},
 
 		{
-			run:           ________RunThisOne________,
 			want:          false,
 			optimizeLevel: disable,
 			s: `
@@ -94,6 +91,7 @@ func TestDebugCases(t *testing.T) {
 			},
 		},
 		{
+			run:           ________RunThisOne________,
 			want:          true,
 			optimizeLevel: disable,
 			s: `
@@ -420,28 +418,20 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 
 func TestRandomExpressions(t *testing.T) {
 	const (
-		size       = 100000
-		level      = 53
-		step       = size / 100
-		showSample = false
+		size          = 200000
+		level         = 53
+		step          = size / 100
+		showSample    = false
+		printProgress = true
 	)
 
 	const (
-		producerCount = 200
-		consumerCount = 1000
+		producerCount = 400
+		consumerCount = 2000
 		bufferSize    = 10000
 	)
 
-	var (
-		r         = rand.New(rand.NewSource(time.Now().UnixNano()))
-		m         sync.Mutex
-		randomInt = func(n int) int {
-			m.Lock()
-			i := r.Intn(n)
-			m.Unlock()
-			return i
-		}
-	)
+	var random = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	conf := NewCompileConfig()
 	conf.SelectorMap = map[string]SelectorKey{
@@ -454,7 +444,7 @@ func TestRandomExpressions(t *testing.T) {
 		"select_false": false,
 	}
 	for i := 0; i < 20; i++ {
-		v := randomInt(200) - 100
+		v := random.Intn(200) - 100
 		var k string
 		if v < 0 {
 			k = "select_neg_" + strconv.Itoa(-v)
@@ -472,18 +462,18 @@ func TestRandomExpressions(t *testing.T) {
 	}
 
 	exprChan := make(chan GenExprResult, bufferSize)
-	resChan := make(chan execRes, bufferSize)
+	verifyChan := make(chan execRes, bufferSize)
 
 	var pwg sync.WaitGroup
 
-	var cnt int32
+	var genCnt int32
 	for p := 0; p < producerCount; p++ {
 		pwg.Add(1)
-		go func() {
+		go func(r *rand.Rand) {
 			defer pwg.Done()
-			for atomic.LoadInt32(&cnt) < size {
+			for atomic.LoadInt32(&genCnt) < size {
 				options := make([]GenExprOption, 0, 4)
-				v := randomInt(0b1000)
+				v := random.Intn(0b1000)
 
 				if v&0b001 != 0 {
 					options = append(options, GenType(Bool))
@@ -499,15 +489,13 @@ func TestRandomExpressions(t *testing.T) {
 					options = append(options, EnableSelector, GenSelectors(valMap))
 				}
 
-				random := rand.New(rand.NewSource(int64(randomInt(math.MaxInt))))
-
-				i := int(atomic.AddInt32(&cnt, 1))
-				exprChan <- GenerateRandomExpr((i%level)+1, random, options...)
+				i := int(atomic.AddInt32(&genCnt, 1))
+				exprChan <- GenerateRandomExpr((i%level)+1, r, options...)
 				if i%step == 0 {
 					t.Log("generating... current:", i, (i*100)/size, "%")
 				}
 			}
-		}()
+		}(rand.New(rand.NewSource(random.Int63())))
 	}
 
 	go func() {
@@ -518,10 +506,10 @@ func TestRandomExpressions(t *testing.T) {
 	var cwg sync.WaitGroup
 	for c := 0; c < consumerCount; c++ {
 		cwg.Add(1)
-		go func() {
+		go func(r *rand.Rand) {
 			defer cwg.Done()
 			for expr := range exprChan {
-				v := randomInt(0b1000)
+				v := r.Intn(0b1000)
 				// combination of optimizations
 				cc := CopyCompileConfig(conf)
 				cc.OptimizeOptions[Reordering] = v&0b1 != 0
@@ -530,22 +518,25 @@ func TestRandomExpressions(t *testing.T) {
 				ctx := NewCtxWithMap(cc, valMap)
 				got, err := Eval(cc, expr.Expr, ctx)
 
-				resChan <- execRes{
+				verifyChan <- execRes{
 					expr: expr,
 					got:  got,
 					err:  err,
 				}
 			}
-		}()
+		}(rand.New(rand.NewSource(random.Int63())))
 	}
 
 	go func() {
 		cwg.Wait()
-		close(resChan)
+		close(verifyChan)
 	}()
 
+	const line = "----------"
+
+	prev := time.Now()
 	var i int
-	for res := range resChan {
+	for res := range verifyChan {
 		i++
 		expr, got, err := res.expr, res.got, res.err
 		if err != nil {
@@ -563,7 +554,16 @@ func TestRandomExpressions(t *testing.T) {
 			if showSample {
 				fmt.Println(GenerateTestCase(expr, valMap))
 			}
-			//t.Logf("Channel status: %% exprChan: %d, resChan: %d\n", len(exprChan), len(resChan))
+			if printProgress {
+				if i == step {
+					fmt.Printf("|%10s|%10s|%10s|%10s|%10s|%10s|%10s|\n", "gen progs", "exec progs", "gen count", "exec count", "gen chan", "exec chan", "time")
+					fmt.Printf("|%10s|%10s|%10s|%10s|%10s|%10s|%10s|\n", line, line, line, line, line, line, line)
+				}
+
+				j := atomic.LoadInt32(&genCnt)
+				fmt.Printf("|%8d %%|%8d %%|%10d|%10d|%10d|%10d|%10s|\n", (j*100)/size, (i*100)/size, j, i, len(exprChan), len(verifyChan), time.Since(prev).Truncate(time.Millisecond))
+				prev = time.Now()
+			}
 		}
 	}
 }
