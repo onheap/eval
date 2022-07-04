@@ -51,7 +51,6 @@ func TestDebugCases(t *testing.T) {
 			valMap:        nil,
 		},
 		{
-			run:           ________RunThisOne________,
 			want:          true,
 			optimizeLevel: disable,
 			s: `
@@ -79,7 +78,6 @@ func TestDebugCases(t *testing.T) {
 		},
 
 		{
-			run:           ________RunThisOne________,
 			want:          false,
 			optimizeLevel: disable,
 			s: `
@@ -93,6 +91,7 @@ func TestDebugCases(t *testing.T) {
 			},
 		},
 		{
+			run:           ________RunThisOne________,
 			want:          true,
 			optimizeLevel: disable,
 			s: `

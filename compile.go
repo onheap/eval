@@ -125,12 +125,13 @@ func calAndSetParentIndex(e *Expr) {
 	f[0] = -1
 
 	for i := 0; i < size; i++ {
-		cCnt := int(e.childCounts[i])
+		n := e.nodes[i]
+		cCnt := int(n.childCnt)
 		if cCnt == 0 {
 			continue
 		}
-		sIdx := int(e.childStartIndex[i])
-		for j := sIdx; j < sIdx+cCnt; j++ {
+		cIdx := int(n.childIdx)
+		for j := cIdx; j < cIdx+cCnt; j++ {
 			f[j] = i
 		}
 	}
@@ -140,7 +141,8 @@ func calAndSetParentIndex(e *Expr) {
 
 func calAndSetStackSize(e *Expr) {
 	var isLeaf = func(e *Expr, idx int) bool {
-		return e.childCounts[idx] == 0 || e.nodes[idx].flag&nodeTypeMask == fastOperator
+		n := e.nodes[idx]
+		return n.childCnt == 0 || n.flag&nodeTypeMask == fastOperator
 	}
 
 	var isCondNode = func(e *Expr, idx int) bool {
@@ -149,7 +151,7 @@ func calAndSetStackSize(e *Expr) {
 
 	var isFirstChild = func(e *Expr, idx int) bool {
 		parentIdx := e.parentIndex[idx]
-		return int(e.childStartIndex[parentIdx]) == idx
+		return int(e.nodes[parentIdx].childIdx) == idx
 
 	}
 
@@ -164,7 +166,7 @@ func calAndSetStackSize(e *Expr) {
 		if isLeaf(e, parentIdx) {
 			f1[i] = f1[parentIdx]
 		} else {
-			siblingCount := int(e.childStartIndex[parentIdx]) + int(e.childCounts[parentIdx]) - 1 - i
+			siblingCount := int(e.nodes[parentIdx].childIdx) + int(e.nodes[parentIdx].childCnt) - 1 - i
 			// f[i] = f[pIdx] + right sibling count + 1
 
 			if isCondNode(e, parentIdx) {
@@ -195,11 +197,11 @@ func calAndSetStackSize(e *Expr) {
 
 		if isLeaf(e, i) {
 			// f[i] = f[pIdx] + left sibling count + 1
-			siblingCount := i - int(e.childStartIndex[parentIdx])
+			siblingCount := i - int(e.nodes[parentIdx].childIdx)
 			f2[i] = f2[parentIdx] + siblingCount + 1
 		} else {
 			// f[i] = f[pIdx] + left sibling count
-			siblingCount := i - int(e.childStartIndex[parentIdx])
+			siblingCount := i - int(e.nodes[parentIdx].childIdx)
 			f2[i] = f2[parentIdx] + siblingCount
 		}
 	}
@@ -224,26 +226,13 @@ func calAndSetShortCircuit(e *Expr) {
 			return false
 		}
 
-		cnt := int(e.childCounts[parentIdx])
-		startIdx := int(e.childStartIndex[parentIdx])
-		if startIdx+cnt-1 == idx {
+		cnt := int(e.nodes[parentIdx].childCnt)
+		childIdx := int(e.nodes[parentIdx].childIdx)
+		if childIdx+cnt-1 == idx {
 			return true
 		}
 		return false
 	}
-
-	var isFirstChild = func(n *node) bool {
-		idx := int(n.idx)
-		parentIdx := e.parentIndex[idx]
-		if parentIdx == -1 {
-			return false
-		}
-
-		startIdx := int(e.childStartIndex[parentIdx])
-		return idx == startIdx
-	}
-
-	_ = isFirstChild
 
 	var parentNode = func(n *node) *node {
 		parentIdx := e.parentIndex[int(n.idx)]
@@ -289,9 +278,7 @@ func calAndSetShortCircuit(e *Expr) {
 		}
 	}
 
-	for i, n := range e.nodes {
-		n.scIdx = int16(f[i])
-	}
+	e.scIdx = f
 }
 
 func optimize(cc *CompileConfig, root *astNode) {
@@ -504,8 +491,8 @@ func optimizeFastEvaluation(cc *CompileConfig, root *astNode) {
 	for _, child := range root.children {
 		optimizeFastEvaluation(cc, child)
 	}
-	node := root.node
-	if (node.flag & nodeTypeMask) != operator {
+	n := root.node
+	if (n.flag & nodeTypeMask) != operator {
 		return
 	}
 
@@ -559,9 +546,7 @@ func check(root *astNode) checkRes {
 
 func compress(root *astNode, size int) *Expr {
 	e := &Expr{
-		nodes:           make([]*node, 0, size),
-		childCounts:     make([]int8, 0, size),
-		childStartIndex: make([]int16, 0, size),
+		nodes: make([]*node, 0, size),
 	}
 	queue := make([]*astNode, 0, size)
 	queue = append(queue, root)
@@ -569,7 +554,7 @@ func compress(root *astNode, size int) *Expr {
 	idx := 0
 	for idx < len(queue) {
 		curt := queue[idx]
-		e.appendNode(curt, len(queue))
+		e.appendNode(curt.node, len(queue), len(curt.children))
 		for _, child := range curt.children {
 			queue = append(queue, child)
 		}
@@ -578,14 +563,14 @@ func compress(root *astNode, size int) *Expr {
 	return e
 }
 
-func (e *Expr) appendNode(n *astNode, childStartIdx int) {
-	n.node.idx = int16(len(e.nodes))
-	e.nodes = append(e.nodes, n.node)
-	e.childCounts = append(e.childCounts, int8(len(n.children)))
-	switch n.node.getNodeType() {
+func (e *Expr) appendNode(n *node, childIndex int, childCnt int) {
+	n.idx = int16(len(e.nodes))
+	n.childCnt = int8(childCnt)
+	switch n.getNodeType() {
 	case value, selector:
-		e.childStartIndex = append(e.childStartIndex, -1)
+		n.childIdx = -1
 	default:
-		e.childStartIndex = append(e.childStartIndex, int16(childStartIdx))
+		n.childIdx = int16(childIndex)
 	}
+	e.nodes = append(e.nodes, n)
 }
