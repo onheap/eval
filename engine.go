@@ -164,7 +164,7 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 				printOperator(curt.value, param, res, err)
 			}
 			if err != nil {
-				return nil, fmt.Errorf("eval error [%w], Operator: %v", err, curt.value)
+				return nil, fmt.Errorf("operator execution error, operator: %v, error: %w", curt.value, err)
 			}
 		case operator:
 			cnt := int(curt.childCnt)
@@ -202,7 +202,7 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 				printOperator(curt.value, param, res, err)
 			}
 			if err != nil {
-				return nil, fmt.Errorf("eval error [%w], Operator: %v", err, curt.value)
+				return nil, fmt.Errorf("operator execution error, operator: %v, error: %w", curt.value, err)
 			}
 		case selector:
 			res, err = getSelectorValue(ctx, curt)
@@ -352,7 +352,7 @@ func printStacks(maxId int, os []Value, osTop int, sf []*node, sfTop int) {
 }
 
 func printOperator(op Value, params []Value, res Value, err error) {
-	fmt.Printf("invoke operator, op: %v, params: %v, res: %v, err: %v\n\n", op, params, res, err)
+	fmt.Printf("execute operator, op: %v, params: %v, res: %v, err: %v\n\n", op, params, res, err)
 }
 
 func printShortCircuit(n *node) {

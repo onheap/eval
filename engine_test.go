@@ -418,7 +418,7 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 
 func TestRandomExpressions(t *testing.T) {
 	const (
-		size          = 200000
+		size          = 10000
 		level         = 53
 		step          = size / 100
 		showSample    = false
@@ -472,6 +472,7 @@ func TestRandomExpressions(t *testing.T) {
 		go func(r *rand.Rand) {
 			defer pwg.Done()
 			for atomic.LoadInt32(&genCnt) < size {
+				i := int(atomic.AddInt32(&genCnt, 1))
 				options := make([]GenExprOption, 0, 4)
 				v := random.Intn(0b1000)
 
@@ -489,7 +490,6 @@ func TestRandomExpressions(t *testing.T) {
 					options = append(options, EnableSelector, GenSelectors(valMap))
 				}
 
-				i := int(atomic.AddInt32(&genCnt, 1))
 				exprChan <- GenerateRandomExpr((i%level)+1, r, options...)
 				if i%step == 0 {
 					t.Log("generating... current:", i, (i*100)/size, "%")
