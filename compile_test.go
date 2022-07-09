@@ -1021,13 +1021,13 @@ func TestCheck(t *testing.T) {
 		},
 		{
 			expr:   fmt.Sprintf(`(+ %s)`, strings.Repeat(`1 `, 128)),
-			errMsg: "expression is too long, operators cannot exceed a maximum of 127 parameters",
+			errMsg: "operators cannot exceed a maximum of 127 parameters",
 		},
 		{
 			expr: fmt.Sprintf(
 				`(and %s)`, strings.Repeat(
 					fmt.Sprintf(`(= %s)`, strings.Repeat(`(= 1 1) `, 127)), 127)),
-			errMsg: "expression is too long, expression cannot exceed a maximum of 32767 nodes",
+			errMsg: "expression cannot exceed a maximum of 32767 nodes",
 		},
 	}
 

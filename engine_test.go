@@ -13,7 +13,7 @@ import (
 )
 
 func TestDebugCases(t *testing.T) {
-	const onlyAllowListCases = false
+	const onlyAllowListCases = true
 
 	type runThis string
 	const ________RunThisOne________ runThis = "________RunThisOne________"
@@ -34,6 +34,20 @@ func TestDebugCases(t *testing.T) {
 		want          Value
 		run           runThis
 	}{
+
+		{
+			run:  ________RunThisOne________,
+			want: true,
+			s: `
+(<
+ (+ 1
+   (- 2 v3) (/ 6 3) 4)
+ (* 5 6 7)
+)`,
+			valMap: map[string]Value{
+				"v3": 3,
+			},
+		},
 
 		{
 			want:          int64(-1),
@@ -91,7 +105,6 @@ func TestDebugCases(t *testing.T) {
 			},
 		},
 		{
-			run:           ________RunThisOne________,
 			want:          true,
 			optimizeLevel: disable,
 			s: `
@@ -176,18 +189,6 @@ func TestDebugCases(t *testing.T) {
 				"select_true_1":  true,
 				"select_false_1": false,
 				"select_false":   false,
-			},
-		},
-		{
-			want: true,
-			s: `
-(<
- (+ 1
-   (- 2 v3) (/ 6 3) 4)
- (* 5 6 7)
-)`,
-			valMap: map[string]Value{
-				"v3": 3,
 			},
 		},
 		{

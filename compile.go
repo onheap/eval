@@ -522,7 +522,7 @@ type checkRes struct {
 func check(root *astNode) checkRes {
 	if len(root.children) > math.MaxInt8 {
 		return checkRes{
-			err: fmt.Errorf("expression is too long, operators cannot exceed a maximum of 127 parameters, got: [%d]", len(root.children)),
+			err: fmt.Errorf("operators cannot exceed a maximum of 127 parameters, got: [%d]", len(root.children)),
 		}
 	}
 
@@ -540,7 +540,7 @@ func check(root *astNode) checkRes {
 
 	if size > math.MaxInt16 {
 		return checkRes{
-			err: fmt.Errorf("expression is too long, expression cannot exceed a maximum of 32767 nodes, got: [%d]", size),
+			err: fmt.Errorf("expression cannot exceed a maximum of 32767 nodes, got: [%d]", size),
 		}
 	}
 
@@ -563,23 +563,25 @@ func compress(root *astNode, size int) *Expr {
 	idx := 0
 	for idx < len(queue) {
 		curt := queue[idx]
-		e.appendNode(curt.node, len(queue), len(curt.children))
+		childIdx := len(queue)
+		childCnt := len(curt.children)
+
+		n := curt.node
+		n.idx = int16(idx)
+		n.childCnt = int8(childCnt)
+		switch n.getNodeType() {
+		case value, selector:
+			n.childIdx = -1
+		default:
+			n.childIdx = int16(childIdx)
+		}
+		e.nodes = append(e.nodes, n)
+
+		//e.appendNode(curt.node, childIdx, childCnt)
 		for _, child := range curt.children {
 			queue = append(queue, child)
 		}
 		idx++
 	}
 	return e
-}
-
-func (e *Expr) appendNode(n *node, childIdx int, childCnt int) {
-	n.idx = int16(len(e.nodes))
-	n.childCnt = int8(childCnt)
-	switch n.getNodeType() {
-	case value, selector:
-		n.childIdx = -1
-	default:
-		n.childIdx = int16(childIdx)
-	}
-	e.nodes = append(e.nodes, n)
 }
