@@ -29,6 +29,27 @@ type token struct {
 	pos int
 }
 
+// ast
+type astNode struct {
+	node     *node
+	children []*astNode
+	cost     int
+}
+
+type parser struct {
+	source string
+	conf   *CompileConfig
+	tokens []token
+	idx    int
+}
+
+func newParser(cc *CompileConfig, source string) *parser {
+	return &parser{
+		source: source,
+		conf:   cc,
+	}
+}
+
 func (p *parser) lex() error {
 	var (
 		nextToken = func(A []rune, i int) (string, int) {
@@ -218,27 +239,6 @@ func (p *parser) checkParentheses() error {
 	}
 
 	return nil
-}
-
-// ast
-type astNode struct {
-	node     *node
-	children []*astNode
-	cost     int
-}
-
-type parser struct {
-	source string
-	conf   *CompileConfig
-	tokens []token
-	idx    int
-}
-
-func newParser(cc *CompileConfig, source string) *parser {
-	return &parser{
-		source: source,
-		conf:   cc,
-	}
 }
 
 func (p *parser) parse() (*astNode, *CompileConfig, error) {
@@ -468,8 +468,9 @@ func (p *parser) parseExpression() (*astNode, error) {
 			p.walk()
 			return &astNode{
 				node: &node{
-					flag:  selector,
-					value: t.val,
+					flag:   selector,
+					value:  t.val,
+					selKey: UndefinedSelKey,
 				},
 			}, nil
 		}
@@ -496,7 +497,49 @@ func (p *parser) parseExpression() (*astNode, error) {
 	}
 
 	p.walk()
-	return p.buildNode(car, children)
+
+	var n *astNode
+	if p.isKeyword(car) {
+		n, err = p.buildKeywordNode(car, children)
+	} else {
+		n, err = p.buildNode(car, children)
+	}
+
+	return n, err
+}
+
+func (p *parser) isKeyword(car token) bool {
+	keywords := []string{"if", "let", "map", "filter", "any", "all", "collect", "reduce"}
+	for _, keyword := range keywords {
+		if car.val == keyword {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *parser) buildKeywordNode(car token, children []*astNode) (*astNode, error) {
+	if car.val != "if" {
+		return nil, p.errWithToken(fmt.Errorf("[%s] is not currently supported", car.val), car)
+	}
+
+	n := &astNode{
+		node: &node{value: car.val},
+	}
+
+	if len(children) != 3 {
+		return nil, p.paramsCountErr(3, len(children), car)
+	}
+
+	// append an end node
+	//children = append(children, &astNode{
+	//	node: &node{flag: end},
+	//})
+
+	n.node.flag = cond
+	n.children = children
+
+	return n, nil
 }
 
 func (p *parser) buildNode(car token, children []*astNode) (*astNode, error) {
@@ -505,13 +548,6 @@ func (p *parser) buildNode(car token, children []*astNode) (*astNode, error) {
 		children: children,
 	}
 
-	if car.val == "if" {
-		if len(children) != 3 {
-			return nil, p.paramsCountErr(3, len(children), car)
-		}
-		treeNode.node.flag = cond
-		return treeNode, nil
-	}
 	// parse op node
 	op, exist := builtinOperators[car.val]
 	if !exist {

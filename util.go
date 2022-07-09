@@ -364,12 +364,12 @@ func IndentByParentheses(s string) string {
 	return strings.TrimSpace(sb.String())
 }
 
-func PrintCode(e *Expr) string {
+func Dump(e *Expr) string {
 	var helper func(*node) (string, bool)
 
 	helper = func(root *node) (string, bool) {
 		if root.childCnt == 0 {
-			return printLeafNode(root)
+			return dumpLeafNode(root)
 		}
 
 		var sb strings.Builder
@@ -395,7 +395,7 @@ func PrintCode(e *Expr) string {
 	return res
 }
 
-func printLeafNode(node *node) (string, bool) {
+func dumpLeafNode(node *node) (string, bool) {
 	if node.getNodeType() == selector {
 		return fmt.Sprint(node.value), true
 	}

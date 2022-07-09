@@ -118,7 +118,7 @@ func TestPrintCode(t *testing.T) {
 	expr, err := Compile(cc, s)
 	assertNil(t, err)
 
-	res := PrintCode(expr)
+	res := Dump(expr)
 
 	assertEquals(t, res, `(or
   (and

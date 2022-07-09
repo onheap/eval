@@ -342,7 +342,7 @@ func TestDebugCases(t *testing.T) {
 		expr, err := Compile(cc, c.s)
 		assertNil(t, err)
 
-		fmt.Println(PrintCode(expr))
+		fmt.Println(Dump(expr))
 		fmt.Println()
 		fmt.Println(PrintExpr(expr, c.fields...))
 
