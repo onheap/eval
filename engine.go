@@ -31,7 +31,7 @@ const (
 type node struct {
 	flag     uint8
 	childCnt int8
-	idx      int16
+	scIdx    int16
 	childIdx int16
 	selKey   SelectorKey
 	value    Value
@@ -247,15 +247,15 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 					printShortCircuit(curt)
 				}
 
-				scIdx := e.scIdx[curt.idx]
-				if scIdx == 0 {
+				curtIdx = int(curt.scIdx)
+				if curtIdx == 0 {
 					return res, nil
 				}
 
-				maxIdx = scIdx
-				sfTop = e.sfSize[scIdx] - 2
-				osTop = e.osSize[scIdx] - 1
-				curt = e.nodes[scIdx]
+				maxIdx = curtIdx
+				sfTop = e.sfSize[curtIdx] - 2
+				osTop = e.osSize[curtIdx] - 1
+				curt = e.nodes[curtIdx]
 			}
 		}
 

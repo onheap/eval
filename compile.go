@@ -227,8 +227,7 @@ func calAndSetStackSize(e *Expr) {
 }
 
 func calAndSetShortCircuit(e *Expr) {
-	var isLastChild = func(n *node) bool {
-		idx := int(n.idx)
+	var isLastChild = func(idx int) bool {
 		parentIdx := e.parentIdx[idx]
 		if parentIdx == -1 {
 			return false
@@ -242,12 +241,12 @@ func calAndSetShortCircuit(e *Expr) {
 		return false
 	}
 
-	var parentNode = func(n *node) *node {
-		parentIdx := e.parentIdx[int(n.idx)]
-		if parentIdx == -1 {
-			return nil
+	var parentNode = func(idx int) (*node, int) {
+		pIdx := e.parentIdx[idx]
+		if pIdx == -1 {
+			return nil, -1
 		}
-		return e.nodes[parentIdx]
+		return e.nodes[pIdx], pIdx
 	}
 
 	const mask = scIfTrue | scIfFalse
@@ -257,8 +256,7 @@ func calAndSetShortCircuit(e *Expr) {
 	f := make([]int, size)
 	for i := 1; i < size; i++ {
 		n := e.nodes[i]
-		p := parentNode(n)
-		pIdx := int(p.idx)
+		p, pIdx := parentNode(i)
 
 		if n.getNodeType() == end {
 			f[i] = f[pIdx]
@@ -272,7 +270,7 @@ func calAndSetShortCircuit(e *Expr) {
 		}
 		var flag uint8
 		switch {
-		case isLastChild(n):
+		case isLastChild(i):
 			flag |= scIfTrue
 			flag |= scIfFalse
 		case isAndOpNode(p):
@@ -289,13 +287,16 @@ func calAndSetShortCircuit(e *Expr) {
 		// it can directly short-circuit to the target node of its parent
 		for p.flag&flag == flag {
 			f[i] = f[pIdx]
-			p = parentNode(p)
-			pIdx = int(p.idx)
+			p, pIdx = parentNode(pIdx)
 		}
 	}
 
 	//e.scIdx = f
 	copy(e.scIdx, f)
+
+	for i := 0; i < size; i++ {
+		e.nodes[i].scIdx = int16(f[i])
+	}
 }
 
 func optimize(cc *CompileConfig, root *astNode) {
@@ -581,7 +582,6 @@ func compress(root *astNode, size int) *Expr {
 		childCnt := len(curt.children)
 
 		n := curt.node
-		n.idx = int16(idx)
 		n.childCnt = int8(childCnt)
 		switch n.getNodeType() {
 		case constant, selector:
