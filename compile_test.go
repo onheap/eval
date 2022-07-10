@@ -140,7 +140,7 @@ func TestOptimizeConstantFolding(t *testing.T) {
 		{
 			expr: `(+ 1 1)`,
 			ast: verifyNode{
-				tpy:  value,
+				tpy:  constant,
 				data: int64(2),
 			},
 		},
@@ -148,7 +148,7 @@ func TestOptimizeConstantFolding(t *testing.T) {
 		{
 			expr: `(= 1 1)`,
 			ast: verifyNode{
-				tpy:  value,
+				tpy:  constant,
 				data: true,
 			},
 		},
@@ -162,7 +162,7 @@ func TestOptimizeConstantFolding(t *testing.T) {
 )
 `,
 			ast: verifyNode{
-				tpy:  value,
+				tpy:  constant,
 				data: int64(-204),
 			},
 		},
@@ -175,7 +175,7 @@ func TestOptimizeConstantFolding(t *testing.T) {
 )
 `,
 			ast: verifyNode{
-				tpy:  value,
+				tpy:  constant,
 				data: true,
 			},
 		},
@@ -199,20 +199,20 @@ func TestOptimizeConstantFolding(t *testing.T) {
 						tpy:  operator,
 						data: "+",
 						children: []verifyNode{
-							{tpy: value, data: int64(1)},
+							{tpy: constant, data: int64(1)},
 							{
 								tpy:  operator,
 								data: "-",
 								children: []verifyNode{
-									{tpy: value, data: int64(2)},
+									{tpy: constant, data: int64(2)},
 									{tpy: selector, data: "v3"},
 								},
 							},
-							{tpy: value, data: int64(2)},
-							{tpy: value, data: int64(4)},
+							{tpy: constant, data: int64(2)},
+							{tpy: constant, data: int64(4)},
 						},
 					},
-					{tpy: value, data: int64(210)},
+					{tpy: constant, data: int64(210)},
 				},
 			},
 		},
@@ -225,7 +225,7 @@ func TestOptimizeConstantFolding(t *testing.T) {
 )
 `,
 			ast: verifyNode{
-				tpy:  value,
+				tpy:  constant,
 				data: false,
 			},
 		},
@@ -253,7 +253,7 @@ func TestOptimizeConstantFolding(t *testing.T) {
 							{tpy: selector, data: "app_version"},
 						},
 					},
-					{tpy: value, data: int64(1_0002_0003)},
+					{tpy: constant, data: int64(1_0002_0003)},
 				},
 			},
 		},
@@ -276,7 +276,7 @@ func TestOptimizeConstantFolding(t *testing.T) {
 				},
 			},
 			ast: verifyNode{
-				tpy:  value,
+				tpy:  constant,
 				data: false,
 			},
 		},
@@ -299,7 +299,7 @@ func TestOptimizeConstantFolding(t *testing.T) {
 				},
 			},
 			ast: verifyNode{
-				tpy:  value,
+				tpy:  constant,
 				data: true,
 			},
 		},
@@ -343,8 +343,8 @@ func TestOptimizeConstantFolding(t *testing.T) {
 				tpy:  operator,
 				data: "is_child",
 				children: []verifyNode{
-					{tpy: value, data: "2022-02-02"},
-					{tpy: value, data: "2006-01-02"},
+					{tpy: constant, data: "2022-02-02"},
+					{tpy: constant, data: "2006-01-02"},
 				},
 			},
 		},
@@ -381,7 +381,7 @@ func TestOptimizeFastEvaluation(t *testing.T) {
 				tpy:  fastOperator,
 				data: "+",
 				children: []verifyNode{
-					{tpy: value, data: int64(1)},
+					{tpy: constant, data: int64(1)},
 					{tpy: selector, data: "v1"},
 				},
 			},
@@ -425,7 +425,7 @@ func TestOptimizeFastEvaluation(t *testing.T) {
 						tpy:  fastOperator,
 						data: "+",
 						children: []verifyNode{
-							{tpy: value, data: int64(1)},
+							{tpy: constant, data: int64(1)},
 							{tpy: selector, data: "v1"},
 						},
 					},
@@ -434,7 +434,7 @@ func TestOptimizeFastEvaluation(t *testing.T) {
 						data: "*",
 						children: []verifyNode{
 							{tpy: selector, data: "v2"},
-							{tpy: value, data: int64(3)},
+							{tpy: constant, data: int64(3)},
 							{tpy: selector, data: "v4"},
 						},
 					},
@@ -462,12 +462,12 @@ func TestOptimizeFastEvaluation(t *testing.T) {
 						tpy:  operator,
 						data: "+",
 						children: []verifyNode{
-							{tpy: value, data: int64(1)},
+							{tpy: constant, data: int64(1)},
 							{
 								tpy:  fastOperator,
 								data: "-",
 								children: []verifyNode{
-									{tpy: value, data: int64(2)},
+									{tpy: constant, data: int64(2)},
 									{tpy: selector, data: "v3"},
 								},
 							},
@@ -475,20 +475,20 @@ func TestOptimizeFastEvaluation(t *testing.T) {
 								tpy:  fastOperator,
 								data: "/",
 								children: []verifyNode{
-									{tpy: value, data: int64(6)},
-									{tpy: value, data: int64(3)},
+									{tpy: constant, data: int64(6)},
+									{tpy: constant, data: int64(3)},
 								},
 							},
-							{tpy: value, data: int64(4)},
+							{tpy: constant, data: int64(4)},
 						},
 					},
 					{
 						tpy:  fastOperator,
 						data: "*",
 						children: []verifyNode{
-							{tpy: value, data: int64(5)},
-							{tpy: value, data: int64(6)},
-							{tpy: value, data: int64(7)},
+							{tpy: constant, data: int64(5)},
+							{tpy: constant, data: int64(6)},
+							{tpy: constant, data: int64(7)},
 						},
 					},
 				},
@@ -540,7 +540,7 @@ func TestOptimizeFastEvaluation(t *testing.T) {
 				data: "is_child",
 				children: []verifyNode{
 					{tpy: selector, data: "birthday"},
-					{tpy: value, data: "Jan 02, 2006"}, // constant nodes will be replaced directly with the value
+					{tpy: constant, data: "Jan 02, 2006"}, // constant nodes will be replaced directly with the value
 				},
 			},
 		},
@@ -580,7 +580,7 @@ func TestReordering(t *testing.T) {
 				data: "+",
 				cost: 31, // 5(base) + 3(loops) + 10(op cost) + 13(children cost)
 				children: []verifyNode{
-					{tpy: value, data: int64(1), cost: 1},
+					{tpy: constant, data: int64(1), cost: 1},
 					{tpy: selector, data: "v1", cost: 12}, // 7 + 5
 				},
 			},
@@ -599,7 +599,7 @@ func TestReordering(t *testing.T) {
 				data: "+",
 				cost: 28, // 5(base) + 10(op cost) + 13(children cost)
 				children: []verifyNode{
-					{tpy: value, data: int64(1), cost: 1},
+					{tpy: constant, data: int64(1), cost: 1},
 					{tpy: selector, data: "v1", cost: 12}, // 7 + 5
 				},
 			},
@@ -682,7 +682,7 @@ func TestReordering(t *testing.T) {
 						cost: 34,
 						children: []verifyNode{
 							{tpy: selector, data: "v2", cost: 15},
-							{tpy: value, data: int64(2), cost: 1},
+							{tpy: constant, data: int64(2), cost: 1},
 						},
 					},
 					{
@@ -691,7 +691,7 @@ func TestReordering(t *testing.T) {
 						cost: 44,
 						children: []verifyNode{
 							{tpy: selector, data: "v1", cost: 25},
-							{tpy: value, data: int64(1), cost: 1},
+							{tpy: constant, data: int64(1), cost: 1},
 						},
 					},
 				},
@@ -726,13 +726,13 @@ func TestReordering(t *testing.T) {
 				data: "or",
 				cost: 138, // 5 + 4*1 + 3 + (1 + 16 + 109)
 				children: []verifyNode{
-					{tpy: value, data: false, cost: 1},
+					{tpy: constant, data: false, cost: 1},
 					{
 						tpy:  fastOperator,
 						data: "<",
 						cost: 16,
 						children: []verifyNode{
-							{tpy: value, data: int64(5), cost: 1},
+							{tpy: constant, data: int64(5), cost: 1},
 							{tpy: selector, data: "v6", cost: 7},
 						},
 					},
@@ -752,7 +752,7 @@ func TestReordering(t *testing.T) {
 										cost: 16, //  5 + 3 + (7 + 1)
 										children: []verifyNode{
 											{tpy: selector, data: "v6", cost: 7},
-											{tpy: value, data: int64(3), cost: 1},
+											{tpy: constant, data: int64(3), cost: 1},
 										},
 									},
 									{tpy: selector, data: "v4", cost: 7},
@@ -763,7 +763,7 @@ func TestReordering(t *testing.T) {
 								data: "=",
 								cost: 64, // 5 + 3 + (1 + 55)
 								children: []verifyNode{
-									{tpy: value, data: int64(3), cost: 1},
+									{tpy: constant, data: int64(3), cost: 1},
 									{tpy: selector, data: "v3", cost: 55},
 								},
 							},
@@ -812,7 +812,7 @@ func TestOptimize(t *testing.T) {
 				tpy:  fastOperator,
 				data: "+",
 				children: []verifyNode{
-					{tpy: value, data: int64(1)},
+					{tpy: constant, data: int64(1)},
 					{tpy: selector, data: "v1"},
 				},
 			},
@@ -821,7 +821,7 @@ func TestOptimize(t *testing.T) {
 		{
 			expr: `(= 1 1)`,
 			ast: verifyNode{
-				tpy:  value,
+				tpy:  constant,
 				data: true,
 			},
 		},
@@ -853,13 +853,13 @@ func TestOptimize(t *testing.T) {
 				data: "or",
 				cost: 120, // 5 + 4*1 + 3 + (1 + 16 + 91)
 				children: []verifyNode{
-					{tpy: value, data: false, cost: 1},
+					{tpy: constant, data: false, cost: 1},
 					{
 						tpy:  fastOperator,
 						data: "<",
 						cost: 16,
 						children: []verifyNode{
-							{tpy: value, data: int64(5), cost: 1},
+							{tpy: constant, data: int64(5), cost: 1},
 							{tpy: selector, data: "v6", cost: 7},
 						},
 					},
@@ -873,7 +873,7 @@ func TestOptimize(t *testing.T) {
 								data: "<",
 								cost: 16, // 5 + 3 + (1 + 7)
 								children: []verifyNode{
-									{tpy: value, data: int64(2), cost: 1},
+									{tpy: constant, data: int64(2), cost: 1},
 									{tpy: selector, data: "v4", cost: 7},
 								},
 							},
@@ -882,7 +882,7 @@ func TestOptimize(t *testing.T) {
 								data: "=",
 								cost: 64, // 5 + 3 + (1 + 55)
 								children: []verifyNode{
-									{tpy: value, data: int64(3), cost: 1},
+									{tpy: constant, data: int64(3), cost: 1},
 									{tpy: selector, data: "v3", cost: 55},
 								},
 							},
@@ -937,7 +937,7 @@ func TestOptimize(t *testing.T) {
 				data: "is_child",
 				children: []verifyNode{
 					{tpy: selector, data: "birthday"},
-					{tpy: value, data: "Jan 02, 2006"}, // constant nodes will be replaced directly with the value
+					{tpy: constant, data: "Jan 02, 2006"}, // constant nodes will be replaced directly with the value
 				},
 			},
 		},

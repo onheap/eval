@@ -368,7 +368,7 @@ func calculateNodeCosts(conf *CompileConfig, root *astNode) {
 
 	// base cost
 	switch nodeType {
-	case value:
+	case constant:
 		baseCost = inlinedCall
 	case selector:
 		baseCost = funcCall
@@ -444,7 +444,7 @@ func optimizeConstantFolding(cc *CompileConfig, root *astNode) error {
 
 	if isBoolOpNode(n) {
 		for _, child := range root.children {
-			if child.node.getNodeType() != value {
+			if child.node.getNodeType() != constant {
 				continue
 			}
 
@@ -455,7 +455,7 @@ func optimizeConstantFolding(cc *CompileConfig, root *astNode) error {
 
 			if (b && isOrOpNode(n)) || (!b && isAndOpNode(n)) {
 				root.node = &node{
-					flag:  value,
+					flag:  constant,
 					value: b,
 				}
 				root.children = nil
@@ -466,7 +466,7 @@ func optimizeConstantFolding(cc *CompileConfig, root *astNode) error {
 
 	params := make([]Value, len(root.children))
 	for i, child := range root.children {
-		if child.node.getNodeType() != value {
+		if child.node.getNodeType() != constant {
 			return nil
 		}
 		params[i] = child.node.value
@@ -478,7 +478,7 @@ func optimizeConstantFolding(cc *CompileConfig, root *astNode) error {
 	}
 	root.children = nil
 	root.node = &node{
-		flag:  value,
+		flag:  constant,
 		value: res,
 	}
 	return nil
@@ -517,7 +517,7 @@ func optimizeFastEvaluation(cc *CompileConfig, root *astNode) {
 
 	for _, child := range root.children {
 		typ := child.node.getNodeType()
-		if typ == value || typ == selector {
+		if typ == constant || typ == selector {
 			continue
 		}
 		return
@@ -584,7 +584,7 @@ func compress(root *astNode, size int) *Expr {
 		n.idx = int16(idx)
 		n.childCnt = int8(childCnt)
 		switch n.getNodeType() {
-		case value, selector:
+		case constant, selector:
 			n.childIdx = -1
 		default:
 			n.childIdx = int16(childIdx)

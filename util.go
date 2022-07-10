@@ -483,7 +483,7 @@ func PrintExpr(expr *Expr, fields ...string) string {
 				res = "OPf"
 			case selector:
 				res = "S"
-			case value:
+			case constant:
 				res = "V"
 			case cond:
 				res = "IF"

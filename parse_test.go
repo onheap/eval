@@ -575,8 +575,8 @@ func TestParseAstTree(t *testing.T) {
 				tpy:  operator,
 				data: "+",
 				children: []verifyNode{
-					{tpy: value, data: int64(1)},
-					{tpy: value, data: int64(1)},
+					{tpy: constant, data: int64(1)},
+					{tpy: constant, data: int64(1)},
 				},
 			},
 		},
@@ -600,12 +600,12 @@ func TestParseAstTree(t *testing.T) {
 						tpy:  operator,
 						data: "+",
 						children: []verifyNode{
-							{tpy: value, data: int64(1)},
+							{tpy: constant, data: int64(1)},
 							{
 								tpy:  operator,
 								data: "-",
 								children: []verifyNode{
-									{tpy: value, data: int64(2)},
+									{tpy: constant, data: int64(2)},
 									{tpy: selector, data: "v3", selectKey: SelectorKey(3)},
 								},
 							},
@@ -613,20 +613,20 @@ func TestParseAstTree(t *testing.T) {
 								tpy:  operator,
 								data: "/",
 								children: []verifyNode{
-									{tpy: value, data: int64(-6)},
-									{tpy: value, data: int64(3)},
+									{tpy: constant, data: int64(-6)},
+									{tpy: constant, data: int64(3)},
 								},
 							},
-							{tpy: value, data: int64(4)},
+							{tpy: constant, data: int64(4)},
 						},
 					},
 					{
 						tpy:  operator,
 						data: "*",
 						children: []verifyNode{
-							{tpy: value, data: int64(5)},
-							{tpy: value, data: int64(6)},
-							{tpy: value, data: int64(7)},
+							{tpy: constant, data: int64(5)},
+							{tpy: constant, data: int64(6)},
+							{tpy: constant, data: int64(7)},
 						},
 					},
 				},
@@ -661,10 +661,10 @@ func TestParseAstTree(t *testing.T) {
 						data: "<=",
 						children: []verifyNode{
 							{tpy: selector, data: "age", selectKey: SelectorKey(1)},
-							{tpy: value, data: int64(3)},
+							{tpy: constant, data: int64(3)},
 						},
 					},
-					{tpy: value, data: "👋~ 👶"},
+					{tpy: constant, data: "👋~ 👶"},
 					{
 						tpy:  cond,
 						data: "if",
@@ -678,7 +678,7 @@ func TestParseAstTree(t *testing.T) {
 										data: "in",
 										children: []verifyNode{
 											{tpy: selector, data: "language", selectKey: SelectorKey(2)},
-											{tpy: value, data: []string{"zh", "zh-CN"}},
+											{tpy: constant, data: []string{"zh", "zh-CN"}},
 										},
 									},
 									{
@@ -686,13 +686,13 @@ func TestParseAstTree(t *testing.T) {
 										data: "=",
 										children: []verifyNode{
 											{tpy: selector, data: "country", selectKey: SelectorKey(3)},
-											{tpy: value, data: "CN"},
+											{tpy: constant, data: "CN"},
 										},
 									},
 								},
 							},
-							{tpy: value, data: "你好"},
-							{tpy: value, data: "hello"},
+							{tpy: constant, data: "你好"},
+							{tpy: constant, data: "hello"},
 							{tpy: end, data: "end"},
 						},
 					},
@@ -745,7 +745,7 @@ func TestParseAstTree(t *testing.T) {
 				data: "is_child",
 				children: []verifyNode{
 					{tpy: selector, data: "birthday", selectKey: SelectorKey(3)},
-					{tpy: value, data: "Jan 02, 2006"}, // constant nodes will be replaced directly with the value
+					{tpy: constant, data: "Jan 02, 2006"}, // constant nodes will be replaced directly with the value
 				},
 			},
 		},
@@ -766,14 +766,14 @@ func TestParseAstTree(t *testing.T) {
 		{
 			expr: `()`,
 			ast: verifyNode{
-				tpy:  value,
+				tpy:  constant,
 				data: []string{},
 			},
 		},
 		{
 			expr: `(1)`,
 			ast: verifyNode{
-				tpy:  value,
+				tpy:  constant,
 				data: []int64{1},
 			},
 		},
@@ -783,8 +783,8 @@ func TestParseAstTree(t *testing.T) {
 				tpy:  operator,
 				data: "overlap",
 				children: []verifyNode{
-					{tpy: value, data: []string{}},
-					{tpy: value, data: []int64{1, 2, 4}},
+					{tpy: constant, data: []string{}},
+					{tpy: constant, data: []int64{1, 2, 4}},
 				},
 			},
 		},
@@ -794,8 +794,8 @@ func TestParseAstTree(t *testing.T) {
 				tpy:  operator,
 				data: "in",
 				children: []verifyNode{
-					{tpy: value, data: ""},
-					{tpy: value, data: []string{}},
+					{tpy: constant, data: ""},
+					{tpy: constant, data: []string{}},
 				},
 			},
 		},
@@ -813,7 +813,7 @@ func TestParseAstTree(t *testing.T) {
 				data: "<",
 				children: []verifyNode{
 					{tpy: selector, data: "age"},
-					{tpy: value, data: int64(18)},
+					{tpy: constant, data: int64(18)},
 				},
 			},
 		},

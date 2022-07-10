@@ -347,7 +347,7 @@ func (p *parser) pos(i int) string {
 func (p *parser) valNode(v Value) *astNode {
 	return &astNode{
 		node: &node{
-			flag:  value,
+			flag:  constant,
 			value: v,
 		},
 	}
@@ -377,7 +377,7 @@ func (p *parser) parseList() (*astNode, error) {
 
 	// todo: return error when list is empty
 
-	n := &node{flag: value}
+	n := &node{flag: constant}
 	if typ == integer {
 		ints := make([]int64, 0, len(strs))
 		for _, s := range strs {

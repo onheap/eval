@@ -16,7 +16,7 @@ type (
 const (
 	// node types
 	nodeTypeMask = uint8(0b111)
-	value        = uint8(0b001)
+	constant     = uint8(0b001)
 	selector     = uint8(0b010)
 	operator     = uint8(0b011)
 	fastOperator = uint8(0b100)
@@ -129,7 +129,7 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 
 	for sfTop != -1 { // while stack frame is not empty
 		if debug {
-			//printStacks(maxIdx, os, osTop, sf, sfTop)
+			printStacks(e, maxIdx, os, osTop, sf, sfTop)
 		}
 		curtIdx, sfTop = sf[sfTop], sfTop-1
 		curt = e.nodes[curtIdx]
@@ -209,7 +209,7 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 			if err != nil {
 				return nil, err
 			}
-		case value:
+		case constant:
 			res = curt.value
 		case cond:
 			childIdx := int(curt.childIdx)
@@ -304,7 +304,7 @@ func unifyType(val Value) Value {
 }
 
 func getNodeValue(ctx *Ctx, n *node) (res Value, err error) {
-	if n.flag&nodeTypeMask == value {
+	if n.flag&nodeTypeMask == constant {
 		res = n.value
 	} else {
 		res, err = getSelectorValue(ctx, n)
@@ -326,13 +326,13 @@ func getSelectorValue(ctx *Ctx, n *node) (Value, error) {
 	}
 }
 
-func printStacks(maxId int, os []Value, osTop int, sf []*node, sfTop int) {
+func printStacks(e *Expr, maxId int, os []Value, osTop int, sf []int, sfTop int) {
 	var sb strings.Builder
 
 	fmt.Printf("maxId:%d, sfTop:%d, osTop:%d\n", maxId, sfTop, osTop)
 	sb.WriteString(fmt.Sprintf("%15s", "Stack Frame: "))
 	for i := sfTop; i >= 0; i-- {
-		sb.WriteString(fmt.Sprintf("|%4v", sf[i].value))
+		sb.WriteString(fmt.Sprintf("|%4v", e.nodes[sf[i]].value))
 	}
 	sb.WriteString("|\n")
 
