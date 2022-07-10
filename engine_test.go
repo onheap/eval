@@ -13,7 +13,7 @@ import (
 )
 
 func TestDebugCases(t *testing.T) {
-	const onlyAllowListCases = true
+	const onlyAllowListCases = false
 
 	type runThis string
 	const ________RunThisOne________ runThis = "________RunThisOne________"
