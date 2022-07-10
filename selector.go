@@ -2,6 +2,7 @@ package eval
 
 import (
 	"fmt"
+	"math"
 )
 
 var (
@@ -10,6 +11,8 @@ var (
 		"false": false,
 	}
 )
+
+const UndefinedSelKey SelectorKey = math.MinInt16
 
 // Selector is used to get values of the expression variables.
 // Note that there are two types of keys in each method parameters,

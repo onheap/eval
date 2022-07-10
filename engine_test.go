@@ -13,7 +13,7 @@ import (
 )
 
 func TestDebugCases(t *testing.T) {
-	const onlyAllowListCases = false
+	const onlyAllowListCases = true
 
 	type runThis string
 	const ________RunThisOne________ runThis = "________RunThisOne________"
@@ -34,6 +34,74 @@ func TestDebugCases(t *testing.T) {
 		want          Value
 		run           runThis
 	}{
+		{
+			run:           ________RunThisOne________,
+			want:          true,
+			optimizeLevel: disable,
+			s: `
+(not
+  (and
+    (if T
+      (!= 0 0)
+      (= 0 0))
+    (= 0 0)
+    (= 0 0)))`,
+			valMap: map[string]Value{
+				"T": true,
+				"F": false,
+			},
+		},
+		{
+			run:           ________RunThisOne________,
+			want:          false,
+			optimizeLevel: disable,
+			s: `
+(or
+  (if
+    (= 1 1)
+    (< 4 2)
+    (!= 5 6))
+  (eq 8 -8))`,
+		},
+		{
+			want:          true,
+			optimizeLevel: disable,
+			s: `
+(if
+  (= 1 2)
+  (not F)
+  (and
+    (!= 3 4) T1 T2))`,
+			valMap: map[string]Value{
+				"T1": true,
+				"T2": true,
+				"F":  false,
+			},
+		},
+		{
+			want:          true,
+			optimizeLevel: disable,
+			s: `
+(eq
+  (if T F T)
+  (not T))`,
+			valMap: map[string]Value{
+				"T": true,
+				"F": false,
+			},
+		},
+		{
+			want: true,
+			s: `
+(<
+ (+ 1
+   (- 2 v3) (/ 6 3) 4)
+ (* 5 6 7)
+)`,
+			valMap: map[string]Value{
+				"v3": 3,
+			},
+		},
 
 		{
 			want:          int64(-1),
@@ -91,7 +159,6 @@ func TestDebugCases(t *testing.T) {
 			},
 		},
 		{
-			run:           ________RunThisOne________,
 			want:          true,
 			optimizeLevel: disable,
 			s: `
@@ -99,18 +166,6 @@ func TestDebugCases(t *testing.T) {
   (or
     (eq 1 2) T)
   (= 3 4))`,
-			valMap: map[string]Value{
-				"T": true,
-				"F": false,
-			},
-		},
-		{
-			want:          true,
-			optimizeLevel: disable,
-			s: `
-(eq
-  (if T F T)
-  (not T))`,
 			valMap: map[string]Value{
 				"T": true,
 				"F": false,
@@ -176,18 +231,6 @@ func TestDebugCases(t *testing.T) {
 				"select_true_1":  true,
 				"select_false_1": false,
 				"select_false":   false,
-			},
-		},
-		{
-			want: true,
-			s: `
-(<
- (+ 1
-   (- 2 v3) (/ 6 3) 4)
- (* 5 6 7)
-)`,
-			valMap: map[string]Value{
-				"v3": 3,
 			},
 		},
 		{
@@ -341,7 +384,7 @@ func TestDebugCases(t *testing.T) {
 		expr, err := Compile(cc, c.s)
 		assertNil(t, err)
 
-		fmt.Println(PrintCode(expr))
+		fmt.Println(Dump(expr))
 		fmt.Println()
 		fmt.Println(PrintExpr(expr, c.fields...))
 
@@ -418,7 +461,7 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 
 func TestRandomExpressions(t *testing.T) {
 	const (
-		size          = 200000
+		size          = 3000000
 		level         = 53
 		step          = size / 100
 		showSample    = false
@@ -472,6 +515,7 @@ func TestRandomExpressions(t *testing.T) {
 		go func(r *rand.Rand) {
 			defer pwg.Done()
 			for atomic.LoadInt32(&genCnt) < size {
+				i := int(atomic.AddInt32(&genCnt, 1))
 				options := make([]GenExprOption, 0, 4)
 				v := random.Intn(0b1000)
 
@@ -489,7 +533,6 @@ func TestRandomExpressions(t *testing.T) {
 					options = append(options, EnableSelector, GenSelectors(valMap))
 				}
 
-				i := int(atomic.AddInt32(&genCnt, 1))
 				exprChan <- GenerateRandomExpr((i%level)+1, r, options...)
 				if i%step == 0 {
 					t.Log("generating... current:", i, (i*100)/size, "%")

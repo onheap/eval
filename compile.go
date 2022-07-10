@@ -150,6 +150,10 @@ func calAndSetStackSize(e *Expr) {
 		return e.nodes[idx].flag&nodeTypeMask == cond
 	}
 
+	var isEndNode = func(e *Expr, idx int) bool {
+		return e.nodes[idx].flag&nodeTypeMask == end
+	}
+
 	var isFirstChild = func(e *Expr, idx int) bool {
 		parentIdx := e.parentIdx[idx]
 		return int(e.nodes[parentIdx].childIdx) == idx
@@ -164,7 +168,7 @@ func calAndSetStackSize(e *Expr) {
 		parentIdx := e.parentIdx[i]
 
 		// f1
-		if isLeaf(e, parentIdx) {
+		if isLeaf(e, parentIdx) || isEndNode(e, i) {
 			f1[i] = f1[parentIdx]
 		} else {
 			siblingCount := int(e.nodes[parentIdx].childIdx) + int(e.nodes[parentIdx].childCnt) - 1 - i
@@ -182,7 +186,7 @@ func calAndSetStackSize(e *Expr) {
 		}
 
 		// f2
-		if isLeaf(e, parentIdx) {
+		if isLeaf(e, parentIdx) || isEndNode(e, i) {
 			f2[i] = f2[parentIdx]
 			continue
 		}
@@ -246,6 +250,8 @@ func calAndSetShortCircuit(e *Expr) {
 		return e.nodes[parentIdx]
 	}
 
+	const mask = scIfTrue | scIfFalse
+
 	size := len(e.nodes)
 
 	f := make([]int, size)
@@ -253,6 +259,12 @@ func calAndSetShortCircuit(e *Expr) {
 		n := e.nodes[i]
 		p := parentNode(n)
 		pIdx := int(p.idx)
+
+		if n.getNodeType() == end {
+			f[i] = f[pIdx]
+			n.flag |= p.flag & mask
+			continue
+		}
 
 		if !isBoolOpNode(p) {
 			f[i] = i
@@ -368,6 +380,8 @@ func calculateNodeCosts(conf *CompileConfig, root *astNode) {
 		baseCost = loops*(int64(len(children))+1) + funcCall
 	case cond:
 		baseCost = loops * 4
+	case end:
+		baseCost = 0
 	default:
 		baseCost = 10
 	}
@@ -522,7 +536,7 @@ type checkRes struct {
 func check(root *astNode) checkRes {
 	if len(root.children) > math.MaxInt8 {
 		return checkRes{
-			err: fmt.Errorf("expression is too long, operators cannot exceed a maximum of 127 parameters, got: [%d]", len(root.children)),
+			err: fmt.Errorf("operators cannot exceed a maximum of 127 parameters, got: [%d]", len(root.children)),
 		}
 	}
 
@@ -540,7 +554,7 @@ func check(root *astNode) checkRes {
 
 	if size > math.MaxInt16 {
 		return checkRes{
-			err: fmt.Errorf("expression is too long, expression cannot exceed a maximum of 32767 nodes, got: [%d]", size),
+			err: fmt.Errorf("expression cannot exceed a maximum of 32767 nodes, got: [%d]", size),
 		}
 	}
 
@@ -563,23 +577,24 @@ func compress(root *astNode, size int) *Expr {
 	idx := 0
 	for idx < len(queue) {
 		curt := queue[idx]
-		e.appendNode(curt.node, len(queue), len(curt.children))
+		childIdx := len(queue)
+		childCnt := len(curt.children)
+
+		n := curt.node
+		n.idx = int16(idx)
+		n.childCnt = int8(childCnt)
+		switch n.getNodeType() {
+		case value, selector:
+			n.childIdx = -1
+		default:
+			n.childIdx = int16(childIdx)
+		}
+		e.nodes = append(e.nodes, n)
+
 		for _, child := range curt.children {
 			queue = append(queue, child)
 		}
 		idx++
 	}
 	return e
-}
-
-func (e *Expr) appendNode(n *node, childIdx int, childCnt int) {
-	n.idx = int16(len(e.nodes))
-	n.childCnt = int8(childCnt)
-	switch n.getNodeType() {
-	case value, selector:
-		n.childIdx = -1
-	default:
-		n.childIdx = int16(childIdx)
-	}
-	e.nodes = append(e.nodes, n)
 }

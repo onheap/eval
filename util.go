@@ -364,12 +364,12 @@ func IndentByParentheses(s string) string {
 	return strings.TrimSpace(sb.String())
 }
 
-func PrintCode(e *Expr) string {
+func Dump(e *Expr) string {
 	var helper func(*node) (string, bool)
 
 	helper = func(root *node) (string, bool) {
 		if root.childCnt == 0 {
-			return printLeafNode(root)
+			return dumpLeafNode(root)
 		}
 
 		var sb strings.Builder
@@ -377,6 +377,9 @@ func PrintCode(e *Expr) string {
 		for i := 0; i < int(root.childCnt); i++ {
 			childIdx := int(root.childIdx) + i
 			child := e.nodes[childIdx]
+			if child.getNodeType() == end {
+				continue
+			}
 			cc, isLeaf := helper(child)
 			if isLeaf {
 				sb.WriteString(fmt.Sprintf(" %s", cc))
@@ -395,13 +398,16 @@ func PrintCode(e *Expr) string {
 	return res
 }
 
-func printLeafNode(node *node) (string, bool) {
-	if node.getNodeType() == selector {
+func dumpLeafNode(node *node) (string, bool) {
+	switch node.getNodeType() {
+	case end:
+		return "", true
+	case selector:
 		return fmt.Sprint(node.value), true
-	}
-	if typ := node.getNodeType(); typ == operator || typ == fastOperator {
+	case operator, fastOperator:
 		return fmt.Sprintf("(%v)", node.value), false
 	}
+
 	var res string
 	switch v := node.value.(type) {
 	case string:
@@ -481,6 +487,8 @@ func PrintExpr(expr *Expr, fields ...string) string {
 				res = "V"
 			case cond:
 				res = "IF"
+			case end:
+				res = "END"
 			}
 			return res
 		},
