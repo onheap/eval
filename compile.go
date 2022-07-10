@@ -591,7 +591,6 @@ func compress(root *astNode, size int) *Expr {
 		}
 		e.nodes = append(e.nodes, n)
 
-		//e.appendNode(curt.node, childIdx, childCnt)
 		for _, child := range curt.children {
 			queue = append(queue, child)
 		}
