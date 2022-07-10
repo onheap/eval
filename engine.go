@@ -87,6 +87,7 @@ func (e *Expr) EvalBool(ctx *Ctx) (bool, error) {
 func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 	var (
 		size   = e.maxStackSize
+		nodes  = e.nodes
 		debug  = ctx.Debug
 		maxIdx = -1
 
@@ -132,18 +133,18 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 			printStacks(e, maxIdx, os, osTop, sf, sfTop)
 		}
 		curtIdx, sfTop = sf[sfTop], sfTop-1
-		curt = e.nodes[curtIdx]
+		curt = nodes[curtIdx]
 
 		switch curt.flag & nodeTypeMask {
 		case fastOperator:
 			cnt := int(curt.childCnt)
 			childIdx := int(curt.childIdx)
 			if cnt == 2 {
-				param2[0], err = getNodeValue(ctx, e.nodes[childIdx])
+				param2[0], err = getNodeValue(ctx, nodes[childIdx])
 				if err != nil {
 					return nil, err
 				}
-				param2[1], err = getNodeValue(ctx, e.nodes[childIdx+1])
+				param2[1], err = getNodeValue(ctx, nodes[childIdx+1])
 				if err != nil {
 					return nil, err
 				}
@@ -151,7 +152,7 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 			} else {
 				param = make([]Value, cnt)
 				for i := 0; i < cnt; i++ {
-					child := e.nodes[childIdx+i]
+					child := nodes[childIdx+i]
 					param[i], err = getNodeValue(ctx, child)
 					if err != nil {
 						return nil, err
@@ -255,7 +256,7 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 				maxIdx = curtIdx
 				sfTop = e.sfSize[curtIdx] - 2
 				osTop = e.osSize[curtIdx] - 1
-				curt = e.nodes[curtIdx]
+				curt = nodes[curtIdx]
 			}
 		}
 
