@@ -150,6 +150,10 @@ func calAndSetStackSize(e *Expr) {
 		return e.nodes[idx].flag&nodeTypeMask == cond
 	}
 
+	var isEndNode = func(e *Expr, idx int) bool {
+		return e.nodes[idx].flag&nodeTypeMask == end
+	}
+
 	var isFirstChild = func(e *Expr, idx int) bool {
 		parentIdx := e.parentIdx[idx]
 		return int(e.nodes[parentIdx].childIdx) == idx
@@ -164,7 +168,7 @@ func calAndSetStackSize(e *Expr) {
 		parentIdx := e.parentIdx[i]
 
 		// f1
-		if isLeaf(e, parentIdx) {
+		if isLeaf(e, parentIdx) || isEndNode(e, i) {
 			f1[i] = f1[parentIdx]
 		} else {
 			siblingCount := int(e.nodes[parentIdx].childIdx) + int(e.nodes[parentIdx].childCnt) - 1 - i
@@ -182,7 +186,7 @@ func calAndSetStackSize(e *Expr) {
 		}
 
 		// f2
-		if isLeaf(e, parentIdx) {
+		if isLeaf(e, parentIdx) || isEndNode(e, i) {
 			f2[i] = f2[parentIdx]
 			continue
 		}
@@ -246,6 +250,8 @@ func calAndSetShortCircuit(e *Expr) {
 		return e.nodes[parentIdx]
 	}
 
+	const mask = scIfTrue | scIfFalse
+
 	size := len(e.nodes)
 
 	f := make([]int, size)
@@ -253,6 +259,12 @@ func calAndSetShortCircuit(e *Expr) {
 		n := e.nodes[i]
 		p := parentNode(n)
 		pIdx := int(p.idx)
+
+		if n.getNodeType() == end {
+			f[i] = f[pIdx]
+			n.flag |= p.flag & mask
+			continue
+		}
 
 		if !isBoolOpNode(p) {
 			f[i] = i
@@ -368,6 +380,8 @@ func calculateNodeCosts(conf *CompileConfig, root *astNode) {
 		baseCost = loops*(int64(len(children))+1) + funcCall
 	case cond:
 		baseCost = loops * 4
+	case end:
+		baseCost = 0
 	default:
 		baseCost = 10
 	}

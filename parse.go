@@ -532,9 +532,12 @@ func (p *parser) buildKeywordNode(car token, children []*astNode) (*astNode, err
 	}
 
 	// append an end node
-	//children = append(children, &astNode{
-	//	node: &node{flag: end},
-	//})
+	children = append(children, &astNode{
+		node: &node{
+			flag:  end,
+			value: "end",
+		},
+	})
 
 	n.node.flag = cond
 	n.children = children

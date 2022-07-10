@@ -214,9 +214,11 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 		case cond:
 			childIdx := int(curt.childIdx)
 			if curtIdx > maxIdx {
+				cnt := int(curt.childCnt)
+
 				maxIdx = curtIdx
 				// push the end node to the stack frame
-				sf[sfTop+1], sfTop = endNode(curt), sfTop+1
+				sf[sfTop+1], sfTop = e.nodes[childIdx+cnt-1], sfTop+1
 				sf[sfTop+1], sfTop = curt, sfTop+1
 				sf[sfTop+1], sfTop = e.nodes[childIdx], sfTop+1
 			} else {
@@ -233,7 +235,7 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 			}
 			continue
 		case end:
-			maxIdx = curtIdx
+			maxIdx = e.parentIdx[curtIdx]
 			res, osTop = os[osTop], osTop-1
 		}
 

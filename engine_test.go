@@ -34,9 +34,63 @@ func TestDebugCases(t *testing.T) {
 		want          Value
 		run           runThis
 	}{
-
 		{
-			run:  ________RunThisOne________,
+			run:           ________RunThisOne________,
+			want:          true,
+			optimizeLevel: disable,
+			s: `
+(not
+  (and
+    (if T
+      (!= 0 0)
+      (= 0 0))
+    (= 0 0)
+    (= 0 0)))`,
+			valMap: map[string]Value{
+				"T": true,
+				"F": false,
+			},
+		},
+		{
+			run:           ________RunThisOne________,
+			want:          false,
+			optimizeLevel: disable,
+			s: `
+(or
+  (if
+    (= 1 1)
+    (< 4 2)
+    (!= 5 6))
+  (eq 8 -8))`,
+		},
+		{
+			want:          true,
+			optimizeLevel: disable,
+			s: `
+(if
+  (= 1 2)
+  (not F)
+  (and
+    (!= 3 4) T1 T2))`,
+			valMap: map[string]Value{
+				"T1": true,
+				"T2": true,
+				"F":  false,
+			},
+		},
+		{
+			want:          true,
+			optimizeLevel: disable,
+			s: `
+(eq
+  (if T F T)
+  (not T))`,
+			valMap: map[string]Value{
+				"T": true,
+				"F": false,
+			},
+		},
+		{
 			want: true,
 			s: `
 (<
@@ -112,18 +166,6 @@ func TestDebugCases(t *testing.T) {
   (or
     (eq 1 2) T)
   (= 3 4))`,
-			valMap: map[string]Value{
-				"T": true,
-				"F": false,
-			},
-		},
-		{
-			want:          true,
-			optimizeLevel: disable,
-			s: `
-(eq
-  (if T F T)
-  (not T))`,
 			valMap: map[string]Value{
 				"T": true,
 				"F": false,
@@ -419,7 +461,7 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 
 func TestRandomExpressions(t *testing.T) {
 	const (
-		size          = 10000
+		size          = 3000000
 		level         = 53
 		step          = size / 100
 		showSample    = false
