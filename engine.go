@@ -90,7 +90,7 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 		debug  = ctx.Debug
 		maxIdx = -1
 
-		sf    []*node // stack frame
+		sf    []int // stack frame
 		sfTop = -1
 
 		os    []Value // operand stack
@@ -101,21 +101,21 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 	switch {
 	case size <= 4:
 		os = make([]Value, 4)
-		sf = make([]*node, 4)
+		sf = make([]int, 4)
 	case size <= 8:
 		os = make([]Value, 8)
-		sf = make([]*node, 8)
+		sf = make([]int, 8)
 	case size <= 16:
 		os = make([]Value, 16)
-		sf = make([]*node, 16)
+		sf = make([]int, 16)
 	default:
 		os = make([]Value, size)
-		sf = make([]*node, size)
+		sf = make([]int, size)
 	}
 
 	var (
-		curt    *node
 		curtIdx int
+		curt    *node
 
 		res Value // result of current stack frame
 		err error
@@ -125,14 +125,14 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 	)
 
 	// push the root node to the stack frame
-	sf[sfTop+1], sfTop = e.nodes[0], sfTop+1
+	sf[sfTop+1], sfTop = 0, sfTop+1
 
 	for sfTop != -1 { // while stack frame is not empty
 		if debug {
-			printStacks(maxIdx, os, osTop, sf, sfTop)
+			//printStacks(maxIdx, os, osTop, sf, sfTop)
 		}
-		curt, sfTop = sf[sfTop], sfTop-1
-		curtIdx = int(curt.idx)
+		curtIdx, sfTop = sf[sfTop], sfTop-1
+		curt = e.nodes[curtIdx]
 
 		switch curt.flag & nodeTypeMask {
 		case fastOperator:
@@ -171,17 +171,17 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 			if curtIdx > maxIdx {
 				// the node has never been visited before
 				maxIdx = curtIdx
-				sf[sfTop+1], sfTop = curt, sfTop+1
+				sf[sfTop+1], sfTop = curtIdx, sfTop+1
 				childIdx := int(curt.childIdx)
 				// push child nodes into the stack frame
 				// the back nodes is on top
 				if cnt == 2 {
-					sf[sfTop+1], sfTop = e.nodes[childIdx+1], sfTop+1
-					sf[sfTop+1], sfTop = e.nodes[childIdx], sfTop+1
+					sf[sfTop+1], sfTop = childIdx+1, sfTop+1
+					sf[sfTop+1], sfTop = childIdx, sfTop+1
 				} else {
 					sfTop = sfTop + cnt
 					for i := 0; i < cnt; i++ {
-						sf[sfTop-i] = e.nodes[childIdx+i]
+						sf[sfTop-i] = childIdx + i
 					}
 				}
 				continue
@@ -218,9 +218,9 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 
 				maxIdx = curtIdx
 				// push the end node to the stack frame
-				sf[sfTop+1], sfTop = e.nodes[childIdx+cnt-1], sfTop+1
-				sf[sfTop+1], sfTop = curt, sfTop+1
-				sf[sfTop+1], sfTop = e.nodes[childIdx], sfTop+1
+				sf[sfTop+1], sfTop = childIdx+cnt-1, sfTop+1
+				sf[sfTop+1], sfTop = curtIdx, sfTop+1
+				sf[sfTop+1], sfTop = childIdx, sfTop+1
 			} else {
 				res, osTop = os[osTop], osTop-1
 				condRes, ok := res.(bool)
@@ -228,9 +228,9 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 					return nil, fmt.Errorf("eval error, result type of if condition should be bool, got: [%v]", res)
 				}
 				if condRes {
-					sf[sfTop+1], sfTop = e.nodes[childIdx+1], sfTop+1
+					sf[sfTop+1], sfTop = childIdx+1, sfTop+1
 				} else {
-					sf[sfTop+1], sfTop = e.nodes[childIdx+2], sfTop+1
+					sf[sfTop+1], sfTop = childIdx+2, sfTop+1
 				}
 			}
 			continue
@@ -269,15 +269,6 @@ type Ctx struct {
 	Selector
 	Ctx   context.Context
 	Debug bool
-}
-
-func endNode(n *node) *node {
-	const scMask = scIfTrue | scIfFalse
-	return &node{
-		value: "end",
-		idx:   n.idx,
-		flag:  end | (n.flag & scMask),
-	}
 }
 
 func unifyType(val Value) Value {
