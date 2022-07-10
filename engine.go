@@ -15,41 +15,48 @@ type (
 
 const (
 	// node types
-	nodeTypeMask = uint8(0b111)
-	constant     = uint8(0b001)
-	selector     = uint8(0b010)
-	operator     = uint8(0b011)
-	fastOperator = uint8(0b100)
-	cond         = uint8(0b101)
-	end          = uint8(0b110)
+	nodeTypeMask = int16(0b111)
+	constant     = int16(0b001)
+	selector     = int16(0b010)
+	operator     = int16(0b011)
+	fastOperator = int16(0b100)
+	cond         = int16(0b101)
+	end          = int16(0b110)
 
 	// short circuit flag
-	scIfFalse = uint8(0b001000)
-	scIfTrue  = uint8(0b010000)
+	scIfFalse = int16(0b001000)
+	scIfTrue  = int16(0b010000)
 )
 
 type node struct {
-	flag     uint8
-	childCnt int8
-	scIdx    int16
-	childIdx int16
+	flag     int16
+	idx      int
+	childCnt int
+	childIdx int
 	selKey   SelectorKey
 	value    Value
 	operator Operator
 }
 
-func (n *node) getNodeType() uint8 {
+func (n *node) getNodeType() int16 {
 	return n.flag & nodeTypeMask
 }
 
 type Expr struct {
 	maxStackSize int16
-	nodes        []*node
+
+	// Although the field name is bytecode,
+	// here we use []int16 for convenience
+	bytecode  []int16
+	constants []Value
+	operators []Operator
+
 	// extra info
-	parentIdx []int
 	scIdx     []int
 	sfSize    []int
 	osSize    []int
+	parentIdx []int
+	nodes     []*node
 }
 
 func EvalBool(conf *CompileConfig, expr string, ctx *Ctx) (bool, error) {
@@ -129,9 +136,7 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 	sf[sfTop+1], sfTop = 0, sfTop+1
 
 	for sfTop != -1 { // while stack frame is not empty
-		if debug {
-			printStacks(e, maxIdx, os, osTop, sf, sfTop)
-		}
+
 		curtIdx, sfTop = sf[sfTop], sfTop-1
 		curt = nodes[curtIdx]
 
@@ -248,7 +253,7 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 					printShortCircuit(curt)
 				}
 
-				curtIdx = int(curt.scIdx)
+				curtIdx = e.scIdx[curt.idx]
 				if curtIdx == 0 {
 					return res, nil
 				}

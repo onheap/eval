@@ -374,8 +374,8 @@ func Dump(e *Expr) string {
 
 		var sb strings.Builder
 		sb.WriteString(fmt.Sprintf("(%v", root.value))
-		for i := 0; i < int(root.childCnt); i++ {
-			childIdx := int(root.childIdx) + i
+		for i := 0; i < root.childCnt; i++ {
+			childIdx := root.childIdx + i
 			child := e.nodes[childIdx]
 			if child.getNodeType() == end {
 				continue

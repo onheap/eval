@@ -7,7 +7,7 @@ import (
 )
 
 type verifyNode struct {
-	tpy       uint8
+	tpy       int16
 	data      Value
 	cost      int
 	selectKey SelectorKey

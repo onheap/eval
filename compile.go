@@ -61,7 +61,7 @@ type CompileConfig struct {
 	AllowUnknownSelectors bool
 }
 
-func (cc *CompileConfig) getCosts(nodeType uint8, nodeName string) int {
+func (cc *CompileConfig) getCosts(nodeType int16, nodeName string) int {
 	const (
 		defaultCost  = 5
 		selectorCost = 7
@@ -106,17 +106,61 @@ func Compile(originConf *CompileConfig, exprStr string) (*Expr, error) {
 		return nil, res.err
 	}
 
-	expr := compress(ast, res.size)
-
-	setExtraInfo(expr)
+	expr := buildExpr(ast, res.size)
 
 	return expr, nil
 }
 
-func setExtraInfo(e *Expr) {
+func buildExpr(ast *astNode, size int) *Expr {
+	e := &Expr{
+		bytecode: make([]int16, size*4),
+
+		// extra info
+		parentIdx: make([]int, size),
+		scIdx:     make([]int, size),
+		sfSize:    make([]int, size),
+		osSize:    make([]int, size),
+		nodes:     make([]*node, size),
+	}
+
+	calAndSetNodes(e, ast)
 	calAndSetParentIndex(e)
 	calAndSetStackSize(e)
 	calAndSetShortCircuit(e)
+	calAndSetBytecode(e)
+	return e
+}
+
+func calAndSetNodes(e *Expr, root *astNode) {
+	size := len(e.nodes)
+	nodes := make([]*node, 0, size)
+	queue := make([]*astNode, 0, size)
+	queue = append(queue, root)
+
+	idx := 0
+	for idx < len(queue) {
+		curt := queue[idx]
+		childIdx := len(queue)
+		childCnt := len(curt.children)
+
+		n := curt.node
+		n.idx = idx
+		n.childCnt = childCnt
+		switch n.getNodeType() {
+		case constant, selector:
+			n.childIdx = -1
+		default:
+			n.childIdx = childIdx
+		}
+		nodes = append(nodes, n)
+
+		for _, child := range curt.children {
+			queue = append(queue, child)
+		}
+		idx++
+	}
+
+	copy(e.nodes, nodes)
 }
 
 func calAndSetParentIndex(e *Expr) {
@@ -126,11 +170,11 @@ func calAndSetParentIndex(e *Expr) {
 
 	for i := 0; i < size; i++ {
 		n := e.nodes[i]
-		cCnt := int(n.childCnt)
+		cCnt := n.childCnt
 		if cCnt == 0 {
 			continue
 		}
-		cIdx := int(n.childIdx)
+		cIdx := n.childIdx
 		for j := cIdx; j < cIdx+cCnt; j++ {
 			f[j] = i
 		}
@@ -156,7 +200,7 @@ func calAndSetStackSize(e *Expr) {
 
 	var isFirstChild = func(e *Expr, idx int) bool {
 		parentIdx := e.parentIdx[idx]
-		return int(e.nodes[parentIdx].childIdx) == idx
+		return e.nodes[parentIdx].childIdx == idx
 
 	}
 
@@ -171,7 +215,7 @@ func calAndSetStackSize(e *Expr) {
 		if isLeaf(e, parentIdx) || isEndNode(e, i) {
 			f1[i] = f1[parentIdx]
 		} else {
-			siblingCount := int(e.nodes[parentIdx].childIdx) + int(e.nodes[parentIdx].childCnt) - 1 - i
+			siblingCount := e.nodes[parentIdx].childIdx + e.nodes[parentIdx].childCnt - 1 - i
 			// f[i] = f[pIdx] + right sibling count + 1
 
 			if isCondNode(e, parentIdx) {
@@ -202,11 +246,11 @@ func calAndSetStackSize(e *Expr) {
 
 		if isLeaf(e, i) {
 			// f[i] = f[pIdx] + left sibling count + 1
-			siblingCount := i - int(e.nodes[parentIdx].childIdx)
+			siblingCount := i - e.nodes[parentIdx].childIdx
 			f2[i] = f2[parentIdx] + siblingCount + 1
 		} else {
 			// f[i] = f[pIdx] + left sibling count
-			siblingCount := i - int(e.nodes[parentIdx].childIdx)
+			siblingCount := i - e.nodes[parentIdx].childIdx
 			f2[i] = f2[parentIdx] + siblingCount
 		}
 	}
@@ -227,26 +271,27 @@ func calAndSetStackSize(e *Expr) {
 }
 
 func calAndSetShortCircuit(e *Expr) {
-	var isLastChild = func(idx int) bool {
+	var isLastChild = func(n *node) bool {
+		idx := n.idx
 		parentIdx := e.parentIdx[idx]
 		if parentIdx == -1 {
 			return false
 		}
 
-		cnt := int(e.nodes[parentIdx].childCnt)
-		childIdx := int(e.nodes[parentIdx].childIdx)
+		cnt := e.nodes[parentIdx].childCnt
+		childIdx := e.nodes[parentIdx].childIdx
 		if childIdx+cnt-1 == idx {
 			return true
 		}
 		return false
 	}
 
-	var parentNode = func(idx int) (*node, int) {
-		pIdx := e.parentIdx[idx]
-		if pIdx == -1 {
-			return nil, -1
+	var parentNode = func(n *node) *node {
+		parentIdx := e.parentIdx[n.idx]
+		if parentIdx == -1 {
+			return nil
 		}
-		return e.nodes[pIdx], pIdx
+		return e.nodes[parentIdx]
 	}
 
 	const mask = scIfTrue | scIfFalse
@@ -256,7 +301,8 @@ func calAndSetShortCircuit(e *Expr) {
 	f := make([]int, size)
 	for i := 1; i < size; i++ {
 		n := e.nodes[i]
-		p, pIdx := parentNode(i)
+		p := parentNode(n)
+		pIdx := p.idx
 
 		if n.getNodeType() == end {
 			f[i] = f[pIdx]
@@ -268,9 +314,9 @@ func calAndSetShortCircuit(e *Expr) {
 			f[i] = i
 			continue
 		}
-		var flag uint8
+		var flag int16
 		switch {
-		case isLastChild(i):
+		case isLastChild(n):
 			flag |= scIfTrue
 			flag |= scIfFalse
 		case isAndOpNode(p):
@@ -287,15 +333,57 @@ func calAndSetShortCircuit(e *Expr) {
 		// it can directly short-circuit to the target node of its parent
 		for p.flag&flag == flag {
 			f[i] = f[pIdx]
-			p, pIdx = parentNode(pIdx)
+			p = parentNode(p)
+			pIdx = p.idx
 		}
 	}
 
-	//e.scIdx = f
 	copy(e.scIdx, f)
+}
 
-	for i := 0; i < size; i++ {
-		e.nodes[i].scIdx = int16(f[i])
+func calAndSetBytecode(e *Expr) {
+	var (
+		setConstant = func(v Value) int16 {
+			for i, c := range e.constants {
+				if c == v {
+					return int16(i)
+				}
+			}
+			i := int16(len(e.constants))
+			e.constants = append(e.constants, v)
+			return i
+		}
+
+		setOperator = func(operator Operator) int16 {
+			for i, op := range e.operators {
+				if op == operator {
+					return int16(i)
+				}
+			}
+			i := int16(len(e.operators))
+			e.operators = append(e.operators, operator)
+			return i
+		}
+	)
+
+	for i, n := range e.nodes {
+		var third int16
+		var forth int16
+		switch n.getNodeType() {
+		case constant:
+			third = setConstant(n.value)
+		case selector:
+			third = setConstant(n.value)
+			forth = int16(n.selKey)
+		case operator, fastOperator:
+			setOperator(n.operator)
+		}
+
+		i = i * 4
+		e.bytecode[i+0] = int16(n.childCnt)<<8 | n.flag // child count and flag
+		e.bytecode[i+1] = int16(n.childIdx)             // child index
+		e.bytecode[i+2] = third                         // index of constants, index of operator, selectorKey
+		e.bytecode[i+3] = forth                         // node index
 	}
 }
 
@@ -524,7 +612,7 @@ func optimizeFastEvaluation(cc *CompileConfig, root *astNode) {
 		return
 	}
 
-	otherPartMask := nodeTypeMask ^ uint8(0b11111111)
+	otherPartMask := nodeTypeMask ^ int16(0b11111111)
 
 	root.node.flag = fastOperator | (root.node.flag & otherPartMask)
 }
@@ -562,39 +650,4 @@ func check(root *astNode) checkRes {
 	return checkRes{
 		size: size,
 	}
-}
-
-func compress(root *astNode, size int) *Expr {
-	e := &Expr{
-		nodes:     make([]*node, 0, size),
-		scIdx:     make([]int, size),
-		sfSize:    make([]int, size),
-		osSize:    make([]int, size),
-		parentIdx: make([]int, size),
-	}
-	queue := make([]*astNode, 0, size)
-	queue = append(queue, root)
-
-	idx := 0
-	for idx < len(queue) {
-		curt := queue[idx]
-		childIdx := len(queue)
-		childCnt := len(curt.children)
-
-		n := curt.node
-		n.childCnt = int8(childCnt)
-		switch n.getNodeType() {
-		case constant, selector:
-			n.childIdx = -1
-		default:
-			n.childIdx = int16(childIdx)
-		}
-		e.nodes = append(e.nodes, n)
-
-		for _, child := range curt.children {
-			queue = append(queue, child)
-		}
-		idx++
-	}
-	return e
 }
