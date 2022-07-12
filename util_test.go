@@ -318,3 +318,9 @@ func TestGenerateTestCase(t *testing.T) {
 		assertEquals(t, got, c.want)
 	}
 }
+
+func TestName(t *testing.T) {
+	a := 1234
+	fmt.Println(a * 4)
+	fmt.Println(a << 2)
+}

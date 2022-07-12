@@ -343,26 +343,32 @@ func calAndSetShortCircuit(e *Expr) {
 
 func calAndSetBytecode(e *Expr) {
 	var (
+		opIdxes     = make(map[string]int16)
 		setConstant = func(v Value) int16 {
-			for i, c := range e.constants {
-				if c == v {
-					return int16(i)
+			switch v.(type) {
+			case int64, string:
+				for i, c := range e.constants {
+					if c == v {
+						return int16(i)
+					}
 				}
 			}
-			i := int16(len(e.constants))
+
+			idx := int16(len(e.constants))
 			e.constants = append(e.constants, v)
-			return i
+			return idx
 		}
 
-		setOperator = func(operator Operator) int16 {
-			for i, op := range e.operators {
-				if op == operator {
-					return int16(i)
-				}
+		setOperator = func(name string, operator Operator) int16 {
+
+			if idx, exist := opIdxes[name]; exist {
+				return idx
 			}
-			i := int16(len(e.operators))
+
+			idx := int16(len(e.operators))
 			e.operators = append(e.operators, operator)
-			return i
+			opIdxes[name] = idx
+			return idx
 		}
 	)
 
@@ -376,7 +382,7 @@ func calAndSetBytecode(e *Expr) {
 			third = setConstant(n.value)
 			forth = int16(n.selKey)
 		case operator, fastOperator:
-			setOperator(n.operator)
+			third = setOperator(n.value.(string), n.operator)
 		}
 
 		i = i * 4
