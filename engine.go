@@ -13,6 +13,12 @@ type (
 	Operator    func(ctx *Ctx, params []Value) (res Value, err error)
 )
 
+type Ctx struct {
+	Selector
+	Ctx   context.Context
+	Debug bool
+}
+
 const (
 	// node types
 	nodeTypeMask = uint8(0b111)
@@ -231,21 +237,14 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 		case end:
 			maxIdx = e.parentIdx[curtIdx]
 			res, osTop = os[osTop], osTop-1
-		default:
-			if scTriggered {
-				fmt.Println("short circuit triggered")
-			}
-
+		default: // only debug node will enter this branch
 			l := len(e.nodes) / 2
+			replaceWithDebugNode(sf, sfTop, l)
+
 			// push the real node to print stacks
 			sf[sfTop+1], sfTop = curtIdx+l, sfTop+1
-			for i := 0; i < sfTop; i++ {
-				if sf[i] >= l {
-					sf[i] -= l
-				}
-			}
 
-			printStacks(e, os, osTop, sf, sfTop)
+			e.printStacks(scTriggered, os, osTop, sf, sfTop)
 			scTriggered = false
 			continue
 		}
@@ -275,10 +274,13 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 	return os[0], nil
 }
 
-type Ctx struct {
-	Selector
-	Ctx   context.Context
-	Debug bool
+func replaceWithDebugNode(sf []int, sfTop, boundary int) {
+	// replace with debug node
+	for i := 0; i < sfTop; i++ {
+		if sf[i] >= boundary {
+			sf[i] -= boundary
+		}
+	}
 }
 
 func unifyType(val Value) Value {
@@ -336,24 +338,11 @@ func getSelectorValue(ctx *Ctx, n *node) (Value, error) {
 	}
 }
 
-func processDebugNode(e *Expr, sc bool, curtIdx int, os []Value, osTop int, sf []int, sfTop int) {
-	if sc {
+func (e *Expr) printStacks(scTriggered bool, os []Value, osTop int, sf []int, sfTop int) {
+	if scTriggered {
 		fmt.Println("short circuit triggered")
 	}
 
-	l := len(e.nodes) / 2
-	// push the real node again to print stacks
-	sf[sfTop+1], sfTop = curtIdx+l, sfTop+1
-	for i := 0; i < sfTop; i++ {
-		if sf[i] >= l {
-			sf[i] -= l
-		}
-	}
-
-	printStacks(e, os, osTop, sf, sfTop)
-}
-
-func printStacks(e *Expr, os []Value, osTop int, sf []int, sfTop int) {
 	var sb strings.Builder
 
 	fmt.Printf("sfTop:%d, osTop:%d\n", sfTop, osTop)
@@ -369,16 +358,4 @@ func printStacks(e *Expr, os []Value, osTop int, sf []int, sfTop int) {
 	}
 	sb.WriteString("|\n")
 	fmt.Println(sb.String())
-}
-
-func printStack(stack []Value) {
-
-}
-
-func printOperator(op Value, params []Value, res Value, err error) {
-	fmt.Printf("execute operator, op: %v, params: %v, res: %v, err: %v\n\n", op, params, res, err)
-}
-
-func printShortCircuit(n *node) {
-	fmt.Printf("short circuit triggered, node: %v\n\n", n.value)
 }
