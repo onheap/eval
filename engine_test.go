@@ -12,6 +12,34 @@ import (
 	"time"
 )
 
+func TestDebug(t *testing.T) {
+	s := `
+(or
+  (if
+    (= 1 1)
+    (< 4 2)
+    (!= 5 6))
+  (eq 8 -8))
+`
+	expr, err := Compile(&CompileConfig{
+		OptimizeOptions: map[OptimizeOption]bool{
+			ConstantFolding: false,
+			FastEvaluation:  false,
+			Reordering:      false,
+			Debug:           true,
+		},
+	}, s)
+
+	assertNil(t, err)
+
+	fmt.Println(PrintExpr(expr))
+
+	res, err := expr.Eval(&Ctx{Debug: false})
+
+	assertNil(t, err)
+	fmt.Println(res)
+}
+
 func TestDebugCases(t *testing.T) {
 	const onlyAllowListCases = false
 
@@ -461,7 +489,7 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 
 func TestRandomExpressions(t *testing.T) {
 	const (
-		size          = 3000000
+		size          = 10000
 		level         = 53
 		step          = size / 100
 		showSample    = false

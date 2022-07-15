@@ -484,11 +484,13 @@ func PrintExpr(expr *Expr, fields ...string) string {
 			case selector:
 				res = "S"
 			case constant:
-				res = "V"
+				res = "C"
 			case cond:
 				res = "IF"
 			case end:
 				res = "END"
+			case debug:
+				res = "D"
 			}
 			return res
 		},
@@ -532,6 +534,9 @@ func PrintExpr(expr *Expr, fields ...string) string {
 	}
 
 	size := len(expr.nodes)
+	if expr.nodes[0].flag == debug {
+		size = size / 2
+	}
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("node  size: %4d\n", len(expr.nodes)))

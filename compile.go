@@ -13,6 +13,9 @@ const (
 	Reordering       OptimizeOption = "reordering"
 	FastEvaluation   OptimizeOption = "fast_evaluation"
 	ConstantFolding  OptimizeOption = "constant_folding"
+
+	Debug                 OptimizeOption = "debug"
+	AllowUnknownSelectors OptimizeOption = "allow_unknown_selectors"
 )
 
 func CopyCompileConfig(origin *CompileConfig) *CompileConfig {
@@ -52,11 +55,15 @@ func NewCompileConfig() *CompileConfig {
 }
 
 type CompileConfig struct {
-	ConstantMap     map[string]Value
-	SelectorMap     map[string]SelectorKey
-	OperatorMap     map[string]Operator
+	ConstantMap map[string]Value
+	SelectorMap map[string]SelectorKey
+	OperatorMap map[string]Operator
+
+	// cost of performance
+	CostsMap map[string]int
+
+	// compile options
 	OptimizeOptions map[OptimizeOption]bool
-	CostsMap        map[string]int // cost of performance
 
 	AllowUnknownSelectors bool
 }
@@ -110,7 +117,49 @@ func Compile(originConf *CompileConfig, exprStr string) (*Expr, error) {
 
 	setExtraInfo(expr)
 
+	if conf.OptimizeOptions[Debug] {
+		setDebugInfo(expr)
+	}
 	return expr, nil
+}
+
+func setDebugInfo(e *Expr) {
+	var wrapDebugInfo = func(name string, op Operator) Operator {
+		return func(ctx *Ctx, params []Value) (res Value, err error) {
+			res, err = op(ctx, params)
+			fmt.Printf("execute operator, op: %s, params: %v, res: %v, err: %v\n\n", name, params, res, err)
+			return
+		}
+	}
+
+	size := len(e.nodes)
+	debugNodes := make([]*node, size*2)
+	debugParentIdx := make([]int, size*2)
+	for i := 0; i < size; i++ {
+		n := e.nodes[i]
+		switch n.getNodeType() {
+		case operator, fastOperator:
+			n.operator = wrapDebugInfo(n.value.(string), n.operator)
+		}
+
+		debugNode := &node{
+			flag:     n.flag | debug,
+			childCnt: n.childCnt,
+			scIdx:    n.scIdx,
+			childIdx: n.childIdx,
+			selKey:   n.selKey,
+			value:    n.value,
+			operator: n.operator,
+		}
+
+		debugNodes[i] = debugNode
+		debugNodes[i+size] = n
+		debugParentIdx[i] = e.parentIdx[i]
+		debugParentIdx[i+size] = e.parentIdx[i]
+
+	}
+	e.nodes = debugNodes
+	e.parentIdx = debugParentIdx
 }
 
 func setExtraInfo(e *Expr) {
