@@ -64,7 +64,7 @@ func TestCopyCompileConfig(t *testing.T) {
 			"selectors": 10,
 			"operators": 20,
 		},
-		CompileOptions: map[CompileOption]bool{
+		CompileOptions: map[Option]bool{
 			Reordering:      true,
 			ConstantFolding: false,
 		},

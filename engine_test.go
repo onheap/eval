@@ -16,7 +16,8 @@ func TestDebug(t *testing.T) {
 	s := `
 	(not
 	(and
-	 (if T
+	 (if 
+       (< 2 3)
 	   (!= 0 0)
 	   (= 0 0))
 	 (= 0 0)
@@ -24,14 +25,8 @@ func TestDebug(t *testing.T) {
 	`
 
 	//s := `(+ 1 2)`
-	expr, err := Compile(&CompileConfig{
-		CompileOptions: map[CompileOption]bool{
-			ConstantFolding: false,
-			FastEvaluation:  false,
-			Reordering:      false,
-			Debug:           true,
-		},
-	}, s)
+	conf := NewCompileConfig(EnableDebug, DisableAllOptimizations)
+	expr, err := Compile(conf, s)
 
 	assertNil(t, err)
 
@@ -392,7 +387,7 @@ func TestDebugCases(t *testing.T) {
 		}
 
 		cc := NewCompileConfig()
-		cc.CompileOptions = map[CompileOption]bool{
+		cc.CompileOptions = map[Option]bool{
 			Reordering:      false,
 			FastEvaluation:  false,
 			ConstantFolding: false,
@@ -443,14 +438,14 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 		{
 			want: false,
 			expr: `(< age 18)`,
-			cc:   &CompileConfig{AllowUnknownSelectors: true},
+			cc:   NewCompileConfig(EnableStringSelectors),
 			vals: map[string]Value{
 				"age": int64(20),
 			},
 		},
 		{
 			expr:   `(< not_exist_key 18)`,
-			cc:     &CompileConfig{AllowUnknownSelectors: true},
+			cc:     NewCompileConfig(EnableStringSelectors),
 			errMsg: "selectorKey not exist",
 		},
 		{
@@ -470,7 +465,7 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
    (- 2 v3) (/ 6 3) 4)
  (* 5 -6 7)
 )`,
-			cc: &CompileConfig{AllowUnknownSelectors: true},
+			cc: NewCompileConfig(EnableStringSelectors),
 			vals: map[string]Value{
 				"v3": int64(3),
 			},
@@ -492,7 +487,7 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 
 func TestRandomExpressions(t *testing.T) {
 	const (
-		size          = 300000
+		size          = 10000
 		level         = 53
 		step          = size / 100
 		showSample    = false
@@ -586,7 +581,6 @@ func TestRandomExpressions(t *testing.T) {
 				v := r.Intn(0b1000)
 				// combination of optimizations
 				cc := CopyCompileConfig(conf)
-				cc.CompileOptions[Debug] = true
 				cc.CompileOptions[Reordering] = v&0b1 != 0
 				cc.CompileOptions[FastEvaluation] = v&0b10 != 0
 				cc.CompileOptions[ConstantFolding] = v&0b100 != 0

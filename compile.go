@@ -6,16 +6,16 @@ import (
 	"sort"
 )
 
-type CompileOption string
+type Option string
 
 const (
-	AllOptimizations CompileOption = "optimize"
-	Reordering       CompileOption = "reordering"
-	FastEvaluation   CompileOption = "fast_evaluation"
-	ConstantFolding  CompileOption = "constant_folding"
+	AllOptimizations Option = "optimize"
+	Reordering       Option = "reordering"
+	FastEvaluation   Option = "fast_evaluation"
+	ConstantFolding  Option = "constant_folding"
 
-	Debug                 CompileOption = "debug"
-	AllowUnknownSelectors CompileOption = "allow_unknown_selectors"
+	Debug                 Option = "debug"
+	AllowUnknownSelectors Option = "allow_unknown_selectors"
 )
 
 func CopyCompileConfig(origin *CompileConfig) *CompileConfig {
@@ -38,20 +38,37 @@ func CopyCompileConfig(origin *CompileConfig) *CompileConfig {
 	for k, v := range origin.CostsMap {
 		conf.CostsMap[k] = v
 	}
-	conf.AllowUnknownSelectors = origin.AllowUnknownSelectors
 	return conf
 }
 
-func NewCompileConfig() *CompileConfig {
-	return &CompileConfig{
+type CompileOption func(conf *CompileConfig)
+
+var (
+	EnableStringSelectors CompileOption = func(c *CompileConfig) {
+		c.CompileOptions[AllowUnknownSelectors] = true
+	}
+	EnableDebug CompileOption = func(c *CompileConfig) {
+		c.CompileOptions[Debug] = true
+	}
+	DisableAllOptimizations CompileOption = func(c *CompileConfig) {
+		c.CompileOptions[Reordering] = false
+		c.CompileOptions[FastEvaluation] = false
+		c.CompileOptions[ConstantFolding] = false
+	}
+)
+
+func NewCompileConfig(opts ...CompileOption) *CompileConfig {
+	conf := &CompileConfig{
 		ConstantMap:    make(map[string]Value),
 		SelectorMap:    make(map[string]SelectorKey),
 		OperatorMap:    make(map[string]Operator),
-		CompileOptions: make(map[CompileOption]bool),
+		CompileOptions: make(map[Option]bool),
 		CostsMap:       make(map[string]int),
-
-		AllowUnknownSelectors: false,
 	}
+	for _, opt := range opts {
+		opt(conf)
+	}
+	return conf
 }
 
 type CompileConfig struct {
@@ -63,9 +80,7 @@ type CompileConfig struct {
 	CostsMap map[string]int
 
 	// compile options
-	CompileOptions map[CompileOption]bool
-
-	AllowUnknownSelectors bool
+	CompileOptions map[Option]bool
 }
 
 func (cc *CompileConfig) getCosts(nodeType uint8, nodeName string) int {

@@ -462,31 +462,31 @@ func TestLex(t *testing.T) {
 func TestParseConfig(t *testing.T) {
 	testCases := []struct {
 		expr   string
-		origin map[CompileOption]bool
-		want   map[CompileOption]bool
+		origin map[Option]bool
+		want   map[Option]bool
 		errMsg string
 	}{
 		{
 			expr:   `(+ 1 1)`,
-			origin: map[CompileOption]bool{},
-			want:   map[CompileOption]bool{},
+			origin: map[Option]bool{},
+			want:   map[Option]bool{},
 		},
 		{
 			expr:   `;;;; constant_folding: true, reordering: true`,
-			origin: map[CompileOption]bool{},
-			want: map[CompileOption]bool{
+			origin: map[Option]bool{},
+			want: map[Option]bool{
 				Reordering:      true,
 				ConstantFolding: true,
 			},
 		},
 		{
 			expr: `;;;; optimize:false`,
-			origin: map[CompileOption]bool{
+			origin: map[Option]bool{
 				Reordering:      true,
 				FastEvaluation:  true,
 				ConstantFolding: true,
 			},
-			want: map[CompileOption]bool{
+			want: map[Option]bool{
 				Reordering:      false,
 				FastEvaluation:  false,
 				ConstantFolding: false,
@@ -499,12 +499,12 @@ func TestParseConfig(t *testing.T) {
 ;; then only enable reordering and constant_folding
 ;;;; reordering: true, constant_folding: true
 `,
-			origin: map[CompileOption]bool{
+			origin: map[Option]bool{
 				Reordering:      true,
 				FastEvaluation:  true,
 				ConstantFolding: true,
 			},
-			want: map[CompileOption]bool{
+			want: map[Option]bool{
 				Reordering:      true,
 				FastEvaluation:  false,
 				ConstantFolding: true,
@@ -513,7 +513,7 @@ func TestParseConfig(t *testing.T) {
 
 		{
 			expr: `;;;;unsupported_option:false`,
-			origin: map[CompileOption]bool{
+			origin: map[Option]bool{
 				Reordering:      true,
 				FastEvaluation:  true,
 				ConstantFolding: true,
@@ -523,7 +523,7 @@ func TestParseConfig(t *testing.T) {
 
 		{
 			expr: `;;;;reordering:disabled`,
-			origin: map[CompileOption]bool{
+			origin: map[Option]bool{
 				Reordering:      true,
 				FastEvaluation:  true,
 				ConstantFolding: true,
@@ -533,7 +533,7 @@ func TestParseConfig(t *testing.T) {
 
 		{
 			expr: `;;;;reordering:false:false`,
-			origin: map[CompileOption]bool{
+			origin: map[Option]bool{
 				Reordering:      true,
 				FastEvaluation:  true,
 				ConstantFolding: true,
@@ -800,13 +800,13 @@ func TestParseAstTree(t *testing.T) {
 			},
 		},
 		{
-			cc:     &CompileConfig{AllowUnknownSelectors: false},
+			cc:     NewCompileConfig(),
 			expr:   `(< age 18)`,
 			errMsg: "unknown token error",
 		},
 		// return an error when expr use unregister selector
 		{
-			cc:   &CompileConfig{AllowUnknownSelectors: true},
+			cc:   NewCompileConfig(EnableStringSelectors),
 			expr: `(< age 18)`,
 			ast: verifyNode{
 				tpy:  operator,

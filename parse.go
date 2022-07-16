@@ -464,7 +464,7 @@ func (p *parser) parseExpression() (*astNode, error) {
 	}
 
 	if t := p.peek(); t.typ == ident {
-		if p.conf.AllowUnknownSelectors {
+		if p.conf.CompileOptions[AllowUnknownSelectors] {
 			p.walk()
 			return &astNode{
 				node: &node{
@@ -596,9 +596,9 @@ func (p *parser) parseConfig() error {
 			if err != nil {
 				return p.errWithToken(fmt.Errorf("invalid config value %s, err %w", s, err), t)
 			}
-			switch option := CompileOption(pair[0]); option {
+			switch option := Option(pair[0]); option {
 			case AllOptimizations: // switch all optimizations
-				for _, opt := range []CompileOption{Reordering, FastEvaluation, ConstantFolding} {
+				for _, opt := range []Option{Reordering, FastEvaluation, ConstantFolding} {
 					confCopy.CompileOptions[opt] = enabled
 				}
 			case Reordering, FastEvaluation, ConstantFolding:
