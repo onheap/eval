@@ -6,16 +6,16 @@ import (
 	"sort"
 )
 
-type OptimizeOption string
+type CompileOption string
 
 const (
-	AllOptimizations OptimizeOption = "optimize"
-	Reordering       OptimizeOption = "reordering"
-	FastEvaluation   OptimizeOption = "fast_evaluation"
-	ConstantFolding  OptimizeOption = "constant_folding"
+	AllOptimizations CompileOption = "optimize"
+	Reordering       CompileOption = "reordering"
+	FastEvaluation   CompileOption = "fast_evaluation"
+	ConstantFolding  CompileOption = "constant_folding"
 
-	Debug                 OptimizeOption = "debug"
-	AllowUnknownSelectors OptimizeOption = "allow_unknown_selectors"
+	Debug                 CompileOption = "debug"
+	AllowUnknownSelectors CompileOption = "allow_unknown_selectors"
 )
 
 func CopyCompileConfig(origin *CompileConfig) *CompileConfig {
@@ -32,8 +32,8 @@ func CopyCompileConfig(origin *CompileConfig) *CompileConfig {
 	for k, v := range origin.OperatorMap {
 		conf.OperatorMap[k] = v
 	}
-	for k, v := range origin.OptimizeOptions {
-		conf.OptimizeOptions[k] = v
+	for k, v := range origin.CompileOptions {
+		conf.CompileOptions[k] = v
 	}
 	for k, v := range origin.CostsMap {
 		conf.CostsMap[k] = v
@@ -44,11 +44,11 @@ func CopyCompileConfig(origin *CompileConfig) *CompileConfig {
 
 func NewCompileConfig() *CompileConfig {
 	return &CompileConfig{
-		ConstantMap:     make(map[string]Value),
-		SelectorMap:     make(map[string]SelectorKey),
-		OperatorMap:     make(map[string]Operator),
-		OptimizeOptions: make(map[OptimizeOption]bool),
-		CostsMap:        make(map[string]int),
+		ConstantMap:    make(map[string]Value),
+		SelectorMap:    make(map[string]SelectorKey),
+		OperatorMap:    make(map[string]Operator),
+		CompileOptions: make(map[CompileOption]bool),
+		CostsMap:       make(map[string]int),
 
 		AllowUnknownSelectors: false,
 	}
@@ -63,7 +63,7 @@ type CompileConfig struct {
 	CostsMap map[string]int
 
 	// compile options
-	OptimizeOptions map[OptimizeOption]bool
+	CompileOptions map[CompileOption]bool
 
 	AllowUnknownSelectors bool
 }
@@ -117,7 +117,7 @@ func Compile(originConf *CompileConfig, exprStr string) (*Expr, error) {
 
 	setExtraInfo(expr)
 
-	if conf.OptimizeOptions[Debug] {
+	if conf.CompileOptions[Debug] {
 		setDebugInfo(expr)
 	}
 	return expr, nil
@@ -354,15 +354,15 @@ func calAndSetShortCircuit(e *Expr) {
 }
 
 func optimize(cc *CompileConfig, root *astNode) {
-	if enabled, exist := cc.OptimizeOptions[ConstantFolding]; enabled || !exist {
+	if enabled, exist := cc.CompileOptions[ConstantFolding]; enabled || !exist {
 		_ = optimizeConstantFolding(cc, root)
 	}
 
-	if enabled, exist := cc.OptimizeOptions[FastEvaluation]; enabled || !exist {
+	if enabled, exist := cc.CompileOptions[FastEvaluation]; enabled || !exist {
 		optimizeFastEvaluation(cc, root)
 	}
 
-	if enabled, exist := cc.OptimizeOptions[Reordering]; enabled || !exist {
+	if enabled, exist := cc.CompileOptions[Reordering]; enabled || !exist {
 		calculateNodeCosts(cc, root)
 		optimizeReordering(root)
 	}

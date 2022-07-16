@@ -25,7 +25,7 @@ func TestDebug(t *testing.T) {
 
 	//s := `(+ 1 2)`
 	expr, err := Compile(&CompileConfig{
-		OptimizeOptions: map[OptimizeOption]bool{
+		CompileOptions: map[CompileOption]bool{
 			ConstantFolding: false,
 			FastEvaluation:  false,
 			Reordering:      false,
@@ -392,7 +392,7 @@ func TestDebugCases(t *testing.T) {
 		}
 
 		cc := NewCompileConfig()
-		cc.OptimizeOptions = map[OptimizeOption]bool{
+		cc.CompileOptions = map[CompileOption]bool{
 			Reordering:      false,
 			FastEvaluation:  false,
 			ConstantFolding: false,
@@ -401,11 +401,11 @@ func TestDebugCases(t *testing.T) {
 
 		switch c.optimizeLevel {
 		case all:
-			cc.OptimizeOptions[Reordering] = true
-			cc.OptimizeOptions[ConstantFolding] = true
+			cc.CompileOptions[Reordering] = true
+			cc.CompileOptions[ConstantFolding] = true
 			fallthrough
 		case onlyFast:
-			cc.OptimizeOptions[FastEvaluation] = true
+			cc.CompileOptions[FastEvaluation] = true
 		case disable:
 		}
 
@@ -586,10 +586,10 @@ func TestRandomExpressions(t *testing.T) {
 				v := r.Intn(0b1000)
 				// combination of optimizations
 				cc := CopyCompileConfig(conf)
-				cc.OptimizeOptions[Debug] = true
-				cc.OptimizeOptions[Reordering] = v&0b1 != 0
-				cc.OptimizeOptions[FastEvaluation] = v&0b10 != 0
-				cc.OptimizeOptions[ConstantFolding] = v&0b100 != 0
+				cc.CompileOptions[Debug] = true
+				cc.CompileOptions[Reordering] = v&0b1 != 0
+				cc.CompileOptions[FastEvaluation] = v&0b10 != 0
+				cc.CompileOptions[ConstantFolding] = v&0b100 != 0
 				ctx := NewCtxWithMap(cc, valMap)
 				got, err := Eval(cc, expr.Expr, ctx)
 

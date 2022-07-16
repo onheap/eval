@@ -462,31 +462,31 @@ func TestLex(t *testing.T) {
 func TestParseConfig(t *testing.T) {
 	testCases := []struct {
 		expr   string
-		origin map[OptimizeOption]bool
-		want   map[OptimizeOption]bool
+		origin map[CompileOption]bool
+		want   map[CompileOption]bool
 		errMsg string
 	}{
 		{
 			expr:   `(+ 1 1)`,
-			origin: map[OptimizeOption]bool{},
-			want:   map[OptimizeOption]bool{},
+			origin: map[CompileOption]bool{},
+			want:   map[CompileOption]bool{},
 		},
 		{
 			expr:   `;;;; constant_folding: true, reordering: true`,
-			origin: map[OptimizeOption]bool{},
-			want: map[OptimizeOption]bool{
+			origin: map[CompileOption]bool{},
+			want: map[CompileOption]bool{
 				Reordering:      true,
 				ConstantFolding: true,
 			},
 		},
 		{
 			expr: `;;;; optimize:false`,
-			origin: map[OptimizeOption]bool{
+			origin: map[CompileOption]bool{
 				Reordering:      true,
 				FastEvaluation:  true,
 				ConstantFolding: true,
 			},
-			want: map[OptimizeOption]bool{
+			want: map[CompileOption]bool{
 				Reordering:      false,
 				FastEvaluation:  false,
 				ConstantFolding: false,
@@ -499,12 +499,12 @@ func TestParseConfig(t *testing.T) {
 ;; then only enable reordering and constant_folding
 ;;;; reordering: true, constant_folding: true
 `,
-			origin: map[OptimizeOption]bool{
+			origin: map[CompileOption]bool{
 				Reordering:      true,
 				FastEvaluation:  true,
 				ConstantFolding: true,
 			},
-			want: map[OptimizeOption]bool{
+			want: map[CompileOption]bool{
 				Reordering:      true,
 				FastEvaluation:  false,
 				ConstantFolding: true,
@@ -513,7 +513,7 @@ func TestParseConfig(t *testing.T) {
 
 		{
 			expr: `;;;;unsupported_option:false`,
-			origin: map[OptimizeOption]bool{
+			origin: map[CompileOption]bool{
 				Reordering:      true,
 				FastEvaluation:  true,
 				ConstantFolding: true,
@@ -523,7 +523,7 @@ func TestParseConfig(t *testing.T) {
 
 		{
 			expr: `;;;;reordering:disabled`,
-			origin: map[OptimizeOption]bool{
+			origin: map[CompileOption]bool{
 				Reordering:      true,
 				FastEvaluation:  true,
 				ConstantFolding: true,
@@ -533,7 +533,7 @@ func TestParseConfig(t *testing.T) {
 
 		{
 			expr: `;;;;reordering:false:false`,
-			origin: map[OptimizeOption]bool{
+			origin: map[CompileOption]bool{
 				Reordering:      true,
 				FastEvaluation:  true,
 				ConstantFolding: true,
@@ -543,7 +543,7 @@ func TestParseConfig(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		p := newParser(&CompileConfig{OptimizeOptions: c.origin}, c.expr)
+		p := newParser(&CompileConfig{CompileOptions: c.origin}, c.expr)
 		err := p.lex()
 		assertNil(t, err, c)
 		err = p.parseConfig()
@@ -552,7 +552,7 @@ func TestParseConfig(t *testing.T) {
 			continue
 		}
 		assertNil(t, err, c)
-		updatedOption := p.conf.OptimizeOptions
+		updatedOption := p.conf.CompileOptions
 
 		for option, want := range c.want {
 			got, exist := updatedOption[option]

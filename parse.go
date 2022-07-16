@@ -596,13 +596,13 @@ func (p *parser) parseConfig() error {
 			if err != nil {
 				return p.errWithToken(fmt.Errorf("invalid config value %s, err %w", s, err), t)
 			}
-			switch option := OptimizeOption(pair[0]); option {
+			switch option := CompileOption(pair[0]); option {
 			case AllOptimizations: // switch all optimizations
-				for _, option := range []OptimizeOption{Reordering, FastEvaluation, ConstantFolding} {
-					confCopy.OptimizeOptions[option] = enabled
+				for _, opt := range []CompileOption{Reordering, FastEvaluation, ConstantFolding} {
+					confCopy.CompileOptions[opt] = enabled
 				}
 			case Reordering, FastEvaluation, ConstantFolding:
-				confCopy.OptimizeOptions[option] = enabled
+				confCopy.CompileOptions[option] = enabled
 			default:
 				return p.errWithToken(fmt.Errorf("unsupported compile config %s", s), t)
 			}
