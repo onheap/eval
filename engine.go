@@ -245,7 +245,7 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 			// push the real node to print stacks
 			sf[sfTop+1], sfTop = curtIdx+offset, sfTop+1
 
-			e.printStacks(scTriggered, os, osTop, sf, sfTop)
+			e.printStacks(scTriggered, maxIdx, os, osTop, sf, sfTop)
 			scTriggered = false
 			continue
 		}
@@ -339,14 +339,15 @@ func debugStackFrame(sf []int, sfTop, offset int) {
 	}
 }
 
-func (e *Expr) printStacks(scTriggered bool, os []Value, osTop int, sf []int, sfTop int) {
+func (e *Expr) printStacks(scTriggered bool, maxIdx int, os []Value, osTop int, sf []int, sfTop int) {
 	if scTriggered {
 		fmt.Printf("short circuit triggered\n\n")
 	}
-
 	var sb strings.Builder
 
-	fmt.Printf("sfTop:%d, osTop:%d\n", sfTop, osTop)
+	offset := len(e.nodes) / 2
+
+	fmt.Printf("maxIdx:%d, sfTop:%d, osTop:%d\n", maxIdx-offset, sfTop, osTop)
 	sb.WriteString(fmt.Sprintf("%15s", "Stack Frame: "))
 	for i := sfTop; i >= 0; i-- {
 		sb.WriteString(fmt.Sprintf("|%4v", e.nodes[sf[i]].value))

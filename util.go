@@ -365,6 +365,15 @@ func IndentByParentheses(s string) string {
 }
 
 func Dump(e *Expr) string {
+	var getNode = func(idx int) *node {
+		n := e.nodes[idx]
+		if n.getNodeType() != debug {
+			return n
+		}
+		offset := len(e.nodes) / 2
+		return e.nodes[idx+offset]
+	}
+
 	var helper func(*node) (string, bool)
 
 	helper = func(root *node) (string, bool) {
@@ -376,7 +385,7 @@ func Dump(e *Expr) string {
 		sb.WriteString(fmt.Sprintf("(%v", root.value))
 		for i := 0; i < int(root.childCnt); i++ {
 			childIdx := int(root.childIdx) + i
-			child := e.nodes[childIdx]
+			child := getNode(childIdx)
 			if child.getNodeType() == end {
 				continue
 			}
@@ -394,12 +403,14 @@ func Dump(e *Expr) string {
 		return sb.String(), false
 	}
 
-	res, _ := helper(e.nodes[0])
+	res, _ := helper(getNode(0))
 	return res
 }
 
 func dumpLeafNode(node *node) (string, bool) {
 	switch node.getNodeType() {
+	case debug:
+		return "debug", false
 	case end:
 		return "", true
 	case selector:

@@ -14,12 +14,13 @@ import (
 
 func TestDebug(t *testing.T) {
 	s := `
-	(or
-	 (and
-	   (= 1 1)
-	   (< 4 2)
-	   (!= 5 6))
-	 (eq 8 -8))
+	(not
+	(and
+	 (if T
+	   (!= 0 0)
+	   (= 0 0))
+	 (= 0 0)
+	 (= 0 0)))
 	`
 
 	//s := `(+ 1 2)`
@@ -72,17 +73,16 @@ func TestDebugCases(t *testing.T) {
 (not
   (and
     (if T
-      (!= 0 0)
-      (= 0 0))
-    (= 0 0)
-    (= 0 0)))`,
+      (!= 3 3)
+      (= 4 4))
+    (= 5 5)
+    (= 6 6)))`,
 			valMap: map[string]Value{
 				"T": true,
 				"F": false,
 			},
 		},
 		{
-			run:           ________RunThisOne________,
 			want:          false,
 			optimizeLevel: disable,
 			s: `
@@ -396,6 +396,7 @@ func TestDebugCases(t *testing.T) {
 			Reordering:      false,
 			FastEvaluation:  false,
 			ConstantFolding: false,
+			Debug:           true,
 		}
 
 		switch c.optimizeLevel {
@@ -491,7 +492,7 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 
 func TestRandomExpressions(t *testing.T) {
 	const (
-		size          = 10000
+		size          = 300000
 		level         = 53
 		step          = size / 100
 		showSample    = false
@@ -585,6 +586,7 @@ func TestRandomExpressions(t *testing.T) {
 				v := r.Intn(0b1000)
 				// combination of optimizations
 				cc := CopyCompileConfig(conf)
+				cc.OptimizeOptions[Debug] = true
 				cc.OptimizeOptions[Reordering] = v&0b1 != 0
 				cc.OptimizeOptions[FastEvaluation] = v&0b10 != 0
 				cc.OptimizeOptions[ConstantFolding] = v&0b100 != 0

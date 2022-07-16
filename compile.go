@@ -133,33 +133,38 @@ func setDebugInfo(e *Expr) {
 	}
 
 	size := len(e.nodes)
-	debugNodes := make([]*node, size*2)
-	debugParentIdx := make([]int, size*2)
+	offset := size
+
+	e.nodes = append(e.nodes, e.nodes...)
+	e.parentIdx = append(e.parentIdx, e.parentIdx...)
+	e.scIdx = append(e.scIdx, e.scIdx...)
+	e.sfSize = append(e.sfSize, e.sfSize...)
+	e.osSize = append(e.osSize, e.osSize...)
+
 	for i := 0; i < size; i++ {
-		n := e.nodes[i]
-		switch n.getNodeType() {
-		case operator, fastOperator:
-			n.operator = wrapDebugInfo(n.value.(string), n.operator)
-		}
+		realNode := e.nodes[i]
+		parentIdx := e.parentIdx[i]
 
 		debugNode := &node{
-			flag:     n.flag | debug,
-			childCnt: n.childCnt,
-			scIdx:    n.scIdx,
-			childIdx: n.childIdx,
-			selKey:   n.selKey,
-			value:    n.value,
-			operator: n.operator,
+			flag:     realNode.flag | debug,
+			value:    realNode.value,
+			childIdx: realNode.childIdx,
+			childCnt: realNode.childCnt,
 		}
 
-		debugNodes[i] = debugNode
-		debugNodes[i+size] = n
-		debugParentIdx[i] = e.parentIdx[i]
-		debugParentIdx[i+size] = e.parentIdx[i]
+		realNode.scIdx += int16(offset)
+		switch realNode.getNodeType() {
+		case operator:
+			realNode.operator = wrapDebugInfo(realNode.value.(string), realNode.operator)
+		case fastOperator:
+			realNode.operator = wrapDebugInfo(realNode.value.(string), realNode.operator)
+			realNode.childIdx += int16(offset)
+		}
 
+		e.nodes[i] = debugNode
+		e.nodes[i+offset] = realNode
+		e.parentIdx[i+size] = parentIdx + offset
 	}
-	e.nodes = debugNodes
-	e.parentIdx = debugParentIdx
 }
 
 func setExtraInfo(e *Expr) {
@@ -573,7 +578,7 @@ func optimizeFastEvaluation(cc *CompileConfig, root *astNode) {
 		return
 	}
 
-	otherPartMask := nodeTypeMask ^ uint8(0b11111111)
+	otherPartMask := nodeTypeMask ^ uint8(0xFF)
 
 	root.node.flag = fastOperator | (root.node.flag & otherPartMask)
 }
