@@ -237,12 +237,13 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 		case end:
 			maxIdx = e.parentIdx[curtIdx]
 			res, osTop = os[osTop], osTop-1
-		default: // only debug node will enter this branch
-			l := len(e.nodes) / 2
-			replaceWithDebugNode(sf, sfTop, l)
+		default:
+			// only debug node will enter this branch
+			offset := len(e.nodes) / 2
+			debugStackFrame(sf, sfTop, offset)
 
 			// push the real node to print stacks
-			sf[sfTop+1], sfTop = curtIdx+l, sfTop+1
+			sf[sfTop+1], sfTop = curtIdx+offset, sfTop+1
 
 			e.printStacks(scTriggered, os, osTop, sf, sfTop)
 			scTriggered = false
@@ -272,15 +273,6 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 		os[osTop+1], osTop = res, osTop+1
 	}
 	return os[0], nil
-}
-
-func replaceWithDebugNode(sf []int, sfTop, boundary int) {
-	// replace with debug node
-	for i := 0; i < sfTop; i++ {
-		if sf[i] >= boundary {
-			sf[i] -= boundary
-		}
-	}
 }
 
 func unifyType(val Value) Value {
@@ -338,9 +330,18 @@ func getSelectorValue(ctx *Ctx, n *node) (Value, error) {
 	}
 }
 
+func debugStackFrame(sf []int, sfTop, offset int) {
+	// replace with debug node
+	for i := 0; i < sfTop; i++ {
+		if sf[i] >= offset {
+			sf[i] -= offset
+		}
+	}
+}
+
 func (e *Expr) printStacks(scTriggered bool, os []Value, osTop int, sf []int, sfTop int) {
 	if scTriggered {
-		fmt.Println("short circuit triggered")
+		fmt.Printf("short circuit triggered\n\n")
 	}
 
 	var sb strings.Builder

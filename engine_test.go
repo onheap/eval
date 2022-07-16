@@ -13,16 +13,16 @@ import (
 )
 
 func TestDebug(t *testing.T) {
-	//	s := `
-	//(or
-	//  (and
-	//    (= 1 1)
-	//    (< 4 2)
-	//    (!= 5 6))
-	//  (eq 8 -8))
-	//`
+	s := `
+	(or
+	 (and
+	   (= 1 1)
+	   (< 4 2)
+	   (!= 5 6))
+	 (eq 8 -8))
+	`
 
-	s := `(+ 1 2)`
+	//s := `(+ 1 2)`
 	expr, err := Compile(&CompileConfig{
 		OptimizeOptions: map[OptimizeOption]bool{
 			ConstantFolding: false,
