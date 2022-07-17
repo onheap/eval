@@ -79,7 +79,6 @@ func NewCtxWithMap(cc *CompileConfig, vals map[string]Value) *Ctx {
 	}
 
 	return &Ctx{
-		Debug:    false,
 		Selector: sel,
 	}
 }

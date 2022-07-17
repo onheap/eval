@@ -155,7 +155,7 @@ func TestGenerateRandomExpr_Bool(t *testing.T) {
 			"T": SelectorKey(1),
 			"F": SelectorKey(2),
 		},
-		OptimizeOptions: map[OptimizeOption]bool{
+		CompileOptions: map[Option]bool{
 			ConstantFolding: false,
 		},
 	}
@@ -209,7 +209,7 @@ func TestGenerateRandomExpr_Number(t *testing.T) {
 
 	cc := &CompileConfig{
 		SelectorMap: keyMap,
-		OptimizeOptions: map[OptimizeOption]bool{
+		CompileOptions: map[Option]bool{
 			ConstantFolding: false,
 		},
 	}

@@ -42,17 +42,16 @@ func TestDebugCases(t *testing.T) {
 (not
   (and
     (if T
-      (!= 0 0)
-      (= 0 0))
-    (= 0 0)
-    (= 0 0)))`,
+      (!= 3 3)
+      (= 4 4))
+    (= 5 5)
+    (= 6 6)))`,
 			valMap: map[string]Value{
 				"T": true,
 				"F": false,
 			},
 		},
 		{
-			run:           ________RunThisOne________,
 			want:          false,
 			optimizeLevel: disable,
 			s: `
@@ -361,25 +360,20 @@ func TestDebugCases(t *testing.T) {
 			continue
 		}
 
-		cc := NewCompileConfig()
-		cc.OptimizeOptions = map[OptimizeOption]bool{
-			Reordering:      false,
-			FastEvaluation:  false,
-			ConstantFolding: false,
-		}
-
+		options := []CompileOption{EnableDebug}
 		switch c.optimizeLevel {
 		case all:
-			cc.OptimizeOptions[Reordering] = true
-			cc.OptimizeOptions[ConstantFolding] = true
-			fallthrough
-		case onlyFast:
-			cc.OptimizeOptions[FastEvaluation] = true
+			options = append(options, Optimizations(true))
 		case disable:
+			options = append(options, Optimizations(false))
+		case onlyFast:
+			// disable all optimizations and enable fast evaluation
+			options = append(options, Optimizations(false), Optimizations(true, FastEvaluation))
 		}
 
+		cc := NewCompileConfig(options...)
+
 		ctx := NewCtxWithMap(cc, c.valMap)
-		ctx.Debug = true
 
 		expr, err := Compile(cc, c.s)
 		assertNil(t, err)
@@ -412,14 +406,14 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 		{
 			want: false,
 			expr: `(< age 18)`,
-			cc:   &CompileConfig{AllowUnknownSelectors: true},
+			cc:   NewCompileConfig(EnableStringSelectors),
 			vals: map[string]Value{
 				"age": int64(20),
 			},
 		},
 		{
 			expr:   `(< not_exist_key 18)`,
-			cc:     &CompileConfig{AllowUnknownSelectors: true},
+			cc:     NewCompileConfig(EnableStringSelectors),
 			errMsg: "selectorKey not exist",
 		},
 		{
@@ -439,7 +433,7 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
    (- 2 v3) (/ 6 3) 4)
  (* 5 -6 7)
 )`,
-			cc: &CompileConfig{AllowUnknownSelectors: true},
+			cc: NewCompileConfig(EnableStringSelectors),
 			vals: map[string]Value{
 				"v3": int64(3),
 			},
@@ -555,9 +549,9 @@ func TestRandomExpressions(t *testing.T) {
 				v := r.Intn(0b1000)
 				// combination of optimizations
 				cc := CopyCompileConfig(conf)
-				cc.OptimizeOptions[Reordering] = v&0b1 != 0
-				cc.OptimizeOptions[FastEvaluation] = v&0b10 != 0
-				cc.OptimizeOptions[ConstantFolding] = v&0b100 != 0
+				cc.CompileOptions[Reordering] = v&0b1 != 0
+				cc.CompileOptions[FastEvaluation] = v&0b10 != 0
+				cc.CompileOptions[ConstantFolding] = v&0b100 != 0
 				ctx := NewCtxWithMap(cc, valMap)
 				got, err := Eval(cc, expr.Expr, ctx)
 

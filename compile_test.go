@@ -15,14 +15,14 @@ func TestCopyCompileConfig(t *testing.T) {
 	assertNotNil(t, res.OperatorMap)
 	assertNotNil(t, res.ConstantMap)
 	assertNotNil(t, res.SelectorMap)
-	assertNotNil(t, res.OptimizeOptions)
+	assertNotNil(t, res.CompileOptions)
 
 	res = CopyCompileConfig(&CompileConfig{})
 	assertNotNil(t, res)
 	assertNotNil(t, res.OperatorMap)
 	assertNotNil(t, res.ConstantMap)
 	assertNotNil(t, res.SelectorMap)
-	assertNotNil(t, res.OptimizeOptions)
+	assertNotNil(t, res.CompileOptions)
 
 	cc := &CompileConfig{
 		ConstantMap: map[string]Value{
@@ -64,7 +64,7 @@ func TestCopyCompileConfig(t *testing.T) {
 			"selectors": 10,
 			"operators": 20,
 		},
-		OptimizeOptions: map[OptimizeOption]bool{
+		CompileOptions: map[Option]bool{
 			Reordering:      true,
 			ConstantFolding: false,
 		},
@@ -73,7 +73,7 @@ func TestCopyCompileConfig(t *testing.T) {
 	res = CopyCompileConfig(cc)
 	assertEquals(t, res.ConstantMap, cc.ConstantMap)
 	assertEquals(t, res.SelectorMap, cc.SelectorMap)
-	assertEquals(t, res.OptimizeOptions, cc.OptimizeOptions)
+	assertEquals(t, res.CompileOptions, cc.CompileOptions)
 	assertEquals(t, res.CostsMap, cc.CostsMap)
 
 	assertEquals(t, len(res.OperatorMap), len(cc.OperatorMap))

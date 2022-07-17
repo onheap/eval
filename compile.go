@@ -6,14 +6,19 @@ import (
 	"sort"
 )
 
-type OptimizeOption string
+type Option string
 
 const (
-	AllOptimizations OptimizeOption = "optimize"
-	Reordering       OptimizeOption = "reordering"
-	FastEvaluation   OptimizeOption = "fast_evaluation"
-	ConstantFolding  OptimizeOption = "constant_folding"
+	Optimize        Option = "optimize" // switch all optimizations
+	Reordering      Option = "reordering"
+	FastEvaluation  Option = "fast_evaluation"
+	ConstantFolding Option = "constant_folding"
+
+	Debug                 Option = "debug"
+	AllowUnknownSelectors Option = "allow_unknown_selectors"
 )
+
+var AllOptimizations = []Option{Reordering, FastEvaluation, ConstantFolding}
 
 func CopyCompileConfig(origin *CompileConfig) *CompileConfig {
 	conf := NewCompileConfig()
@@ -29,36 +34,60 @@ func CopyCompileConfig(origin *CompileConfig) *CompileConfig {
 	for k, v := range origin.OperatorMap {
 		conf.OperatorMap[k] = v
 	}
-	for k, v := range origin.OptimizeOptions {
-		conf.OptimizeOptions[k] = v
+	for k, v := range origin.CompileOptions {
+		conf.CompileOptions[k] = v
 	}
 	for k, v := range origin.CostsMap {
 		conf.CostsMap[k] = v
 	}
-	conf.AllowUnknownSelectors = origin.AllowUnknownSelectors
 	return conf
 }
 
-func NewCompileConfig() *CompileConfig {
-	return &CompileConfig{
-		ConstantMap:     make(map[string]Value),
-		SelectorMap:     make(map[string]SelectorKey),
-		OperatorMap:     make(map[string]Operator),
-		OptimizeOptions: make(map[OptimizeOption]bool),
-		CostsMap:        make(map[string]int),
+type CompileOption func(conf *CompileConfig)
 
-		AllowUnknownSelectors: false,
+var (
+	EnableStringSelectors CompileOption = func(c *CompileConfig) {
+		c.CompileOptions[AllowUnknownSelectors] = true
 	}
+	EnableDebug CompileOption = func(c *CompileConfig) {
+		c.CompileOptions[Debug] = true
+	}
+	Optimizations = func(enable bool, opts ...Option) CompileOption {
+		return func(c *CompileConfig) {
+			if len(opts) == 0 || opts[0] == Optimize {
+				opts = AllOptimizations
+			}
+			for _, opt := range opts {
+				c.CompileOptions[opt] = enable
+			}
+		}
+	}
+)
+
+func NewCompileConfig(opts ...CompileOption) *CompileConfig {
+	conf := &CompileConfig{
+		ConstantMap:    make(map[string]Value),
+		SelectorMap:    make(map[string]SelectorKey),
+		OperatorMap:    make(map[string]Operator),
+		CompileOptions: make(map[Option]bool),
+		CostsMap:       make(map[string]int),
+	}
+	for _, opt := range opts {
+		opt(conf)
+	}
+	return conf
 }
 
 type CompileConfig struct {
-	ConstantMap     map[string]Value
-	SelectorMap     map[string]SelectorKey
-	OperatorMap     map[string]Operator
-	OptimizeOptions map[OptimizeOption]bool
-	CostsMap        map[string]int // cost of performance
+	ConstantMap map[string]Value
+	SelectorMap map[string]SelectorKey
+	OperatorMap map[string]Operator
 
-	AllowUnknownSelectors bool
+	// cost of performance
+	CostsMap map[string]int
+
+	// compile options
+	CompileOptions map[Option]bool
 }
 
 func (cc *CompileConfig) getCosts(nodeType uint8, nodeName string) int {
@@ -110,7 +139,54 @@ func Compile(originConf *CompileConfig, exprStr string) (*Expr, error) {
 
 	setExtraInfo(expr)
 
+	if conf.CompileOptions[Debug] {
+		setDebugInfo(expr)
+	}
 	return expr, nil
+}
+
+func setDebugInfo(e *Expr) {
+	var wrapDebugInfo = func(name string, op Operator) Operator {
+		return func(ctx *Ctx, params []Value) (res Value, err error) {
+			res, err = op(ctx, params)
+			fmt.Printf("execute operator, op: %s, params: %v, res: %v, err: %v\n\n", name, params, res, err)
+			return
+		}
+	}
+
+	size := len(e.nodes)
+	offset := size
+
+	e.nodes = append(e.nodes, e.nodes...)
+	e.parentIdx = append(e.parentIdx, e.parentIdx...)
+	e.scIdx = append(e.scIdx, e.scIdx...)
+	e.sfSize = append(e.sfSize, e.sfSize...)
+	e.osSize = append(e.osSize, e.osSize...)
+
+	for i := 0; i < size; i++ {
+		realNode := e.nodes[i]
+		parentIdx := e.parentIdx[i]
+
+		debugNode := &node{
+			flag:     debug,
+			value:    realNode.value,
+			childIdx: realNode.childIdx,
+			childCnt: realNode.childCnt,
+		}
+
+		realNode.scIdx += int16(offset)
+		switch realNode.getNodeType() {
+		case operator:
+			realNode.operator = wrapDebugInfo(realNode.value.(string), realNode.operator)
+		case fastOperator:
+			realNode.operator = wrapDebugInfo(realNode.value.(string), realNode.operator)
+			realNode.childIdx += int16(offset)
+		}
+
+		e.nodes[i] = debugNode
+		e.nodes[i+offset] = realNode
+		e.parentIdx[i+size] = parentIdx + offset
+	}
 }
 
 func setExtraInfo(e *Expr) {
@@ -300,15 +376,15 @@ func calAndSetShortCircuit(e *Expr) {
 }
 
 func optimize(cc *CompileConfig, root *astNode) {
-	if enabled, exist := cc.OptimizeOptions[ConstantFolding]; enabled || !exist {
+	if enabled, exist := cc.CompileOptions[ConstantFolding]; enabled || !exist {
 		_ = optimizeConstantFolding(cc, root)
 	}
 
-	if enabled, exist := cc.OptimizeOptions[FastEvaluation]; enabled || !exist {
+	if enabled, exist := cc.CompileOptions[FastEvaluation]; enabled || !exist {
 		optimizeFastEvaluation(cc, root)
 	}
 
-	if enabled, exist := cc.OptimizeOptions[Reordering]; enabled || !exist {
+	if enabled, exist := cc.CompileOptions[Reordering]; enabled || !exist {
 		calculateNodeCosts(cc, root)
 		optimizeReordering(root)
 	}
@@ -524,7 +600,7 @@ func optimizeFastEvaluation(cc *CompileConfig, root *astNode) {
 		return
 	}
 
-	otherPartMask := nodeTypeMask ^ uint8(0b11111111)
+	otherPartMask := nodeTypeMask ^ uint8(0xFF)
 
 	root.node.flag = fastOperator | (root.node.flag & otherPartMask)
 }
