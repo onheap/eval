@@ -9,14 +9,16 @@ import (
 type Option string
 
 const (
-	AllOptimizations Option = "optimize"
-	Reordering       Option = "reordering"
-	FastEvaluation   Option = "fast_evaluation"
-	ConstantFolding  Option = "constant_folding"
+	Optimize        Option = "optimize" // switch all optimizations
+	Reordering      Option = "reordering"
+	FastEvaluation  Option = "fast_evaluation"
+	ConstantFolding Option = "constant_folding"
 
 	Debug                 Option = "debug"
 	AllowUnknownSelectors Option = "allow_unknown_selectors"
 )
+
+var AllOptimizations = []Option{Reordering, FastEvaluation, ConstantFolding}
 
 func CopyCompileConfig(origin *CompileConfig) *CompileConfig {
 	conf := NewCompileConfig()
@@ -50,10 +52,15 @@ var (
 	EnableDebug CompileOption = func(c *CompileConfig) {
 		c.CompileOptions[Debug] = true
 	}
-	DisableAllOptimizations CompileOption = func(c *CompileConfig) {
-		c.CompileOptions[Reordering] = false
-		c.CompileOptions[FastEvaluation] = false
-		c.CompileOptions[ConstantFolding] = false
+	Optimizations = func(enable bool, opts ...Option) CompileOption {
+		return func(c *CompileConfig) {
+			if len(opts) == 0 || opts[0] == Optimize {
+				opts = AllOptimizations
+			}
+			for _, opt := range opts {
+				c.CompileOptions[opt] = enable
+			}
+		}
 	}
 )
 

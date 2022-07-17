@@ -12,34 +12,8 @@ import (
 	"time"
 )
 
-func TestDebug(t *testing.T) {
-	s := `
-	(not
-	(and
-	 (if 
-       (< 2 3)
-	   (!= 0 0)
-	   (= 0 0))
-	 (= 0 0)
-	 (= 0 0)))
-	`
-
-	//s := `(+ 1 2)`
-	conf := NewCompileConfig(EnableDebug, DisableAllOptimizations)
-	expr, err := Compile(conf, s)
-
-	assertNil(t, err)
-
-	fmt.Println(PrintExpr(expr))
-
-	res, err := expr.Eval(&Ctx{Debug: false})
-
-	assertNil(t, err)
-	fmt.Println(res)
-}
-
 func TestDebugCases(t *testing.T) {
-	const onlyAllowListCases = false
+	const onlyAllowListCases = true
 
 	type runThis string
 	const ________RunThisOne________ runThis = "________RunThisOne________"
@@ -386,23 +360,18 @@ func TestDebugCases(t *testing.T) {
 			continue
 		}
 
-		cc := NewCompileConfig()
-		cc.CompileOptions = map[Option]bool{
-			Reordering:      false,
-			FastEvaluation:  false,
-			ConstantFolding: false,
-			Debug:           true,
-		}
-
+		options := []CompileOption{EnableDebug}
 		switch c.optimizeLevel {
 		case all:
-			cc.CompileOptions[Reordering] = true
-			cc.CompileOptions[ConstantFolding] = true
-			fallthrough
-		case onlyFast:
-			cc.CompileOptions[FastEvaluation] = true
+			options = append(options, Optimizations(true))
 		case disable:
+			options = append(options, Optimizations(false))
+		case onlyFast:
+			// disable all optimizations and enable fast evaluation
+			options = append(options, Optimizations(false), Optimizations(true, FastEvaluation))
 		}
+
+		cc := NewCompileConfig(options...)
 
 		ctx := NewCtxWithMap(cc, c.valMap)
 		ctx.Debug = true
@@ -487,7 +456,7 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 
 func TestRandomExpressions(t *testing.T) {
 	const (
-		size          = 10000
+		size          = 3000000
 		level         = 53
 		step          = size / 100
 		showSample    = false
