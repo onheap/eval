@@ -20,42 +20,49 @@ type Ctx struct {
 
 const (
 	// node types
-	nodeTypeMask = uint8(0b111)
-	constant     = uint8(0b001)
-	selector     = uint8(0b010)
-	operator     = uint8(0b011)
-	fastOperator = uint8(0b100)
-	cond         = uint8(0b101)
-	end          = uint8(0b110)
-	debug        = uint8(0b111)
+	nodeTypeMask = int16(0b111)
+	constant     = int16(0b001)
+	selector     = int16(0b010)
+	operator     = int16(0b011)
+	fastOperator = int16(0b100)
+	cond         = int16(0b101)
+	end          = int16(0b110)
+	debug        = int16(0b111)
 
 	// short circuit flag
-	scIfFalse = uint8(0b001000)
-	scIfTrue  = uint8(0b010000)
+	scMask    = int16(0b011000)
+	scIfFalse = int16(0b001000)
+	scIfTrue  = int16(0b010000)
 )
 
 type node struct {
-	flag     uint8
-	childCnt int8
-	scIdx    int16
-	childIdx int16
+	flag     int16
+	idx      int
+	childCnt int
+	childIdx int
 	selKey   SelectorKey
 	value    Value
 	operator Operator
 }
 
-func (n *node) getNodeType() uint8 {
+func (n *node) getNodeType() int16 {
 	return n.flag & nodeTypeMask
 }
 
 type Expr struct {
 	maxStackSize int16
-	nodes        []*node
+	// Although the field name is bytecode,
+	// here we use []int16 for convenience
+	bytecode  []int16
+	constants []Value
+	operators []Operator
+
 	// extra info
-	parentIdx []int
 	scIdx     []int
 	sfSize    []int
 	osSize    []int
+	parentIdx []int
+	nodes     []*node
 }
 
 func EvalBool(conf *CompileConfig, expr string, ctx *Ctx) (bool, error) {
@@ -93,7 +100,6 @@ func (e *Expr) EvalBool(ctx *Ctx) (bool, error) {
 func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 	var (
 		size   = e.maxStackSize
-		nodes  = e.nodes
 		maxIdx = -1
 
 		sf    []int // stack frame
@@ -103,6 +109,10 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 		osTop = -1
 
 		scTriggered bool
+
+		bytecode  = e.bytecode
+		constants = e.constants
+		operators = e.operators
 	)
 
 	// ensure that variables do not escape to the heap in most cases
@@ -122,8 +132,8 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 	}
 
 	var (
-		curtIdx int
-		curt    *node
+		curt    int
+		curtIdx int // index in bytecode
 
 		res Value // result of current stack frame
 		err error
@@ -136,19 +146,19 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 	sf[sfTop+1], sfTop = 0, sfTop+1
 
 	for sfTop != -1 { // while stack frame is not empty
-		curtIdx, sfTop = sf[sfTop], sfTop-1
-		curt = nodes[curtIdx]
+		curt, sfTop = sf[sfTop], sfTop-1
+		curtIdx = curt * 4
 
-		switch curt.flag & nodeTypeMask {
+		switch bytecode[curtIdx] & nodeTypeMask {
 		case fastOperator:
-			cnt := int(curt.childCnt)
-			childIdx := int(curt.childIdx)
+			cnt := int(bytecode[curtIdx] >> 8)
+			childIdx := int(bytecode[curtIdx+1])
 			if cnt == 2 {
-				param2[0], err = getNodeValue(ctx, nodes[childIdx])
+				param2[0], err = e.getNodeValue(ctx, childIdx)
 				if err != nil {
 					return nil, err
 				}
-				param2[1], err = getNodeValue(ctx, nodes[childIdx+1])
+				param2[1], err = e.getNodeValue(ctx, childIdx+1)
 				if err != nil {
 					return nil, err
 				}
@@ -156,25 +166,24 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 			} else {
 				param = make([]Value, cnt)
 				for i := 0; i < cnt; i++ {
-					child := nodes[childIdx+i]
-					param[i], err = getNodeValue(ctx, child)
+					param[i], err = e.getNodeValue(ctx, childIdx+i)
 					if err != nil {
 						return nil, err
 					}
 				}
 			}
 
-			res, err = curt.operator(ctx, param)
+			res, err = operators[int(bytecode[curtIdx+2])](ctx, param)
 			if err != nil {
-				return nil, fmt.Errorf("operator execution error, operator: %v, error: %w", curt.value, err)
+				return nil, fmt.Errorf("operator execution error, operator: %v, error: %w", curt, err)
 			}
 		case operator:
-			cnt := int(curt.childCnt)
-			if curtIdx > maxIdx {
+			cnt := int(bytecode[curtIdx] >> 8)
+			if curt > maxIdx {
 				// the node has never been visited before
-				maxIdx = curtIdx
-				sf[sfTop+1], sfTop = curtIdx, sfTop+1
-				childIdx := int(curt.childIdx)
+				maxIdx = curt
+				sf[sfTop+1], sfTop = curt, sfTop+1
+				childIdx := int(bytecode[curtIdx+1])
 				// push child nodes into the stack frame
 				// the back nodes is on top
 				if cnt == 2 {
@@ -190,7 +199,7 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 			}
 
 			// current node has been visited
-			maxIdx = curtIdx
+			maxIdx = curt
 			osTop = osTop - cnt
 			if cnt == 2 {
 				param2[0], param2[1] = os[osTop+1], os[osTop+2]
@@ -199,26 +208,26 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 				param = make([]Value, cnt)
 				copy(param, os[osTop+1:])
 			}
-			res, err = curt.operator(ctx, param)
+
+			res, err = operators[int(bytecode[curtIdx+2])](ctx, param)
 			if err != nil {
-				return nil, fmt.Errorf("operator execution error, operator: %v, error: %w", curt.value, err)
+				return nil, fmt.Errorf("operator execution error, operator: %v, error: %w", curt, err)
 			}
 		case selector:
-			res, err = getSelectorValue(ctx, curt)
+			res, err = ctx.Get(SelectorKey(e.bytecode[curtIdx+3]), "")
 			if err != nil {
 				return nil, err
 			}
 		case constant:
-			res = curt.value
+			res = constants[int(bytecode[curtIdx+2])]
 		case cond:
-			childIdx := int(curt.childIdx)
-			if curtIdx > maxIdx {
-				cnt := int(curt.childCnt)
-
-				maxIdx = curtIdx
+			childIdx := int(bytecode[curtIdx+1])
+			if curt > maxIdx {
+				cnt := int(bytecode[curtIdx] >> 8)
+				maxIdx = curt
 				// push the end node to the stack frame
 				sf[sfTop+1], sfTop = childIdx+cnt-1, sfTop+1
-				sf[sfTop+1], sfTop = curtIdx, sfTop+1
+				sf[sfTop+1], sfTop = curt, sfTop+1
 				sf[sfTop+1], sfTop = childIdx, sfTop+1
 			} else {
 				res, osTop = os[osTop], osTop-1
@@ -234,7 +243,7 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 			}
 			continue
 		case end:
-			maxIdx = e.parentIdx[curtIdx]
+			maxIdx = e.parentIdx[curt]
 			res, osTop = os[osTop], osTop-1
 		default:
 			// only debug node will enter this branch
@@ -242,7 +251,7 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 			debugStackFrame(sf, sfTop, offset)
 
 			// push the real node to print stacks
-			sf[sfTop+1], sfTop = curtIdx+offset, sfTop+1
+			sf[sfTop+1], sfTop = curt+offset, sfTop+1
 
 			e.printStacks(scTriggered, maxIdx, os, osTop, sf, sfTop)
 			scTriggered = false
@@ -251,20 +260,20 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 
 		// short circuit
 		if b, ok := res.(bool); ok {
-			for (!b && curt.flag&scIfFalse == scIfFalse) ||
-				(b && curt.flag&scIfTrue == scIfTrue) {
+			flag := bytecode[curtIdx] & scMask
+			for (!b && flag&scIfFalse == scIfFalse) ||
+				(b && flag&scIfTrue == scIfTrue) {
 
-				curtIdx = int(curt.scIdx)
-				if curtIdx == 0 {
+				curt = e.scIdx[curt]
+				if curt == 0 {
 					return res, nil
 				}
-
 				scTriggered = true
 
-				maxIdx = curtIdx
-				sfTop = e.sfSize[curtIdx] - 2
-				osTop = e.osSize[curtIdx] - 1
-				curt = nodes[curtIdx]
+				maxIdx = curt
+				sfTop = e.sfSize[curt] - 2
+				osTop = e.osSize[curt] - 1
+				flag = bytecode[curt<<2] & scMask
 			}
 		}
 
@@ -311,6 +320,16 @@ func getNodeValue(ctx *Ctx, n *node) (res Value, err error) {
 		res = n.value
 	} else {
 		res, err = getSelectorValue(ctx, n)
+	}
+	return
+}
+
+func (e *Expr) getNodeValue(ctx *Ctx, i int) (res Value, err error) {
+	i = i * 4
+	if e.bytecode[i]&nodeTypeMask == constant {
+		res = e.constants[int(e.bytecode[i+2])]
+	} else {
+		res, err = ctx.Get(SelectorKey(e.bytecode[i+3]), "")
 	}
 	return
 }

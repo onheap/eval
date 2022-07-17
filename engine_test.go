@@ -12,8 +12,42 @@ import (
 	"time"
 )
 
+func TestDebug(t *testing.T) {
+	cc := NewCompileConfig()
+
+	ctx := NewCtxWithMap(cc, ToValueMap(map[string]interface{}{
+		"Origin":  "MOW",
+		"Country": "RU",
+		"Adults":  1,
+		"Value":   100,
+	}))
+
+	s := `
+(and
+  (|
+    (eq Origin "MOW")
+    (= Country "RU"))
+  (or
+    (>= Value 100)
+    (= Adults 1)))
+`
+
+	expr, err := Compile(cc, s)
+
+	assertNil(t, err)
+
+	fmt.Println(Dump(expr))
+	fmt.Println(PrintExpr(expr))
+
+	res, err := expr.Eval(ctx)
+
+	assertNil(t, err)
+
+	assertEquals(t, res, true)
+}
+
 func TestDebugCases(t *testing.T) {
-	const onlyAllowListCases = false
+	const onlyAllowListCases = true
 
 	type runThis string
 	const ________RunThisOne________ runThis = "________RunThisOne________"
@@ -35,7 +69,6 @@ func TestDebugCases(t *testing.T) {
 		run           runThis
 	}{
 		{
-			run:           ________RunThisOne________,
 			want:          true,
 			optimizeLevel: disable,
 			s: `
@@ -303,6 +336,7 @@ func TestDebugCases(t *testing.T) {
     (= 0 0)))`,
 		},
 		{
+			run:  ________RunThisOne________,
 			want: true,
 			s: `
 (and
@@ -455,7 +489,7 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 
 func TestRandomExpressions(t *testing.T) {
 	const (
-		size          = 3000000
+		size          = 10000
 		level         = 53
 		step          = size / 100
 		showSample    = false
