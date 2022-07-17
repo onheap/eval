@@ -13,7 +13,7 @@ import (
 )
 
 func TestDebugCases(t *testing.T) {
-	const onlyAllowListCases = true
+	const onlyAllowListCases = false
 
 	type runThis string
 	const ________RunThisOne________ runThis = "________RunThisOne________"
@@ -374,7 +374,6 @@ func TestDebugCases(t *testing.T) {
 		cc := NewCompileConfig(options...)
 
 		ctx := NewCtxWithMap(cc, c.valMap)
-		ctx.Debug = true
 
 		expr, err := Compile(cc, c.s)
 		assertNil(t, err)

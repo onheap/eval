@@ -168,7 +168,7 @@ func setDebugInfo(e *Expr) {
 		parentIdx := e.parentIdx[i]
 
 		debugNode := &node{
-			flag:     realNode.flag | debug,
+			flag:     debug,
 			value:    realNode.value,
 			childIdx: realNode.childIdx,
 			childCnt: realNode.childCnt,

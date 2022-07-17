@@ -15,8 +15,7 @@ type (
 
 type Ctx struct {
 	Selector
-	Ctx   context.Context
-	Debug bool
+	Ctx context.Context
 }
 
 const (
@@ -316,8 +315,8 @@ func getNodeValue(ctx *Ctx, n *node) (res Value, err error) {
 	return
 }
 
-func getSelectorValue(ctx *Ctx, n *node) (Value, error) {
-	res, err := ctx.Get(n.selKey, n.value.(string))
+func getSelectorValue(ctx *Ctx, n *node) (res Value, err error) {
+	res, err = ctx.Get(n.selKey, n.value.(string))
 	if err != nil {
 		return nil, err
 	}
