@@ -154,7 +154,7 @@ func setDebugInfo(e *Expr) {
 		}
 	}
 
-	size := len(e.nodes)
+	size := int16(len(e.nodes))
 	offset := size
 
 	e.nodes = append(e.nodes, e.nodes...)
@@ -163,7 +163,7 @@ func setDebugInfo(e *Expr) {
 	e.sfSize = append(e.sfSize, e.sfSize...)
 	e.osSize = append(e.osSize, e.osSize...)
 
-	for i := 0; i < size; i++ {
+	for i := int16(0); i < size; i++ {
 		realNode := e.nodes[i]
 		parentIdx := e.parentIdx[i]
 
@@ -174,18 +174,18 @@ func setDebugInfo(e *Expr) {
 			childCnt: realNode.childCnt,
 		}
 
-		realNode.scIdx += int16(offset)
+		realNode.scIdx += offset
 		switch realNode.getNodeType() {
 		case operator:
 			realNode.operator = wrapDebugInfo(realNode.value.(string), realNode.operator)
 		case fastOperator:
 			realNode.operator = wrapDebugInfo(realNode.value.(string), realNode.operator)
-			realNode.childIdx += int16(offset)
+			realNode.childIdx += offset
 		}
 
 		e.nodes[i] = debugNode
 		e.nodes[i+offset] = realNode
-		e.parentIdx[i+size] = parentIdx + offset
+		e.parentIdx[i+offset] = parentIdx + offset
 	}
 }
 
@@ -196,11 +196,11 @@ func setExtraInfo(e *Expr) {
 }
 
 func calAndSetParentIndex(e *Expr) {
-	size := len(e.nodes)
-	f := make([]int, size)
+	size := int16(len(e.nodes))
+	f := make([]int16, size)
 	f[0] = -1
 
-	for i := 0; i < size; i++ {
+	for i := int16(0); i < size; i++ {
 		n := e.nodes[i]
 		cCnt := int(n.childCnt)
 		if cCnt == 0 {
@@ -217,83 +217,83 @@ func calAndSetParentIndex(e *Expr) {
 }
 
 func calAndSetStackSize(e *Expr) {
-	var isLeaf = func(e *Expr, idx int) bool {
+	var isLeaf = func(e *Expr, idx int16) bool {
 		n := e.nodes[idx]
 		return n.childCnt == 0 || n.flag&nodeTypeMask == fastOperator
 	}
 
-	var isCondNode = func(e *Expr, idx int) bool {
+	var isCondNode = func(e *Expr, idx int16) bool {
 		return e.nodes[idx].flag&nodeTypeMask == cond
 	}
 
-	var isEndNode = func(e *Expr, idx int) bool {
+	var isEndNode = func(e *Expr, idx int16) bool {
 		return e.nodes[idx].flag&nodeTypeMask == end
 	}
 
-	var isFirstChild = func(e *Expr, idx int) bool {
+	var isFirstChild = func(e *Expr, idx int16) bool {
 		parentIdx := e.parentIdx[idx]
-		return int(e.nodes[parentIdx].childIdx) == idx
+		return e.nodes[parentIdx].childIdx == idx
 
 	}
 
-	size := len(e.nodes)
-	f1 := make([]int, size) // for stack frame
-	f2 := make([]int, size) // for operator stack
+	size := int16(len(e.nodes))
+	f1 := make([]int16, size) // for stack frame
+	f2 := make([]int16, size) // for operator stack
 	f1[0] = 1
-	for i := 1; i < size; i++ {
-		parentIdx := e.parentIdx[i]
+	for i := int16(1); i < size; i++ {
+		pIdx := e.parentIdx[i]
 
 		// f1
-		if isLeaf(e, parentIdx) || isEndNode(e, i) {
-			f1[i] = f1[parentIdx]
+		if isLeaf(e, pIdx) || isEndNode(e, i) {
+			f1[i] = f1[pIdx]
 		} else {
-			siblingCount := int(e.nodes[parentIdx].childIdx) + int(e.nodes[parentIdx].childCnt) - 1 - i
+			siblingCount := e.nodes[pIdx].childIdx + int16(e.nodes[pIdx].childCnt) - 1 - i
 			// f[i] = f[pIdx] + right sibling count + 1
 
-			if isCondNode(e, parentIdx) {
+			if isCondNode(e, pIdx) {
 				if isFirstChild(e, i) {
-					f1[i] = f1[parentIdx] + 2 // add cond expr node and end node
+					f1[i] = f1[pIdx] + 2 // add cond expr node and end node
 				} else {
-					f1[i] = f1[parentIdx] + 1 // push branch expr
+					f1[i] = f1[pIdx] + 1 // push branch expr
 				}
 			} else {
-				f1[i] = f1[parentIdx] + siblingCount + 1
+				f1[i] = f1[pIdx] + siblingCount + 1
 			}
 		}
 
 		// f2
-		if isLeaf(e, parentIdx) || isEndNode(e, i) {
-			f2[i] = f2[parentIdx]
+		if isLeaf(e, pIdx) || isEndNode(e, i) {
+			f2[i] = f2[pIdx]
 			continue
 		}
 
-		if isCondNode(e, parentIdx) {
+		if isCondNode(e, pIdx) {
 			if isLeaf(e, i) {
-				f2[i] = f2[parentIdx] + 1
+				f2[i] = f2[pIdx] + 1
 			} else {
-				f2[i] = f2[parentIdx]
+				f2[i] = f2[pIdx]
 			}
 			continue
 		}
 
 		if isLeaf(e, i) {
 			// f[i] = f[pIdx] + left sibling count + 1
-			siblingCount := i - int(e.nodes[parentIdx].childIdx)
-			f2[i] = f2[parentIdx] + siblingCount + 1
+			siblingCount := i - e.nodes[pIdx].childIdx
+			f2[i] = f2[pIdx] + siblingCount + 1
 		} else {
 			// f[i] = f[pIdx] + left sibling count
-			siblingCount := i - int(e.nodes[parentIdx].childIdx)
-			f2[i] = f2[parentIdx] + siblingCount
+			siblingCount := i - e.nodes[pIdx].childIdx
+			f2[i] = f2[pIdx] + siblingCount
 		}
 	}
 
-	res := 1
-	for i := 0; i < size; i++ {
-		res = max(res, f1[i])
-		res = max(res, f2[i])
+	var res int16 = 1
+	for i := int16(0); i < size; i++ {
+		res = maxInt16(res, f1[i])
+		res = maxInt16(res, f2[i])
 	}
 
-	e.maxStackSize = int16(res)
+	e.maxStackSize = res
 
 	//e.sfSize = f1
 	//e.osSize = f2
@@ -303,21 +303,21 @@ func calAndSetStackSize(e *Expr) {
 }
 
 func calAndSetShortCircuit(e *Expr) {
-	var isLastChild = func(idx int) bool {
+	var isLastChild = func(idx int16) bool {
 		parentIdx := e.parentIdx[idx]
 		if parentIdx == -1 {
 			return false
 		}
 
-		cnt := int(e.nodes[parentIdx].childCnt)
-		childIdx := int(e.nodes[parentIdx].childIdx)
+		cnt := int16(e.nodes[parentIdx].childCnt)
+		childIdx := e.nodes[parentIdx].childIdx
 		if childIdx+cnt-1 == idx {
 			return true
 		}
 		return false
 	}
 
-	var parentNode = func(idx int) (*node, int) {
+	var parentNode = func(idx int16) (*node, int16) {
 		pIdx := e.parentIdx[idx]
 		if pIdx == -1 {
 			return nil, -1
@@ -327,10 +327,10 @@ func calAndSetShortCircuit(e *Expr) {
 
 	const mask = scIfTrue | scIfFalse
 
-	size := len(e.nodes)
+	size := int16(len(e.nodes))
 
-	f := make([]int, size)
-	for i := 1; i < size; i++ {
+	f := make([]int16, size)
+	for i := int16(1); i < size; i++ {
 		n := e.nodes[i]
 		p, pIdx := parentNode(i)
 
@@ -370,8 +370,8 @@ func calAndSetShortCircuit(e *Expr) {
 	//e.scIdx = f
 	copy(e.scIdx, f)
 
-	for i := 0; i < size; i++ {
-		e.nodes[i].scIdx = int16(f[i])
+	for i := int16(0); i < size; i++ {
+		e.nodes[i].scIdx = f[i]
 	}
 }
 
@@ -643,10 +643,10 @@ func check(root *astNode) checkRes {
 func compress(root *astNode, size int) *Expr {
 	e := &Expr{
 		nodes:     make([]*node, 0, size),
-		scIdx:     make([]int, size),
-		sfSize:    make([]int, size),
-		osSize:    make([]int, size),
-		parentIdx: make([]int, size),
+		scIdx:     make([]int16, size),
+		sfSize:    make([]int16, size),
+		osSize:    make([]int16, size),
+		parentIdx: make([]int16, size),
 	}
 	queue := make([]*astNode, 0, size)
 	queue = append(queue, root)

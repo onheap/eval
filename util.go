@@ -459,6 +459,14 @@ func max(a, b int) int {
 	}
 }
 
+func maxInt16(a, b int16) int16 {
+	if a > b {
+		return a
+	} else {
+		return b
+	}
+}
+
 func PrintExpr(expr *Expr, fields ...string) string {
 	type fetcher func(e *Expr, i int) Value
 	const (

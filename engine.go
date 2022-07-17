@@ -52,10 +52,10 @@ type Expr struct {
 	maxStackSize int16
 	nodes        []*node
 	// extra info
-	parentIdx []int
-	scIdx     []int
-	sfSize    []int
-	osSize    []int
+	parentIdx []int16
+	scIdx     []int16
+	sfSize    []int16
+	osSize    []int16
 }
 
 func EvalBool(conf *CompileConfig, expr string, ctx *Ctx) (bool, error) {
@@ -94,35 +94,32 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 	var (
 		size   = e.maxStackSize
 		nodes  = e.nodes
-		maxIdx = -1
+		maxIdx = int16(-1)
 
-		sf    []int // stack frame
-		sfTop = -1
+		sf    []int16 // stack frame
+		sfTop = int16(-1)
 
 		os    []Value // operand stack
-		osTop = -1
+		osTop = int16(-1)
 
 		scTriggered bool
 	)
 
 	// ensure that variables do not escape to the heap in most cases
 	switch {
-	case size <= 4:
-		os = make([]Value, 4)
-		sf = make([]int, 4)
 	case size <= 8:
 		os = make([]Value, 8)
-		sf = make([]int, 8)
+		sf = make([]int16, 8)
 	case size <= 16:
 		os = make([]Value, 16)
-		sf = make([]int, 16)
+		sf = make([]int16, 16)
 	default:
 		os = make([]Value, size)
-		sf = make([]int, size)
+		sf = make([]int16, size)
 	}
 
 	var (
-		curtIdx int
+		curtIdx int16
 		curt    *node
 
 		res Value // result of current stack frame
@@ -141,8 +138,8 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 
 		switch curt.flag & nodeTypeMask {
 		case fastOperator:
-			cnt := int(curt.childCnt)
-			childIdx := int(curt.childIdx)
+			cnt := int16(curt.childCnt)
+			childIdx := curt.childIdx
 			if cnt == 2 {
 				param2[0], err = getNodeValue(ctx, nodes[childIdx])
 				if err != nil {
@@ -155,7 +152,7 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 				param = param2[:]
 			} else {
 				param = make([]Value, cnt)
-				for i := 0; i < cnt; i++ {
+				for i := int16(0); i < cnt; i++ {
 					child := nodes[childIdx+i]
 					param[i], err = getNodeValue(ctx, child)
 					if err != nil {
@@ -169,12 +166,12 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 				return nil, fmt.Errorf("operator execution error, operator: %v, error: %w", curt.value, err)
 			}
 		case operator:
-			cnt := int(curt.childCnt)
+			cnt := int16(curt.childCnt)
 			if curtIdx > maxIdx {
 				// the node has never been visited before
 				maxIdx = curtIdx
 				sf[sfTop+1], sfTop = curtIdx, sfTop+1
-				childIdx := int(curt.childIdx)
+				childIdx := curt.childIdx
 				// push child nodes into the stack frame
 				// the back nodes is on top
 				if cnt == 2 {
@@ -182,7 +179,7 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 					sf[sfTop+1], sfTop = childIdx, sfTop+1
 				} else {
 					sfTop = sfTop + cnt
-					for i := 0; i < cnt; i++ {
+					for i := int16(0); i < cnt; i++ {
 						sf[sfTop-i] = childIdx + i
 					}
 				}
@@ -211,9 +208,9 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 		case constant:
 			res = curt.value
 		case cond:
-			childIdx := int(curt.childIdx)
+			childIdx := curt.childIdx
 			if curtIdx > maxIdx {
-				cnt := int(curt.childCnt)
+				cnt := int16(curt.childCnt)
 
 				maxIdx = curtIdx
 				// push the end node to the stack frame
@@ -238,7 +235,7 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 			res, osTop = os[osTop], osTop-1
 		default:
 			// only debug node will enter this branch
-			offset := len(e.nodes) / 2
+			offset := int16(len(e.nodes)) / 2
 			debugStackFrame(sf, sfTop, offset)
 
 			// push the real node to print stacks
@@ -254,7 +251,7 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 			for (!b && curt.flag&scIfFalse == scIfFalse) ||
 				(b && curt.flag&scIfTrue == scIfTrue) {
 
-				curtIdx = int(curt.scIdx)
+				curtIdx = curt.scIdx
 				if curtIdx == 0 {
 					return res, nil
 				}
@@ -329,22 +326,22 @@ func getSelectorValue(ctx *Ctx, n *node) (res Value, err error) {
 	}
 }
 
-func debugStackFrame(sf []int, sfTop, offset int) {
+func debugStackFrame(sf []int16, sfTop, offset int16) {
 	// replace with debug node
-	for i := 0; i < sfTop; i++ {
+	for i := int16(0); i < sfTop; i++ {
 		if sf[i] >= offset {
 			sf[i] -= offset
 		}
 	}
 }
 
-func (e *Expr) printStacks(scTriggered bool, maxIdx int, os []Value, osTop int, sf []int, sfTop int) {
+func (e *Expr) printStacks(scTriggered bool, maxIdx int16, os []Value, osTop int16, sf []int16, sfTop int16) {
 	if scTriggered {
 		fmt.Printf("short circuit triggered\n\n")
 	}
 	var sb strings.Builder
 
-	offset := len(e.nodes) / 2
+	offset := int16(len(e.nodes)) / 2
 
 	fmt.Printf("maxIdx:%d, sfTop:%d, osTop:%d\n", maxIdx-offset, sfTop, osTop)
 	sb.WriteString(fmt.Sprintf("%15s", "Stack Frame: "))
