@@ -130,7 +130,10 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 	)
 
 	// push the root node to the stack frame
-	sf[sfTop+1], sfTop = 0, sfTop+1
+	// just increase the sfTop because the index of root node is zero,
+	// so we don't need to actually push zero to stack
+	// e.g. sf[sfTop+1], sfTop = 0, sfTop+1
+	sfTop = 0
 
 	for sfTop != -1 { // while stack frame is not empty
 		curtIdx, sfTop = sf[sfTop], sfTop-1
@@ -235,7 +238,7 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 			res, osTop = os[osTop], osTop-1
 		default:
 			// only debug node will enter this branch
-			offset := int16(len(e.nodes)) / 2
+			offset := int16(len(nodes)) / 2
 			debugStackFrame(sf, sfTop, offset)
 
 			// push the real node to print stacks
@@ -315,12 +318,12 @@ func getNodeValue(ctx *Ctx, n *node) (res Value, err error) {
 func getSelectorValue(ctx *Ctx, n *node) (res Value, err error) {
 	res, err = ctx.Get(n.selKey, n.value.(string))
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	switch res.(type) {
 	case bool, string, int64, []int64, []string:
-		return res, nil
+		return
 	default:
 		return unifyType(res), nil
 	}
