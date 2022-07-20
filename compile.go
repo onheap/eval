@@ -447,23 +447,27 @@ func calAndSetBytecode(e *Expr) {
 	)
 
 	for i, n := range e.nodes {
-		var third int16
-		var forth int16
+		i = i * align
+
 		switch n.getNodeType() {
 		case constant:
-			third = setConstant(n.value)
+			e.bytecode[i+flag] = n.flag
+			e.bytecode[i+rIdx] = setConstant(n.value)
 		case selector:
-			third = setConstant(n.value)
-			forth = int16(n.selKey)
+			e.bytecode[i+flag] = n.flag
+			e.bytecode[i+rIdx] = setConstant(n.value)
+			e.bytecode[i+selK] = int16(n.selKey)
 		case operator, fastOperator:
-			third = setOperator(n.value.(string), n.operator)
+			e.bytecode[i+flag] = n.flag
+			e.bytecode[i+rIdx] = setOperator(n.value.(string), n.operator)
+			e.bytecode[i+cIdx] = int16(n.childIdx * align)
+			e.bytecode[i+cCnt] = int16(n.childCnt)
 		}
 
-		i = i * 4
-		e.bytecode[i+0] = int16(n.childCnt)<<8 | n.flag // child count and flag
-		e.bytecode[i+1] = int16(n.childIdx)             // child index
-		e.bytecode[i+2] = third                         // index of constants, index of operator, selectorKey
-		e.bytecode[i+3] = forth                         // select key
+		//e.bytecode[i+0] = int16(n.childCnt)<<8 | n.flag // child count and flag
+		//e.bytecode[i+1] = int16(n.childIdx)             // child index
+		//e.bytecode[i+2] = third                         // index of constants, index of operator, selectorKey
+		//e.bytecode[i+3] = forth                         // select key
 	}
 }
 
