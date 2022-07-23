@@ -142,7 +142,7 @@ func Compile(originConf *CompileConfig, exprStr string) (*Expr, error) {
 
 func buildExpr(cc *CompileConfig, ast *astNode, size int) *Expr {
 	e := &Expr{
-		bytecode: make([]int16, size*4),
+		bytecode: make([]int16, size*align),
 
 		// extra info
 		parentIdx: make([]int, size),
@@ -446,8 +446,8 @@ func calAndSetBytecode(e *Expr) {
 		}
 	)
 
-	for i, n := range e.nodes {
-		i = i * align
+	for idx, n := range e.nodes {
+		i := idx * align
 
 		switch n.getNodeType() {
 		case constant:
@@ -464,10 +464,21 @@ func calAndSetBytecode(e *Expr) {
 			e.bytecode[i+cCnt] = int16(n.childCnt)
 		}
 
-		//e.bytecode[i+0] = int16(n.childCnt)<<8 | n.flag // child count and flag
-		//e.bytecode[i+1] = int16(n.childIdx)             // child index
-		//e.bytecode[i+2] = third                         // index of constants, index of operator, selectorKey
-		//e.bytecode[i+3] = forth                         // select key
+		e.bytecode[i+fSfTop] = int16(e.sfSize[idx] - 2)
+		e.bytecode[i+fOsTop] = int16(e.osSize[idx] - 1)
+		e.bytecode[i+tSfTop] = int16(e.sfSize[idx] - 2)
+		e.bytecode[i+tOsTop] = int16(e.osSize[idx] - 1)
+
+		p := e.parentIdx[idx] * align
+		if n.flag&scIfFalse == scIfFalse {
+			e.bytecode[i+fSfTop] = e.bytecode[p+fSfTop]
+			e.bytecode[i+fOsTop] = e.bytecode[p+fOsTop]
+		}
+
+		if n.flag&scIfTrue == scIfTrue {
+			e.bytecode[i+tSfTop] = e.bytecode[p+tSfTop]
+			e.bytecode[i+tOsTop] = e.bytecode[p+tOsTop]
+		}
 	}
 }
 
@@ -684,7 +695,7 @@ func optimizeFastEvaluation(cc *CompileConfig, root *astNode) {
 		optimizeFastEvaluation(cc, child)
 	}
 	n := root.node
-	if (n.flag & nodeTypeMask) != operator {
+	if (n.flag&nodeTypeMask) != operator || n.childCnt != 2 {
 		return
 	}
 

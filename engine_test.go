@@ -69,6 +69,28 @@ func TestDebugCases(t *testing.T) {
 		run           runThis
 	}{
 		{
+			run:           ________RunThisOne________,
+			want:          true,
+			optimizeLevel: disable,
+			s:             `(not F)`,
+			valMap: map[string]Value{
+				"F": false,
+			},
+		},
+		{
+			want:          true,
+			optimizeLevel: disable,
+			s: `
+(eq F
+  (!= 0 0)
+  (or F
+    (!= 0 0)))`,
+			valMap: map[string]Value{
+				"F": false,
+			},
+		},
+
+		{
 			want:          true,
 			optimizeLevel: disable,
 			s: `
@@ -289,7 +311,6 @@ func TestDebugCases(t *testing.T) {
 		},
 
 		{
-
 			want:          true,
 			optimizeLevel: onlyFast,
 			s: `
@@ -302,7 +323,6 @@ func TestDebugCases(t *testing.T) {
     (= 0 0)))`,
 		},
 		{
-
 			want:          true,
 			optimizeLevel: onlyFast,
 			s: `
@@ -318,8 +338,6 @@ func TestDebugCases(t *testing.T) {
       (= 0 0))))`,
 		},
 		{
-
-			want:          true,
 			optimizeLevel: onlyFast,
 			s: `
 (and
@@ -336,7 +354,6 @@ func TestDebugCases(t *testing.T) {
     (= 0 0)))`,
 		},
 		{
-			run:  ________RunThisOne________,
 			want: true,
 			s: `
 (and
@@ -371,7 +388,6 @@ func TestDebugCases(t *testing.T) {
 			fields: []string{"scIdx", "scVal", "pIdx"},
 		},
 		{
-
 			want: false,
 			s: `
 ;;;;optimize:false
@@ -390,7 +406,7 @@ func TestDebugCases(t *testing.T) {
 	}
 
 	for _, c := range cs {
-		if onlyAllowListCases && c.run != ________RunThisOne________ {
+		if onlyAllowListCases && c.run != "________RunThisOne________" {
 			continue
 		}
 
@@ -490,7 +506,7 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 func TestRandomExpressions(t *testing.T) {
 	const (
 		size          = 10000
-		level         = 53
+		level         = 23
 		step          = size / 100
 		showSample    = false
 		printProgress = true
@@ -554,7 +570,7 @@ func TestRandomExpressions(t *testing.T) {
 				}
 
 				if v&0b010 != 0 {
-					options = append(options, EnableCondition)
+					//options = append(options, EnableCondition)
 				}
 
 				if v&0b100 != 0 {

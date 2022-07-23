@@ -36,12 +36,18 @@ const (
 )
 
 const (
-	align = 4
-	flag  = 0
-	rIdx  = 1
-	selK  = 2
-	cIdx  = 2
-	cCnt  = 3
+	align = 8
+
+	flag = 0
+	rIdx = 1
+	selK = 2
+	cIdx = 2
+	cCnt = 3
+
+	fSfTop = 4
+	fOsTop = 5
+	tSfTop = 6
+	tOsTop = 7
 )
 
 type node struct {
@@ -266,19 +272,22 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 
 		// short circuit
 		if b, ok := res.(bool); ok {
-			f := bytecode[curt] & scMask
-			for (!b && f&scIfFalse == scIfFalse) ||
+			f := bytecode[curt]
+			if (!b && f&scIfFalse == scIfFalse) ||
 				(b && f&scIfTrue == scIfTrue) {
-				scIdx := int16(e.scIdx[curt>>2])
-				if scIdx == 0 {
+
+				if !b {
+					sfTop = bytecode[curt+fSfTop]
+					osTop = bytecode[curt+fOsTop]
+				} else {
+					sfTop = bytecode[curt+tSfTop]
+					osTop = bytecode[curt+tOsTop]
+				}
+
+				if sfTop == -1 {
 					return res, nil
 				}
-				scTriggered = true
-
-				maxIdx = scIdx << 2
-				sfTop = int16(e.sfSize[scIdx]) - 2
-				osTop = int16(e.osSize[scIdx]) - 1
-				f = bytecode[maxIdx] & scMask
+				maxIdx = sf[sfTop+1]
 			}
 		}
 
@@ -320,39 +329,6 @@ func unifyType(val Value) Value {
 	return val
 }
 
-func getNodeValue(ctx *Ctx, n *node) (res Value, err error) {
-	if n.flag&nodeTypeMask == constant {
-		res = n.value
-	} else {
-		res, err = getSelectorValue(ctx, n)
-	}
-	return
-}
-
-func (e *Expr) getNodeValue(ctx *Ctx, i int) (res Value, err error) {
-	i = i * 4
-	if e.bytecode[i]&nodeTypeMask == constant {
-		res = e.constants[int(e.bytecode[i+2])]
-	} else {
-		res, err = ctx.Get(SelectorKey(e.bytecode[i+3]), "")
-	}
-	return
-}
-
-func getSelectorValue(ctx *Ctx, n *node) (res Value, err error) {
-	res, err = ctx.Get(n.selKey, n.value.(string))
-	if err != nil {
-		return nil, err
-	}
-
-	switch res.(type) {
-	case bool, string, int64, []int64, []string:
-		return res, nil
-	default:
-		return unifyType(res), nil
-	}
-}
-
 func debugStackFrame(sf []int16, sfTop, offset int16) {
 	// replace with debug node
 	for i := int16(0); i < sfTop; i++ {
@@ -366,6 +342,7 @@ func (e *Expr) printStacks(scTriggered bool, maxIdx int16, os []Value, osTop int
 	if scTriggered {
 		fmt.Printf("short circuit triggered\n\n")
 	}
+
 	var sb strings.Builder
 
 	offset := int16(len(e.nodes) / 2)
@@ -373,7 +350,7 @@ func (e *Expr) printStacks(scTriggered bool, maxIdx int16, os []Value, osTop int
 	fmt.Printf("maxIdx:%d, sfTop:%d, osTop:%d\n", maxIdx-offset, sfTop, osTop)
 	sb.WriteString(fmt.Sprintf("%15s", "Stack Frame: "))
 	for i := sfTop; i >= 0; i-- {
-		sb.WriteString(fmt.Sprintf("|%4v", e.nodes[sf[i]].value))
+		sb.WriteString(fmt.Sprintf("|%4v", e.nodes[sf[i]/align].value))
 	}
 	sb.WriteString("|\n")
 

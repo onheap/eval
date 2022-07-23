@@ -462,16 +462,20 @@ func max(a, b int) int {
 func PrintExpr(expr *Expr, fields ...string) string {
 	type fetcher func(e *Expr, i int) Value
 	const (
-		idx   = "idx"
-		node  = "node"
-		pIdx  = "pIdx"
-		flag  = "flag"
-		cCnt  = "cCnt"
-		cIdx  = "cIdx"
-		scIdx = "scIdx"
-		scVal = "scVal"
-		sfTop = "sfTop"
-		osTop = "osTop"
+		idx     = "idx"
+		node    = "node"
+		pIdx    = "pIdx"
+		flag    = "flag"
+		cCnt    = "cCnt"
+		cIdx    = "cIdx"
+		scIdx   = "scIdx"
+		scVal   = "scVal"
+		sfTop   = "sfTop"
+		osTop   = "osTop"
+		fOsTop_ = "fOsTp"
+		fSfTop_ = "fSfTp"
+		tOsTop_ = "tOsTp"
+		tSfTop_ = "tSfTp"
 	)
 
 	fetchers := map[string]fetcher{
@@ -531,9 +535,21 @@ func PrintExpr(expr *Expr, fields ...string) string {
 		osTop: func(e *Expr, i int) Value {
 			return e.osSize[i] - 1
 		},
+		fSfTop_: func(e *Expr, i int) Value {
+			return e.bytecode[i*align+fSfTop]
+		},
+		fOsTop_: func(e *Expr, i int) Value {
+			return e.bytecode[i*align+fOsTop]
+		},
+		tSfTop_: func(e *Expr, i int) Value {
+			return e.bytecode[i*align+tSfTop]
+		},
+		tOsTop_: func(e *Expr, i int) Value {
+			return e.bytecode[i*align+tOsTop]
+		},
 	}
 
-	var allFields = []string{idx, node, pIdx, flag, cCnt, cIdx, scIdx, scVal, sfTop, osTop}
+	var allFields = []string{idx, node, pIdx, flag, cCnt, cIdx, scIdx, scVal, sfTop, osTop, tSfTop_, tOsTop_, fSfTop_, fOsTop_}
 
 	if len(fields) == 0 {
 		fields = allFields
