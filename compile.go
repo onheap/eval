@@ -448,6 +448,7 @@ func calAndSetBytecode(e *Expr) {
 
 	for idx, n := range e.nodes {
 		i := idx * align
+		p := int16(e.parentIdx[idx]) * align
 
 		switch n.getNodeType() {
 		case constant:
@@ -462,6 +463,12 @@ func calAndSetBytecode(e *Expr) {
 			e.bytecode[i+rIdx] = setOperator(n.value.(string), n.operator)
 			e.bytecode[i+cIdx] = int16(n.childIdx * align)
 			e.bytecode[i+cCnt] = int16(n.childCnt)
+		case cond:
+			e.bytecode[i+flag] = n.flag
+			e.bytecode[i+cIdx] = int16(n.childIdx * align)
+		case end:
+			e.bytecode[i+flag] = n.flag
+			e.bytecode[i+pIdx] = p
 		}
 
 		e.bytecode[i+fSfTop] = int16(e.sfSize[idx] - 2)
@@ -469,7 +476,6 @@ func calAndSetBytecode(e *Expr) {
 		e.bytecode[i+tSfTop] = int16(e.sfSize[idx] - 2)
 		e.bytecode[i+tOsTop] = int16(e.osSize[idx] - 1)
 
-		p := e.parentIdx[idx] * align
 		if n.flag&scIfFalse == scIfFalse {
 			e.bytecode[i+fSfTop] = e.bytecode[p+fSfTop]
 			e.bytecode[i+fOsTop] = e.bytecode[p+fOsTop]

@@ -69,7 +69,6 @@ func TestDebugCases(t *testing.T) {
 		run           runThis
 	}{
 		{
-			run:           ________RunThisOne________,
 			want:          true,
 			optimizeLevel: disable,
 			s:             `(not F)`,
@@ -133,6 +132,7 @@ func TestDebugCases(t *testing.T) {
 			},
 		},
 		{
+			run:           ________RunThisOne________,
 			want:          true,
 			optimizeLevel: disable,
 			s: `
@@ -410,7 +410,7 @@ func TestDebugCases(t *testing.T) {
 			continue
 		}
 
-		options := []CompileOption{EnableDebug}
+		options := []CompileOption{}
 		switch c.optimizeLevel {
 		case all:
 			options = append(options, Optimizations(true))
@@ -505,7 +505,7 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 
 func TestRandomExpressions(t *testing.T) {
 	const (
-		size          = 10000
+		size          = 10000000
 		level         = 23
 		step          = size / 100
 		showSample    = false
@@ -570,7 +570,7 @@ func TestRandomExpressions(t *testing.T) {
 				}
 
 				if v&0b010 != 0 {
-					//options = append(options, EnableCondition)
+					options = append(options, EnableCondition)
 				}
 
 				if v&0b100 != 0 {

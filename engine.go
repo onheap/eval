@@ -42,6 +42,7 @@ const (
 	rIdx = 1
 	selK = 2
 	cIdx = 2
+	pIdx = 2
 	cCnt = 3
 
 	fSfTop = 4
@@ -247,14 +248,14 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 					return nil, fmt.Errorf("eval error, result type of if condition should be bool, got: [%v]", res)
 				}
 				if condRes {
-					sf[sfTop+1], sfTop = childIdx+1, sfTop+1
+					sf[sfTop+1], sfTop = childIdx+align, sfTop+1
 				} else {
-					sf[sfTop+1], sfTop = childIdx+2, sfTop+1
+					sf[sfTop+1], sfTop = childIdx+align<<1, sfTop+1
 				}
 			}
 			continue
 		case end:
-			maxIdx = int16(e.parentIdx[curt])
+			maxIdx = bytecode[curt+pIdx]
 			res, osTop = os[osTop], osTop-1
 		default:
 			// only debug node will enter this branch
@@ -275,6 +276,7 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 			f := bytecode[curt]
 			if (!b && f&scIfFalse == scIfFalse) ||
 				(b && f&scIfTrue == scIfTrue) {
+				scTriggered = true
 
 				if !b {
 					sfTop = bytecode[curt+fSfTop]
