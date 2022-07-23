@@ -695,7 +695,7 @@ func optimizeFastEvaluation(cc *CompileConfig, root *astNode) {
 		optimizeFastEvaluation(cc, child)
 	}
 	n := root.node
-	if (n.flag&nodeTypeMask) != operator || n.childCnt != 2 {
+	if (n.flag&nodeTypeMask) != operator || len(root.children) != 2 {
 		return
 	}
 
