@@ -555,7 +555,6 @@ func ParamsCountError(opName string, want, got int) error {
 }
 
 func ParamTypeError(opName string, want string, got Value) error {
-	panic("v")
 	return fmt.Errorf("unexpected param type, operator: %s, expected: %s, got: %+v", opName, want, got)
 }
 
