@@ -30,8 +30,13 @@ const (
 	debug        = uint8(0b111)
 
 	// short circuit flag
+	scMask    = uint8(0b011000)
 	scIfFalse = uint8(0b001000)
 	scIfTrue  = uint8(0b010000)
+
+	scAll_     = int16(0b011000)
+	scIfFalse_ = int16(0b001000)
+	scIfTrue_  = int16(0b010000)
 )
 
 type node struct {
@@ -44,6 +49,13 @@ type node struct {
 	operator Operator
 }
 
+type scInfo struct {
+	tSfTop int16
+	tOsTop int16
+	fSfTop int16
+	fOsTop int16
+}
+
 func (n *node) getNodeType() uint8 {
 	return n.flag & nodeTypeMask
 }
@@ -51,6 +63,8 @@ func (n *node) getNodeType() uint8 {
 type Expr struct {
 	maxStackSize int16
 	nodes        []*node
+	scInfos      []scInfo
+
 	// extra info
 	parentIdx []int16
 	scIdx     []int16
@@ -139,7 +153,7 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 		curtIdx, sfTop = sf[sfTop], sfTop-1
 		curt = nodes[curtIdx]
 
-		switch curt.flag & nodeTypeMask {
+		switch curt.flag {
 		case fastOperator:
 			cnt := int16(curt.childCnt)
 			childIdx := curt.childIdx
@@ -251,20 +265,24 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 
 		// short circuit
 		if b, ok := res.(bool); ok {
-			for (!b && curt.flag&scIfFalse == scIfFalse) ||
-				(b && curt.flag&scIfTrue == scIfTrue) {
-
-				curtIdx = curt.scIdx
-				if curtIdx == 0 {
-					return res, nil
-				}
-
+			if (!b && curt.scIdx == scIfFalse_) ||
+				(b && curt.scIdx == scIfTrue_) ||
+				curt.scIdx == scAll_ {
 				scTriggered = true
 
-				maxIdx = curtIdx
-				sfTop = e.sfSize[curtIdx] - 2
-				osTop = e.osSize[curtIdx] - 1
-				curt = nodes[curtIdx]
+				sc := e.scInfos[curtIdx]
+				if b {
+					sfTop = sc.fSfTop
+					osTop = sc.fOsTop
+				} else {
+					sfTop = sc.tSfTop
+					osTop = sc.tOsTop
+				}
+
+				if sfTop == -1 {
+					return res, nil
+				}
+				maxIdx = sf[sfTop+1]
 			}
 		}
 

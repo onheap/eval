@@ -193,6 +193,41 @@ func setExtraInfo(e *Expr) {
 	calAndSetParentIndex(e)
 	calAndSetStackSize(e)
 	calAndSetShortCircuit(e)
+	calAndSetScInfo(e)
+}
+
+func calAndSetScInfo(e *Expr) {
+	var parentNode = func(idx int16) (*node, int16) {
+		pIdx := e.parentIdx[idx]
+		if pIdx == -1 {
+			return nil, -1
+		}
+		return e.nodes[pIdx], pIdx
+	}
+
+	for i, n := range e.nodes {
+		flag := n.flag
+
+		n.flag = flag & nodeTypeMask
+		n.scIdx = int16(flag & scMask)
+
+		e.scInfos[i].tSfTop = e.sfSize[i] - 2
+		e.scInfos[i].tOsTop = e.osSize[i] - 1
+		e.scInfos[i].fSfTop = e.sfSize[i] - 2
+		e.scInfos[i].fOsTop = e.osSize[i] - 1
+
+		_, p := parentNode(int16(i))
+
+		if flag&scIfTrue == scIfTrue {
+			e.scInfos[i].tSfTop = e.scInfos[p].tSfTop
+			e.scInfos[i].tOsTop = e.scInfos[p].tOsTop
+		}
+
+		if flag&scIfFalse == scIfFalse {
+			e.scInfos[i].fSfTop = e.scInfos[p].fSfTop
+			e.scInfos[i].fOsTop = e.scInfos[p].fOsTop
+		}
+	}
 }
 
 func calAndSetParentIndex(e *Expr) {
@@ -643,6 +678,7 @@ func check(root *astNode) checkRes {
 func compress(root *astNode, size int) *Expr {
 	e := &Expr{
 		nodes:     make([]*node, 0, size),
+		scInfos:   make([]scInfo, size),
 		scIdx:     make([]int16, size),
 		sfSize:    make([]int16, size),
 		osSize:    make([]int16, size),
