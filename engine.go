@@ -153,7 +153,7 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 		curtIdx, sfTop = sf[sfTop], sfTop-1
 		curt = nodes[curtIdx]
 
-		switch curt.flag {
+		switch curt.flag & nodeTypeMask {
 		case fastOperator:
 			cnt := int16(curt.childCnt)
 			childIdx := curt.childIdx
@@ -265,9 +265,8 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 
 		// short circuit
 		if b, ok := res.(bool); ok {
-			if (!b && curt.scIdx == scIfFalse_) ||
-				(b && curt.scIdx == scIfTrue_) ||
-				curt.scIdx == scAll_ {
+			if (!b && curt.flag&scIfFalse == scIfFalse) ||
+				(b && curt.flag&scIfTrue == scIfTrue) {
 				scTriggered = true
 
 				sc := e.scInfos[curtIdx]

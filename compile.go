@@ -208,8 +208,8 @@ func calAndSetScInfo(e *Expr) {
 	for i, n := range e.nodes {
 		flag := n.flag
 
-		n.flag = flag & nodeTypeMask
-		n.scIdx = int16(flag & scMask)
+		//n.flag = flag & nodeTypeMask
+		//n.scIdx = int16(flag & scMask)
 
 		e.scInfos[i].tSfTop = e.sfSize[i] - 2
 		e.scInfos[i].tOsTop = e.osSize[i] - 1
