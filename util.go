@@ -48,7 +48,7 @@ var (
 		}
 	}
 
-	GenSelectors = func(m map[string]Value) GenExprOption {
+	GenSelectors = func(m map[string]interface{}) GenExprOption {
 		return func(c *GenExprConfig) {
 			var ns []GenExprResult
 			var bs []GenExprResult
@@ -189,7 +189,7 @@ func GenerateRandomExpr(level int, random *rand.Rand, opts ...GenExprOption) Gen
 	return helper(c.GenType, level)
 }
 
-func GenerateTestCase(res GenExprResult, valMap map[string]Value) string {
+func GenerateTestCase(res GenExprResult, valMap map[string]interface{}) string {
 	var valStr = func(val Value) string {
 		switch v := val.(type) {
 		case bool:
@@ -223,7 +223,7 @@ func GenerateTestCase(res GenExprResult, valMap map[string]Value) string {
 	}
 
 	if valMap != nil {
-		mapStr.WriteString("map[string]Value{\n")
+		mapStr.WriteString("map[string]interface{}{\n")
 		for key, val := range valMap {
 			mapStr.WriteString(strings.Repeat(space, tab*4))
 			mapStr.WriteString(fmt.Sprintf(`"%s": `, key))

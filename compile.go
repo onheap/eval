@@ -62,6 +62,14 @@ var (
 			}
 		}
 	}
+
+	RegisterSelKeys = func(vals map[string]interface{}) CompileOption {
+		return func(c *CompileConfig) {
+			for s := range vals {
+				GetOrRegisterKey(c, s)
+			}
+		}
+	}
 )
 
 func NewCompileConfig(opts ...CompileOption) *CompileConfig {

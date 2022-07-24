@@ -2,6 +2,7 @@ package eval
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -58,24 +59,24 @@ type Expr struct {
 	osSize    []int16
 }
 
-func EvalBool(conf *CompileConfig, expr string, ctx *Ctx) (bool, error) {
-	res, err := Eval(conf, expr, ctx)
-	if err != nil {
-		return false, err
+func Eval(expr string, vals map[string]interface{}, confs ...*CompileConfig) (Value, error) {
+	var conf *CompileConfig
+	if len(confs) > 1 {
+		return nil, errors.New("error: too many compile configurations")
 	}
-	b, ok := res.(bool)
-	if !ok {
-		return false, fmt.Errorf("invalid result type: %v", res)
-	}
-	return b, nil
-}
 
-func Eval(conf *CompileConfig, expr string, ctx *Ctx) (Value, error) {
+	if len(confs) == 1 {
+		conf = confs[0]
+	} else {
+		conf = NewCompileConfig(RegisterSelKeys(vals))
+	}
+
 	tree, err := Compile(conf, expr)
 	if err != nil {
 		return nil, err
 	}
-	return tree.Eval(ctx)
+
+	return tree.Eval(NewCtxWithMap(conf, vals))
 }
 
 func (e *Expr) EvalBool(ctx *Ctx) (bool, error) {

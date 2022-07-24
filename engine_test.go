@@ -28,7 +28,7 @@ func TestDebugCases(t *testing.T) {
 	cs := []struct {
 		name          string
 		s             string
-		valMap        map[string]Value
+		valMap        map[string]interface{}
 		optimizeLevel optimizeLevel // default: all
 		fields        []string
 		want          Value
@@ -46,7 +46,7 @@ func TestDebugCases(t *testing.T) {
       (= 4 4))
     (= 5 5)
     (= 6 6)))`,
-			valMap: map[string]Value{
+			valMap: map[string]interface{}{
 				"T": true,
 				"F": false,
 			},
@@ -71,7 +71,7 @@ func TestDebugCases(t *testing.T) {
   (not F)
   (and
     (!= 3 4) T1 T2))`,
-			valMap: map[string]Value{
+			valMap: map[string]interface{}{
 				"T1": true,
 				"T2": true,
 				"F":  false,
@@ -84,7 +84,7 @@ func TestDebugCases(t *testing.T) {
 (eq
   (if T F T)
   (not T))`,
-			valMap: map[string]Value{
+			valMap: map[string]interface{}{
 				"T": true,
 				"F": false,
 			},
@@ -97,7 +97,7 @@ func TestDebugCases(t *testing.T) {
    (- 2 v3) (/ 6 3) 4)
  (* 5 6 7)
 )`,
-			valMap: map[string]Value{
+			valMap: map[string]interface{}{
 				"v3": 3,
 			},
 		},
@@ -106,7 +106,7 @@ func TestDebugCases(t *testing.T) {
 			want:          int64(-1),
 			optimizeLevel: disable,
 			s:             "(if less -1 1)",
-			valMap: map[string]Value{
+			valMap: map[string]interface{}{
 				"less": true,
 			},
 		},
@@ -128,7 +128,7 @@ func TestDebugCases(t *testing.T) {
       (= 0 0))
     (= 0 0)
     (= 0 0)))`,
-			valMap: map[string]Value{
+			valMap: map[string]interface{}{
 				"T": true,
 				"F": false,
 			},
@@ -138,7 +138,7 @@ func TestDebugCases(t *testing.T) {
 			want:          int64(1),
 			optimizeLevel: disable,
 			s:             `(if T 1 0)`,
-			valMap: map[string]Value{
+			valMap: map[string]interface{}{
 				"T": true,
 				"F": false,
 			},
@@ -152,7 +152,7 @@ func TestDebugCases(t *testing.T) {
   (if T F T)
   (or T
     (!= 0 0)))`,
-			valMap: map[string]Value{
+			valMap: map[string]interface{}{
 				"T": true,
 				"F": false,
 			},
@@ -165,7 +165,7 @@ func TestDebugCases(t *testing.T) {
   (or
     (eq 1 2) T)
   (= 3 4))`,
-			valMap: map[string]Value{
+			valMap: map[string]interface{}{
 				"T": true,
 				"F": false,
 			},
@@ -180,7 +180,7 @@ func TestDebugCases(t *testing.T) {
   (not
     (= 0 0))
   (!= 0 0))`,
-			valMap: map[string]Value{
+			valMap: map[string]interface{}{
 				"T": true,
 				"F": false,
 			},
@@ -194,7 +194,7 @@ func TestDebugCases(t *testing.T) {
   (not F)
   (and
     (!= 3 4) T1 T2))`,
-			valMap: map[string]Value{
+			valMap: map[string]interface{}{
 				"T1": true,
 				"T2": true,
 				"F":  false,
@@ -226,7 +226,7 @@ func TestDebugCases(t *testing.T) {
     (!= 0 0)) 
   true)
 `,
-			valMap: map[string]Value{
+			valMap: map[string]interface{}{
 				"select_true_1":  true,
 				"select_false_1": false,
 				"select_false":   false,
@@ -312,7 +312,7 @@ func TestDebugCases(t *testing.T) {
   (or
     (>= Value 100)
     (<= Adults 1)))`,
-			valMap: map[string]Value{
+			valMap: map[string]interface{}{
 				"Origin":  "MOW",
 				"Country": "RU",
 				"Value":   100,
@@ -328,7 +328,7 @@ func TestDebugCases(t *testing.T) {
 			  (= Country "RU")
 			  (>= Value 100)
 			  (= Adults 1))`,
-			valMap: map[string]Value{
+			valMap: map[string]interface{}{
 				"Origin":  "MOW",
 				"Country": "RU",
 				"Value":   100,
@@ -397,7 +397,7 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 		expr   string
 		want   Value
 		errMsg string
-		vals   map[string]Value
+		vals   map[string]interface{}
 	}{
 		{
 			expr:   `(< age 18)`,
@@ -407,7 +407,7 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 			want: false,
 			expr: `(< age 18)`,
 			cc:   NewCompileConfig(EnableStringSelectors),
-			vals: map[string]Value{
+			vals: map[string]interface{}{
 				"age": int64(20),
 			},
 		},
@@ -434,14 +434,14 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
  (* 5 -6 7)
 )`,
 			cc: NewCompileConfig(EnableStringSelectors),
-			vals: map[string]Value{
+			vals: map[string]interface{}{
 				"v3": int64(3),
 			},
 		},
 	}
 
 	for _, c := range testCases {
-		got, err := Eval(c.cc, c.expr, &Ctx{Selector: NewMapSelector(c.vals)})
+		got, err := Eval(c.expr, c.vals, c.cc)
 
 		if len(c.errMsg) != 0 {
 			assertErrStrContains(t, err, c.errMsg)
@@ -455,7 +455,7 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 
 func TestRandomExpressions(t *testing.T) {
 	const (
-		size          = 3000000
+		size          = 10000
 		level         = 53
 		step          = size / 100
 		showSample    = false
@@ -476,7 +476,7 @@ func TestRandomExpressions(t *testing.T) {
 		"select_false": SelectorKey(2),
 	}
 
-	valMap := map[string]Value{
+	valMap := map[string]interface{}{
 		"select_true":  true,
 		"select_false": false,
 	}
@@ -552,8 +552,7 @@ func TestRandomExpressions(t *testing.T) {
 				cc.CompileOptions[Reordering] = v&0b1 != 0
 				cc.CompileOptions[FastEvaluation] = v&0b10 != 0
 				cc.CompileOptions[ConstantFolding] = v&0b100 != 0
-				ctx := NewCtxWithMap(cc, valMap)
-				got, err := Eval(cc, expr.Expr, ctx)
+				got, err := Eval(expr.Expr, valMap, cc)
 
 				verifyChan <- execRes{
 					expr: expr,
