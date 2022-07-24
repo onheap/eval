@@ -30,13 +30,8 @@ const (
 	debug        = uint8(0b111)
 
 	// short circuit flag
-	scMask    = uint8(0b011000)
 	scIfFalse = uint8(0b001000)
 	scIfTrue  = uint8(0b010000)
-
-	scAll_     = int16(0b011000)
-	scIfFalse_ = int16(0b001000)
-	scIfTrue_  = int16(0b010000)
 )
 
 type node struct {
