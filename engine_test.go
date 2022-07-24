@@ -455,7 +455,7 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 
 func TestRandomExpressions(t *testing.T) {
 	const (
-		size          = 3000000
+		size          = 10000
 		level         = 53
 		step          = size / 100
 		showSample    = false

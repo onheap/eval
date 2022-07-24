@@ -271,7 +271,7 @@ func (e *Expr) Eval(ctx *Ctx) (Value, error) {
 				scTriggered = true
 
 				sc := e.scInfos[curtIdx]
-				if b {
+				if !b {
 					sfTop = sc.fSfTop
 					osTop = sc.fOsTop
 				} else {
