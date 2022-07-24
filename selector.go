@@ -58,21 +58,9 @@ func ToValueMap(m map[string]interface{}) map[string]Value {
 	return res
 }
 
-func NewCtxWithMap(cc *CompileConfig, vals map[string]Value) *Ctx {
-	for key := range vals {
-		GetOrRegisterKey(cc, key)
-	}
-
-	useSlice := true
-	for _, key := range cc.SelectorMap {
-		if key < 0 || key > 128 {
-			useSlice = false
-			break
-		}
-	}
-
+func NewCtxWithMap(cc *CompileConfig, vals map[string]interface{}) *Ctx {
 	var sel Selector
-	if useSlice {
+	if sliceSelectorAvailable(cc) {
 		sel = NewSliceSelector(cc, vals)
 	} else {
 		sel = NewMapSelector(vals)
@@ -83,11 +71,34 @@ func NewCtxWithMap(cc *CompileConfig, vals map[string]Value) *Ctx {
 	}
 }
 
+func sliceSelectorAvailable(cc *CompileConfig) bool {
+	const (
+		minKeyRange = 0
+		maxKeyRange = 256
+	)
+
+	if cc.CompileOptions[AllowUnknownSelectors] {
+		return false
+	}
+
+	if len(cc.SelectorMap) > maxKeyRange-minKeyRange {
+		return false
+	}
+
+	for _, key := range cc.SelectorMap {
+		if key < minKeyRange || key >= maxKeyRange {
+			return false
+		}
+	}
+
+	return true
+}
+
 type SliceSelector struct {
 	Values []Value
 }
 
-func NewSliceSelector(cc *CompileConfig, vals map[string]Value) SliceSelector {
+func NewSliceSelector(cc *CompileConfig, vals map[string]interface{}) SliceSelector {
 	maxKey := 0
 	for name := range vals {
 		key := GetOrRegisterKey(cc, name)
@@ -95,9 +106,9 @@ func NewSliceSelector(cc *CompileConfig, vals map[string]Value) SliceSelector {
 			maxKey = int(key)
 		}
 	}
-
+	size := max(len(cc.SelectorMap), maxKey+1)
 	sel := SliceSelector{
-		Values: make([]Value, maxKey+1),
+		Values: make([]Value, size),
 	}
 	for name, val := range vals {
 		key := cc.SelectorMap[name]
@@ -132,12 +143,12 @@ type MapSelector struct {
 	Values map[string]Value
 }
 
-func NewMapSelector(vals map[string]Value) MapSelector {
+func NewMapSelector(vals map[string]interface{}) MapSelector {
 	s := MapSelector{
 		Values: make(map[string]Value),
 	}
 	for name, val := range vals {
-		s.Values[name] = val
+		s.Values[name] = unifyType(val)
 	}
 	return s
 }

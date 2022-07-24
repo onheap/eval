@@ -159,7 +159,7 @@ func TestGenerateRandomExpr_Bool(t *testing.T) {
 			ConstantFolding: false,
 		},
 	}
-	valMap := map[string]Value{
+	valMap := map[string]interface{}{
 		//"select_true":    true,
 		//"select_false":   false,
 		//"select_true_1":  true,
@@ -167,12 +167,11 @@ func TestGenerateRandomExpr_Bool(t *testing.T) {
 		"T": true,
 		"F": false,
 	}
-	ctx := NewCtxWithMap(cc, valMap)
 
 	for i := 1; i < size; i++ {
 		expr := GenerateRandomExpr(i, r, GenType(Bool), EnableSelector, EnableCondition, GenSelectors(valMap))
 
-		got, err := Eval(cc, expr.Expr, ctx)
+		got, err := Eval(expr.Expr, valMap, cc)
 		if err != nil {
 			fmt.Println(GenerateTestCase(expr, valMap))
 			t.Fatalf("assertNil failed, got: %+v\n", err)
@@ -194,7 +193,7 @@ func TestGenerateRandomExpr_Number(t *testing.T) {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	keyMap := make(map[string]SelectorKey, selectorSize)
-	valMap := make(map[string]Value, selectorSize)
+	valMap := make(map[string]interface{}, selectorSize)
 	for i := 0; i < selectorSize; i++ {
 		v := r.Intn(200) - 100
 		var k string
@@ -213,14 +212,13 @@ func TestGenerateRandomExpr_Number(t *testing.T) {
 			ConstantFolding: false,
 		},
 	}
-	ctx := NewCtxWithMap(cc, valMap)
 
 	for i := 0; i < size; i++ {
 		expr := GenerateRandomExpr(size, r, GenType(Number), EnableCondition, EnableSelector, GenSelectors(valMap))
 		//fmt.Println(IndentByParentheses(expr.Expr))
 		//fmt.Println(expr.Res)
 
-		got, err := Eval(cc, expr.Expr, ctx)
+		got, err := Eval(expr.Expr, valMap, cc)
 		if err != nil {
 			fmt.Println(GenerateTestCase(expr, valMap))
 			t.Fatalf("assertNil failed, got: %+v\n", err)
@@ -237,7 +235,7 @@ func TestGenerateTestCase(t *testing.T) {
 	testCases := []struct {
 		expr GenExprResult
 		want string
-		vals map[string]Value
+		vals map[string]interface{}
 	}{
 		{
 			expr: GenExprResult{
@@ -252,11 +250,11 @@ func TestGenerateTestCase(t *testing.T) {
 (not
   (eq select_false select_false
     (!= 0 0)))` + "`" + `,
-            valMap: map[string]Value{
+            valMap: map[string]interface{}{
                 "select_false": false,
             },
         },`,
-			vals: map[string]Value{
+			vals: map[string]interface{}{
 				"select_false": false,
 			},
 		},
@@ -270,11 +268,11 @@ func TestGenerateTestCase(t *testing.T) {
             want:          int64(-1),
             optimizeLevel: disable,
             s:             "(if less -1 1)",
-            valMap: map[string]Value{
+            valMap: map[string]interface{}{
                 "less": true,
             },
         },`,
-			vals: map[string]Value{
+			vals: map[string]interface{}{
 				"less": true,
 			},
 		},
@@ -303,11 +301,11 @@ func TestGenerateTestCase(t *testing.T) {
             s: ` + "`" + `
 (if
   (< age 18) "Child" "Adult")` + "`" + `,
-            valMap: map[string]Value{
+            valMap: map[string]interface{}{
                 "age": int64(18),
             },
         },`,
-			vals: map[string]Value{
+			vals: map[string]interface{}{
 				"age": int64(18),
 			},
 		},
