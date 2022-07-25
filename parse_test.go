@@ -439,23 +439,26 @@ func TestLex(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		p := &parser{source: c.expr}
-		err := p.lex()
-		if len(c.errMsg) != 0 {
-			assertErrStrContains(t, err, c.errMsg, c)
-			continue
-		}
 
-		assertNil(t, err, c)
+		t.Run(c.expr, func(t *testing.T) {
+			p := &parser{source: c.expr}
+			err := p.lex()
+			if len(c.errMsg) != 0 {
+				assertErrStrContains(t, err, c.errMsg, c)
+				return
+			}
 
-		assertEquals(t, len(p.tokens), len(c.tokens))
+			assertNil(t, err, c)
 
-		for i := range p.tokens {
-			t1 := p.tokens[i]
-			t2 := c.tokens[i]
-			assertEquals(t, t1.typ, t2.typ)
-			assertEquals(t, t1.val, t2.val)
-		}
+			assertEquals(t, len(p.tokens), len(c.tokens))
+
+			for i := range p.tokens {
+				t1 := p.tokens[i]
+				t2 := c.tokens[i]
+				assertEquals(t, t1.typ, t2.typ)
+				assertEquals(t, t1.val, t2.val)
+			}
+		})
 	}
 }
 
@@ -543,22 +546,24 @@ func TestParseConfig(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		p := newParser(&CompileConfig{CompileOptions: c.origin}, c.expr)
-		err := p.lex()
-		assertNil(t, err, c)
-		err = p.parseConfig()
-		if len(c.errMsg) != 0 {
-			assertErrStrContains(t, err, c.errMsg, c)
-			continue
-		}
-		assertNil(t, err, c)
-		updatedOption := p.conf.CompileOptions
+		t.Run(c.expr, func(t *testing.T) {
+			p := newParser(&CompileConfig{CompileOptions: c.origin}, c.expr)
+			err := p.lex()
+			assertNil(t, err, c)
+			err = p.parseConfig()
+			if len(c.errMsg) != 0 {
+				assertErrStrContains(t, err, c.errMsg, c)
+				return
+			}
+			assertNil(t, err, c)
+			updatedOption := p.conf.CompileOptions
 
-		for option, want := range c.want {
-			got, exist := updatedOption[option]
-			assertEquals(t, exist, true)
-			assertEquals(t, got, want)
-		}
+			for option, want := range c.want {
+				got, exist := updatedOption[option]
+				assertEquals(t, exist, true)
+				assertEquals(t, got, want)
+			}
+		})
 	}
 }
 
@@ -861,13 +866,15 @@ func TestParseAstTree(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		ast, _, err := newParser(c.cc, c.expr).parse()
-		if len(c.errMsg) != 0 {
-			assertErrStrContains(t, err, c.errMsg, c)
-			continue
-		}
+		t.Run(c.expr, func(t *testing.T) {
+			ast, _, err := newParser(c.cc, c.expr).parse()
+			if len(c.errMsg) != 0 {
+				assertErrStrContains(t, err, c.errMsg, c)
+				return
+			}
 
-		assertNil(t, err)
-		assertAstTreeIdentical(t, ast, c.ast, c)
+			assertNil(t, err)
+			assertAstTreeIdentical(t, ast, c.ast, c)
+		})
 	}
 }

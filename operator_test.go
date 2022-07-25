@@ -1144,16 +1144,18 @@ func TestBuiltinOperators(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		fn := builtinOperators[c.op]
-		assertNotNil(t, fn, c)
+		t.Run(c.op, func(t *testing.T) {
+			fn := builtinOperators[c.op]
+			assertNotNil(t, fn, c)
 
-		res, err := fn(nil, c.params)
-		if len(c.errMsg) != 0 {
-			assertErrStrContains(t, err, c.errMsg, c)
-			continue
-		}
+			res, err := fn(nil, c.params)
+			if len(c.errMsg) != 0 {
+				assertErrStrContains(t, err, c.errMsg, c)
+				return
+			}
 
-		assertNil(t, err, c)
-		assertEquals(t, res, c.res, c)
+			assertNil(t, err, c)
+			assertEquals(t, res, c.res, c)
+		})
 	}
 }

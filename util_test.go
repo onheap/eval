@@ -56,7 +56,53 @@ func TestIndentByParentheses(t *testing.T) {
 `
 
 	res := IndentByParentheses(s)
-	fmt.Println(res)
+	assertEquals(t, res, `;;;; optimize:false
+;;;; hhhh
+(or ;; test
+  (eq
+    (= 1 1)
+    (= 1 2)
+    (eq
+      (= 1 1)
+      (= 1 2)
+      (= 1 1)
+      (= 1 1)))
+  (and
+    ;; hhhhh3
+    (between age 18 80)
+    (eq
+      (+ 1 1)
+      (- 3 1) 2)
+    (eq gender "male") ;; heheda
+    (between ;;hhhh4
+      (t_version app_version)
+      ( t_version "1.2.3")
+      (t_version "4.5")))
+  (=
+    (now) 123)
+  (in ""
+    ())
+  (=
+    (now) 123)
+  (now)
+  (overlap
+    ()
+    (1 2 3))
+  (overlap
+    ("a")
+    (""))
+  ;; hhhh5
+  (overlap groups
+    (1234 7680)) ;; todo remove extra space
+  ( ;; hehehe
+    overlap
+    ;; heheh6
+    ;; hhh 7
+    tags
+    ( "bbb" "aaa")) ;; todo remove extra space
+  ;; hhhh8
+) ;; hhh9
+;; hhh0`)
 }
 
 func TestPrintCode(t *testing.T) {
@@ -312,7 +358,9 @@ func TestGenerateTestCase(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		got := GenerateTestCase(c.expr, c.vals)
-		assertEquals(t, got, c.want)
+		t.Run(c.expr.Expr, func(t *testing.T) {
+			got := GenerateTestCase(c.expr, c.vals)
+			assertEquals(t, got, c.want)
+		})
 	}
 }
