@@ -13,10 +13,7 @@ import (
 )
 
 func TestDebugCases(t *testing.T) {
-	const onlyAllowListCases = false
-
-	type runThis string
-	const ________RunThisOne________ runThis = "________RunThisOne________"
+	const debugMode = false
 
 	type optimizeLevel int
 	const (
@@ -26,16 +23,13 @@ func TestDebugCases(t *testing.T) {
 	)
 
 	cs := []struct {
-		name          string
 		s             string
 		valMap        map[string]interface{}
 		optimizeLevel optimizeLevel // default: all
 		fields        []string
 		want          Value
-		run           runThis
 	}{
 		{
-			run:           ________RunThisOne________,
 			want:          true,
 			optimizeLevel: disable,
 			s: `
@@ -356,38 +350,46 @@ func TestDebugCases(t *testing.T) {
 	}
 
 	for _, c := range cs {
-		if onlyAllowListCases && c.run != ________RunThisOne________ {
-			continue
-		}
+		t.Run(c.s, func(t *testing.T) {
+			var options []CompileOption
+			if debugMode {
+				options = append(options, EnableDebug)
+			}
 
-		options := []CompileOption{EnableDebug}
-		switch c.optimizeLevel {
-		case all:
-			options = append(options, Optimizations(true))
-		case disable:
-			options = append(options, Optimizations(false))
-		case onlyFast:
-			// disable all optimizations and enable fast evaluation
-			options = append(options, Optimizations(false), Optimizations(true, FastEvaluation))
-		}
+			switch c.optimizeLevel {
+			case all:
+				options = append(options, Optimizations(true))
+			case disable:
+				options = append(options, Optimizations(false))
+			case onlyFast:
+				// disable all optimizations and enable fast evaluation
+				options = append(options, Optimizations(false), Optimizations(true, FastEvaluation))
+			}
 
-		cc := NewCompileConfig(options...)
+			cc := NewCompileConfig(options...)
 
-		ctx := NewCtxWithMap(cc, c.valMap)
+			ctx := NewCtxWithMap(cc, c.valMap)
 
-		expr, err := Compile(cc, c.s)
-		assertNil(t, err)
+			expr, err := Compile(cc, c.s)
+			assertNil(t, err)
+			if debugMode {
+				fmt.Println(Dump(expr))
+				fmt.Println()
+				fmt.Println(PrintExpr(expr, c.fields...))
 
-		fmt.Println(Dump(expr))
-		fmt.Println()
-		fmt.Println(PrintExpr(expr, c.fields...))
+			}
 
-		res, err := expr.Eval(ctx)
-		assertNil(t, err)
-		fmt.Println(res)
-		if c.want != nil {
-			assertEquals(t, res, c.want)
-		}
+			res, err := expr.Eval(ctx)
+			assertNil(t, err)
+
+			if debugMode {
+				fmt.Println(res)
+			}
+
+			if c.want != nil {
+				assertEquals(t, res, c.want)
+			}
+		})
 	}
 }
 
@@ -441,14 +443,17 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		got, err := Eval(c.expr, c.vals, c.cc)
+		t.Run(c.expr, func(t *testing.T) {
+			got, err := Eval(c.expr, c.vals, c.cc)
 
-		if len(c.errMsg) != 0 {
-			assertErrStrContains(t, err, c.errMsg)
-			continue
-		}
-		assertNil(t, err)
-		assertEquals(t, got, c.want)
+			if len(c.errMsg) != 0 {
+				assertErrStrContains(t, err, c.errMsg)
+				return
+			}
+
+			assertNil(t, err)
+			assertEquals(t, got, c.want)
+		})
 	}
 
 }
@@ -459,7 +464,7 @@ func TestRandomExpressions(t *testing.T) {
 		level         = 53
 		step          = size / 100
 		showSample    = false
-		printProgress = true
+		printProgress = false
 	)
 
 	const (
@@ -528,9 +533,6 @@ func TestRandomExpressions(t *testing.T) {
 				}
 
 				exprChan <- GenerateRandomExpr((i%level)+1, r, options...)
-				if i%step == 0 {
-					t.Log("generating... current:", i, (i*100)/size, "%")
-				}
 			}
 		}(rand.New(rand.NewSource(random.Int63())))
 	}
@@ -586,7 +588,6 @@ func TestRandomExpressions(t *testing.T) {
 		}
 
 		if i%step == 0 {
-			t.Log("executing.... current:", i, (i*100)/size, "%")
 			if showSample {
 				fmt.Println(GenerateTestCase(expr, valMap))
 			}
