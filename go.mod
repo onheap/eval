@@ -1,3 +1,3 @@
-module github.com/larry618/eval
+module github.com/lkxy/eval
 
 go 1.18
