@@ -1,3 +1,3 @@
-module github.com/lkxy/eval
+module github.com/onheap/eval
 
 go 1.18
