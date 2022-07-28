@@ -11,8 +11,9 @@ type (
 		operator  Operator
 	}
 	labExpr struct {
-		nodes  []*labNode
-		osSize []int16
+		maxStackSize int16
+		nodes        []*labNode
+		osSize       []int16
 	}
 )
 
@@ -68,8 +69,9 @@ func ConvertLabExpr(e *Expr) *labExpr {
 	}
 
 	return &labExpr{
-		nodes:  res,
-		osSize: e.osSize,
+		maxStackSize: e.maxStackSize,
+		nodes:        res,
+		osSize:       e.osSize,
 	}
 }
 
@@ -77,7 +79,7 @@ func (e *labExpr) Eval(ctx *Ctx) (Value, error) {
 	var (
 		nodes = e.nodes
 		size  = int16(len(nodes))
-		m     = size / 2
+		m     = e.maxStackSize
 
 		os    []Value
 		osTop = int16(-1)
@@ -100,7 +102,6 @@ func (e *labExpr) Eval(ctx *Ctx) (Value, error) {
 
 	for i := int16(0); i < size; i++ {
 		curt = nodes[i]
-		//fmt.Println("curt", curt.value)
 		switch curt.flag & nodeTypeMask {
 		case constant:
 			res = curt.value
