@@ -4,7 +4,7 @@ type (
 	labNode struct {
 		flag      uint8
 		child     int8  // child count
-		index     int16 // index of original expr
+		osTop     int16 // os Top when short circuit triggered
 		parentPos int16 // pos of labExpr
 		selKey    SelectorKey
 		value     Value
@@ -34,7 +34,6 @@ func ConvertLabExpr(e *Expr) *labExpr {
 		case constant, selector:
 			res = append(res, &labNode{
 				flag:   n.flag,
-				index:  i,
 				value:  n.value,
 				selKey: n.selKey,
 			})
@@ -46,7 +45,6 @@ func ConvertLabExpr(e *Expr) *labExpr {
 			}
 			res = append(res, &labNode{
 				flag:     n.flag,
-				index:    i,
 				child:    n.childCnt,
 				value:    n.value,
 				operator: n.operator,
@@ -58,14 +56,15 @@ func ConvertLabExpr(e *Expr) *labExpr {
 	}
 
 	helper(0)
-	for _, n := range res {
-		pIdx := e.nodes[n.index].scIdx
+	for pos, n := range res {
+		idx := posToIdx[pos]
+		pIdx := e.nodes[idx].scIdx
 		if pIdx == -1 {
 			n.parentPos = -1
 		} else {
 			n.parentPos = idxToPos[pIdx]
 		}
-
+		n.osTop = e.osSize[idx] - 1
 	}
 
 	return &labExpr{
@@ -83,12 +82,6 @@ func (e *labExpr) Eval(ctx *Ctx) (Value, error) {
 
 		os    []Value
 		osTop = int16(-1)
-
-		res    Value
-		err    error
-		param  []Value
-		param2 [2]Value
-		curt   *labNode
 	)
 
 	switch {
@@ -99,6 +92,14 @@ func (e *labExpr) Eval(ctx *Ctx) (Value, error) {
 	default:
 		os = make([]Value, size)
 	}
+
+	var (
+		res    Value
+		err    error
+		param  []Value
+		param2 [2]Value
+		curt   *labNode
+	)
 
 	for i := int16(0); i < size; i++ {
 		curt = nodes[i]
@@ -136,7 +137,7 @@ func (e *labExpr) Eval(ctx *Ctx) (Value, error) {
 					return res, nil
 				}
 				curt = nodes[i]
-				osTop = e.osSize[curt.index] - 1
+				osTop = curt.osTop
 			}
 		}
 
