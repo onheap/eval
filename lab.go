@@ -1,5 +1,10 @@
 package eval
 
+import (
+	"fmt"
+	"strings"
+)
+
 type (
 	labNode struct {
 		flag      uint8
@@ -93,7 +98,7 @@ func ConvertLabExpr(e *Expr) *labExpr {
 	}
 }
 
-func (e *labExpr) Eval(ctx *Ctx) (Value, error) {
+func (e *labExpr) Eval(ctx *Ctx) (res Value, err error) {
 	var (
 		nodes = e.nodes
 		size  = int16(len(nodes))
@@ -113,11 +118,10 @@ func (e *labExpr) Eval(ctx *Ctx) (Value, error) {
 	}
 
 	var (
-		res    Value
-		err    error
 		param  []Value
 		param2 [2]Value
 		curt   *labNode
+		prev   int16
 	)
 
 	for i := int16(0); i < size; i++ {
@@ -133,7 +137,7 @@ func (e *labExpr) Eval(ctx *Ctx) (Value, error) {
 			if child.flag&nodeTypeMask == selector {
 				res, err = ctx.Get(child.selKey, res.(string))
 				if err != nil {
-					return nil, err
+					return
 				}
 			}
 			param2[0] = res
@@ -144,19 +148,19 @@ func (e *labExpr) Eval(ctx *Ctx) (Value, error) {
 			if child.flag&nodeTypeMask == selector {
 				res, err = ctx.Get(child.selKey, res.(string))
 				if err != nil {
-					return nil, err
+					return
 				}
 			}
 			param2[1] = res
 			res, err = curt.operator(ctx, param2[:])
 			//fmt.Printf("exec, op:[%v], param:[%v], res:[%v], err:[%v]\n", curt.value, param2, res, err)
 			if err != nil {
-				return nil, err
+				return
 			}
 		case selector:
 			res, err = ctx.Get(curt.selKey, curt.value.(string))
 			if err != nil {
-				return nil, err
+				return
 			}
 		case constant:
 			res = curt.value
@@ -176,6 +180,19 @@ func (e *labExpr) Eval(ctx *Ctx) (Value, error) {
 			if err != nil {
 				return nil, err
 			}
+		case cond:
+			res, osTop = os[osTop+1], osTop-1
+			switch res {
+			case true:
+			case false:
+				i += curt.parentPos
+			default:
+				return nil, fmt.Errorf("eval error, result type of if condition should be bool, got: [%v]", res)
+			}
+			continue
+		default:
+			printDebug(prev, i, os, osTop, nodes)
+			continue
 		}
 
 		if b, ok := res.(bool); ok {
@@ -187,15 +204,31 @@ func (e *labExpr) Eval(ctx *Ctx) (Value, error) {
 				}
 				curt = nodes[i]
 				osTop = curt.osTop
-
-				//p := nodes[i]
-				//osTop = p.osTop
-				//fmt.Printf("[%v] jump to [%v] with res [%v]\n", curt.value, p.value, res)
-				//curt = p
 			}
 		}
 
 		os[osTop+1], osTop = res, osTop+1
+		prev = i
 	}
 	return os[0], nil
+}
+
+func printDebug(prevIdx, curtIdx int16, os []Value, osTop int16, nodes []*labNode) {
+	var (
+		sb   strings.Builder
+		curt = nodes[curtIdx].value
+	)
+
+	if curtIdx-prevIdx > 1 {
+		sb.WriteString(fmt.Sprintf("[%v] short circuit to [%v]\n", curt, nodes[prevIdx].value))
+	}
+
+	sb.WriteString(fmt.Sprintf("%10v", curt))
+
+	sb.WriteString(fmt.Sprintf("%15s", "Operand Stack: "))
+	for i := osTop; i >= 0; i-- {
+		sb.WriteString(fmt.Sprintf("|%4v", os[i]))
+	}
+	sb.WriteString("|\n")
+	fmt.Println(sb.String())
 }
