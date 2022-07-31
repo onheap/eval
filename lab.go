@@ -191,7 +191,7 @@ func (e *labExpr) Eval(ctx *Ctx) (res Value, err error) {
 			}
 			continue
 		default:
-			printDebug(prev, i, os, osTop, nodes)
+			printDebug(e, prev, i, os, osTop)
 			continue
 		}
 
@@ -213,14 +213,14 @@ func (e *labExpr) Eval(ctx *Ctx) (res Value, err error) {
 	return os[0], nil
 }
 
-func printDebug(prevIdx, curtIdx int16, os []Value, osTop int16, nodes []*labNode) {
+func printDebug(e *labExpr, prevIdx, curtIdx int16, os []Value, osTop int16) {
 	var (
 		sb   strings.Builder
-		curt = nodes[curtIdx].value
+		curt = e.nodes[curtIdx].value
 	)
 
 	if curtIdx-prevIdx > 1 {
-		sb.WriteString(fmt.Sprintf("[%v] short circuit to [%v]\n", curt, nodes[prevIdx].value))
+		sb.WriteString(fmt.Sprintf("[%v] short circuit to [%v]\n", curt, e.nodes[prevIdx].value))
 	}
 
 	sb.WriteString(fmt.Sprintf("%10v", curt))
