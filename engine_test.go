@@ -76,11 +76,13 @@ func TestDebugCases(t *testing.T) {
 			optimizeLevel: disable,
 			s: `
 (eq
-  (if T F T)
-  (not T))`,
+  (if T1 F T2)
+  (not T3))`,
 			valMap: map[string]interface{}{
-				"T": true,
-				"F": false,
+				"T1": true,
+				"T2": true,
+				"T3": true,
+				"F":  false,
 			},
 		},
 		{
@@ -461,11 +463,11 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 
 func TestRandomExpressions(t *testing.T) {
 	const (
-		size          = 10000
+		size          = 3000000
 		level         = 53
 		step          = size / 100
 		showSample    = false
-		printProgress = false
+		printProgress = true
 	)
 
 	const (

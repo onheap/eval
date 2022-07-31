@@ -473,7 +473,6 @@ func PrintExpr(expr *Expr, fields ...string) string {
 		cIdx  = "cIdx"
 		scIdx = "scIdx"
 		scVal = "scVal"
-		sfTop = "sfTop"
 		osTop = "osTop"
 	)
 
@@ -526,18 +525,15 @@ func PrintExpr(expr *Expr, fields ...string) string {
 			}
 			return res
 		},
-		sfTop: func(e *Expr, i int) Value {
-			return e.sfSize[i] - 1
-		},
 		osTop: func(e *Expr, i int) Value {
 			return e.osSize[i] - 1
 		},
 	}
 
-	var allFields = []string{idx, node, pIdx, flag, cCnt, cIdx, scIdx, scVal, sfTop, osTop}
+	var defaultFields = []string{idx, node, pIdx, flag, cCnt, cIdx, scIdx, scVal, osTop}
 
 	if len(fields) == 0 {
-		fields = allFields
+		fields = defaultFields
 	}
 
 	set := make(map[string]bool)
@@ -551,7 +547,7 @@ func PrintExpr(expr *Expr, fields ...string) string {
 	sb.WriteString(fmt.Sprintf("node  size: %4d\n", len(expr.nodes)))
 	sb.WriteString(fmt.Sprintf("stack size: %4d\n", expr.maxStackSize))
 
-	for i, field := range allFields {
+	for i, field := range defaultFields {
 		if !set[field] && i >= 2 {
 			continue
 		}

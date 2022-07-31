@@ -55,7 +55,6 @@ type Expr struct {
 	nodes     []*node
 	parentIdx []int16
 	scIdx     []int16
-	sfSize    []int16
 	osSize    []int16
 }
 
@@ -173,6 +172,16 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 			if err != nil {
 				return nil, err
 			}
+		case cond:
+			res, osTop = os[osTop], osTop-1
+			switch res {
+			case true:
+			case false:
+				i = curt.scPos
+			default:
+				return nil, fmt.Errorf("eval error, result type of if condition should be bool, got: [%v]", res)
+			}
+			continue
 		default:
 			printDebugExpr(e, prev, i, os, osTop)
 			prev = i

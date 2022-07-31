@@ -417,7 +417,6 @@ func buildExpr(cc *CompileConfig, ast *astNode, size int) *Expr {
 
 		nodes:     make([]*node, size),
 		scIdx:     make([]int16, size),
-		sfSize:    make([]int16, size),
 		osSize:    make([]int16, size),
 		parentIdx: make([]int16, size),
 	}
@@ -442,10 +441,10 @@ func calAndSetLabNode(e *Expr) {
 		posToIdx = make([]int16, size)
 		idxToPos = make([]int16, size)
 
-		helper func(i int16)
+		appendNode func(i int16)
 	)
 
-	helper = func(i int16) {
+	appendNode = func(i int16) {
 		n := nodes[i]
 		var pos int16
 		switch n.getNodeType() {
@@ -454,19 +453,21 @@ func calAndSetLabNode(e *Expr) {
 				flag:   n.flag,
 				value:  n.value,
 				selKey: n.selKey,
+				osTop:  e.osSize[i] - 1,
 			})
 			pos = int16(len(res) - 1)
 		case operator:
 			cCnt := int16(n.childCnt)
 			cIdx := n.childIdx
 			for j := cIdx; j < cIdx+cCnt; j++ {
-				helper(j)
+				appendNode(j)
 			}
 			res = append(res, &labNode{
 				flag:     n.flag,
 				child:    n.childCnt,
 				value:    n.value,
 				operator: n.operator,
+				osTop:    e.osSize[i] - 1,
 			})
 			pos = int16(len(res) - 1)
 
@@ -476,6 +477,7 @@ func calAndSetLabNode(e *Expr) {
 				child:    n.childCnt,
 				value:    n.value,
 				operator: n.operator,
+				osTop:    e.osSize[i] - 1,
 			})
 
 			pos = int16(len(res) - 1)
@@ -483,16 +485,41 @@ func calAndSetLabNode(e *Expr) {
 			cCnt := int16(n.childCnt)
 			cIdx := n.childIdx
 			for j := cIdx; j < cIdx+cCnt; j++ {
-				helper(j)
+				appendNode(j)
 			}
+		case cond:
+			cIdx := n.childIdx
+
+			// append condition node
+			appendNode(cIdx)
+
+			// append condition check node
+			res = append(res, &labNode{
+				flag:  cond,
+				value: n.value,
+			})
+			pos = int16(len(res) - 1)
+
+			// append true branch node
+			appendNode(cIdx + 1)
+
+			// update condition check node, jump to false branch
+			res[pos].scPos = int16(len(res) - 1)
+
+			// append false branch node
+			appendNode(cIdx + 2)
 		}
 
 		posToIdx[pos] = i
 		idxToPos[i] = pos
 	}
 
-	helper(0)
+	appendNode(0)
+
 	for pos, n := range res {
+		if n.flag&nodeTypeMask == cond {
+			continue
+		}
 		idx := posToIdx[pos]
 		pIdx := e.nodes[idx].scIdx
 		if pIdx == -1 {
@@ -500,7 +527,6 @@ func calAndSetLabNode(e *Expr) {
 		} else {
 			n.scPos = idxToPos[pIdx]
 		}
-		n.osTop = e.osSize[idx] - 1
 	}
 
 	copy(e.labNodes, res)
