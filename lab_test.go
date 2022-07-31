@@ -34,7 +34,7 @@ func TestWithLabExpr(t *testing.T) {
 	le := ConvertLabExpr(expr)
 
 	//for i, n := range le.nodes {
-	//	pPos := n.parentPos
+	//	pPos := n.scPos
 	//	if pPos == -1 {
 	//		fmt.Printf("NO.%2d curt: [%8v], scTarget:[%8v]\n", i, n.value, "RET")
 	//	} else {

@@ -7,13 +7,13 @@ import (
 
 type (
 	labNode struct {
-		flag      uint8
-		child     int8  // child count
-		osTop     int16 // os Top when short circuit triggered
-		parentPos int16 // pos of labExpr
-		selKey    SelectorKey
-		value     Value
-		operator  Operator
+		flag     uint8
+		child    int8  // child count
+		osTop    int16 // os Top when short circuit triggered
+		scPos    int16 // pos of labExpr
+		selKey   SelectorKey
+		value    Value
+		operator Operator
 	}
 	labExpr struct {
 		maxStackSize int16
@@ -84,9 +84,9 @@ func ConvertLabExpr(e *Expr) *labExpr {
 		idx := posToIdx[pos]
 		pIdx := e.nodes[idx].scIdx
 		if pIdx == -1 {
-			n.parentPos = -1
+			n.scPos = -1
 		} else {
-			n.parentPos = idxToPos[pIdx]
+			n.scPos = idxToPos[pIdx]
 		}
 		n.osTop = e.osSize[idx] - 1
 	}
@@ -185,7 +185,7 @@ func (e *labExpr) Eval(ctx *Ctx) (res Value, err error) {
 			switch res {
 			case true:
 			case false:
-				i += curt.parentPos
+				i += curt.scPos
 			default:
 				return nil, fmt.Errorf("eval error, result type of if condition should be bool, got: [%v]", res)
 			}
@@ -198,7 +198,7 @@ func (e *labExpr) Eval(ctx *Ctx) (res Value, err error) {
 		if b, ok := res.(bool); ok {
 			for (!b && curt.flag&scIfFalse == scIfFalse) ||
 				(b && curt.flag&scIfTrue == scIfTrue) {
-				i = curt.parentPos
+				i = curt.scPos
 				if i == -1 {
 					return res, nil
 				}

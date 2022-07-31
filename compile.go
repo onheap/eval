@@ -415,6 +415,8 @@ func check(root *astNode) checkRes {
 
 func buildExpr(cc *CompileConfig, ast *astNode, size int) *Expr {
 	e := &Expr{
+		labNodes: make([]*labNode, size), // todo rename
+
 		nodes:     make([]*node, size),
 		scIdx:     make([]int16, size),
 		sfSize:    make([]int16, size),
@@ -426,10 +428,84 @@ func buildExpr(cc *CompileConfig, ast *astNode, size int) *Expr {
 	calAndSetParentIndex(e)
 	calAndSetStackSize(e)
 	calAndSetShortCircuit(e)
+	calAndSetLabNode(e)
 	if cc.CompileOptions[Debug] {
 		calAndSetDebugInfo(e)
 	}
+
 	return e
+}
+
+func calAndSetLabNode(e *Expr) {
+	var (
+		nodes    = e.nodes
+		size     = len(nodes)
+		res      = make([]*labNode, 0, size)
+		posToIdx = make([]int16, size)
+		idxToPos = make([]int16, size)
+
+		helper func(i int16)
+	)
+
+	helper = func(i int16) {
+		n := nodes[i]
+		var pos int16
+		switch n.getNodeType() {
+		case constant, selector:
+			res = append(res, &labNode{
+				flag:   n.flag,
+				value:  n.value,
+				selKey: n.selKey,
+			})
+			pos = int16(len(res) - 1)
+		case operator:
+			cCnt := int16(n.childCnt)
+			cIdx := n.childIdx
+			for j := cIdx; j < cIdx+cCnt; j++ {
+				helper(j)
+			}
+			res = append(res, &labNode{
+				flag:     n.flag,
+				child:    n.childCnt,
+				value:    n.value,
+				operator: n.operator,
+			})
+			pos = int16(len(res) - 1)
+
+		case fastOperator:
+			res = append(res, &labNode{
+				flag:     n.flag,
+				child:    n.childCnt,
+				value:    n.value,
+				operator: n.operator,
+			})
+
+			pos = int16(len(res) - 1)
+
+			cCnt := int16(n.childCnt)
+			cIdx := n.childIdx
+			for j := cIdx; j < cIdx+cCnt; j++ {
+				helper(j)
+			}
+		}
+
+		posToIdx[pos] = i
+		idxToPos[i] = pos
+	}
+
+	helper(0)
+	for pos, n := range res {
+		idx := posToIdx[pos]
+		pIdx := e.nodes[idx].scIdx
+		if pIdx == -1 {
+			n.scPos = -1
+		} else {
+			n.scPos = idxToPos[pIdx]
+		}
+		n.osTop = e.osSize[idx] - 1
+	}
+
+	copy(e.labNodes, res)
 }
 
 func calAndSetNodes(e *Expr, root *astNode) {
