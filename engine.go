@@ -175,9 +175,9 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 			}
 		default:
 			printDebugExpr(e, prev, i, os, osTop)
+			prev = i
 			continue
 		}
-
 		if b, ok := res.(bool); ok {
 			for (!b && curt.flag&scIfFalse == scIfFalse) ||
 				(b && curt.flag&scIfTrue == scIfTrue) {
@@ -191,7 +191,6 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 		}
 
 		os[osTop+1], osTop = res, osTop+1
-		prev = i
 	}
 	return os[0], nil
 }
@@ -199,19 +198,21 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 func printDebugExpr(e *Expr, prevIdx, curtIdx int16, os []Value, osTop int16) {
 	var (
 		sb   strings.Builder
-		curt = e.nodes[curtIdx].value
+		curt = e.labNodes[curtIdx].value
 	)
 
-	if curtIdx-prevIdx > 1 {
-		sb.WriteString(fmt.Sprintf("[%v] short circuit to [%v]\n", curt, e.nodes[prevIdx].value))
+	if curtIdx-prevIdx > 2 {
+		sb.WriteString(fmt.Sprintf("%13s: [%v] jump to [%v]\n\n", "Short Circuit", e.labNodes[prevIdx].value, curt))
+	} else {
+		sb.WriteString(fmt.Sprintf("\n"))
 	}
 
-	sb.WriteString(fmt.Sprintf("%10v", curt))
+	sb.WriteString(fmt.Sprintf("%13s: [%v]\n", "Current Node", curt))
 
-	sb.WriteString(fmt.Sprintf("%15s", "Operand Stack: "))
+	sb.WriteString(fmt.Sprintf("%13s: ", "Operand Stack"))
 	for i := osTop; i >= 0; i-- {
 		sb.WriteString(fmt.Sprintf("|%4v", os[i]))
 	}
-	sb.WriteString("|\n")
+	sb.WriteString("|")
 	fmt.Println(sb.String())
 }

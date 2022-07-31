@@ -13,7 +13,7 @@ import (
 )
 
 func TestDebugCases(t *testing.T) {
-	const debugMode = false
+	const debugMode = true
 
 	type optimizeLevel int
 	const (
@@ -312,6 +312,7 @@ func TestDebugCases(t *testing.T) {
 				"Value":   100,
 				"Adults":  1,
 			},
+			optimizeLevel: disable,
 			//fields: []string{"scIdx", "scVal", "pIdx"},
 		},
 		{
@@ -525,7 +526,7 @@ func TestRandomExpressions(t *testing.T) {
 				}
 
 				if v&0b010 != 0 {
-					options = append(options, EnableCondition)
+					//options = append(options, EnableCondition)
 				}
 
 				if v&0b100 != 0 {

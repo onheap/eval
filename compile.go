@@ -674,45 +674,47 @@ func calAndSetShortCircuit(e *Expr) {
 }
 
 func calAndSetDebugInfo(e *Expr) {
-	var wrapDebugInfo = func(name string, op Operator) Operator {
+	var wrapDebugInfo = func(name Value, op Operator) Operator {
 		return func(ctx *Ctx, params []Value) (res Value, err error) {
 			res, err = op(ctx, params)
-			fmt.Printf("execute operator, op: %s, params: %v, res: %v, err: %v\n\n", name, params, res, err)
+			fmt.Printf("%13s: op: %v, params: %v, res: %v, err: %v\n", "Exec Operator", name, params, res, err)
 			return
 		}
 	}
 
-	size := int16(len(e.nodes))
-	offset := size
+	nodes := e.labNodes
+	size := int16(len(nodes))
+	res := make([]*labNode, 0, size*2)
 
-	e.nodes = append(e.nodes, e.nodes...)
-	e.parentIdx = append(e.parentIdx, e.parentIdx...)
-	e.scIdx = append(e.scIdx, e.scIdx...)
-	e.sfSize = append(e.sfSize, e.sfSize...)
-	e.osSize = append(e.osSize, e.osSize...)
+	debugPos := make([]int16, size)
 
 	for i := int16(0); i < size; i++ {
-		realNode := e.nodes[i]
-		parentIdx := e.parentIdx[i]
-
-		debugNode := &node{
-			flag:     debug,
-			value:    realNode.value,
-			childIdx: realNode.childIdx,
-			childCnt: realNode.childCnt,
+		realNode := nodes[i]
+		debugNode := &labNode{
+			flag:   debug,
+			child:  realNode.child,
+			osTop:  realNode.osTop,
+			scPos:  realNode.scPos,
+			selKey: realNode.selKey,
+			value:  realNode.value,
 		}
+		res = append(res, debugNode, realNode)
+		debugPos[i] = int16(len(res) - 1)
 
-		realNode.scIdx += offset
-		switch realNode.getNodeType() {
+		switch realNode.flag & nodeTypeMask {
 		case operator:
-			realNode.operator = wrapDebugInfo(realNode.value.(string), realNode.operator)
+			realNode.operator = wrapDebugInfo(realNode.value, realNode.operator)
 		case fastOperator:
-			realNode.operator = wrapDebugInfo(realNode.value.(string), realNode.operator)
-			realNode.childIdx += offset
+			realNode.operator = wrapDebugInfo(realNode.value, realNode.operator)
+			// append child nodes of fast operator
+			res = append(res, nodes[i+1], nodes[i+2])
+			i += 2
 		}
-
-		e.nodes[i] = debugNode
-		e.nodes[i+offset] = realNode
-		e.parentIdx[i+offset] = parentIdx + offset
 	}
+
+	for _, n := range res {
+		n.scPos = debugPos[n.scPos]
+	}
+
+	e.labNodes = res
 }
