@@ -230,8 +230,6 @@ func calculateNodeCosts(conf *CompileConfig, root *astNode) {
 		baseCost = loops*(int64(len(children))+1) + funcCall
 	case cond:
 		baseCost = loops * 4
-	case end:
-		baseCost = 0
 	default:
 		baseCost = 10
 	}
@@ -361,7 +359,7 @@ func optimizeFastEvaluation(cc *CompileConfig, root *astNode) {
 		optimizeFastEvaluation(cc, child)
 	}
 	n := root.node
-	if (n.flag & nodeTypeMask) != operator {
+	if (n.flag&nodeTypeMask) != operator || len(root.children) != 2 {
 		return
 	}
 
@@ -570,80 +568,44 @@ func calAndSetStackSize(e *Expr) {
 		return e.nodes[idx].flag&nodeTypeMask == cond
 	}
 
-	var isEndNode = func(e *Expr, idx int16) bool {
-		return e.nodes[idx].flag&nodeTypeMask == end
-	}
-
-	var isFirstChild = func(e *Expr, idx int16) bool {
-		parentIdx := e.parentIdx[idx]
-		return e.nodes[parentIdx].childIdx == idx
-
-	}
-
 	size := int16(len(e.nodes))
-	f1 := make([]int16, size) // for stack frame
-	f2 := make([]int16, size) // for operator stack
-	f1[0] = 1
+	f := make([]int16, size) // for operator stack
 	for i := int16(1); i < size; i++ {
 		pIdx := e.parentIdx[i]
 
-		// f1
-		if isLeaf(e, pIdx) || isEndNode(e, i) {
-			f1[i] = f1[pIdx]
-		} else {
-			siblingCount := e.nodes[pIdx].childIdx + int16(e.nodes[pIdx].childCnt) - 1 - i
-			// f[i] = f[pIdx] + right sibling count + 1
-
-			if isCondNode(e, pIdx) {
-				if isFirstChild(e, i) {
-					f1[i] = f1[pIdx] + 2 // add cond expr node and end node
-				} else {
-					f1[i] = f1[pIdx] + 1 // push branch expr
-				}
-			} else {
-				f1[i] = f1[pIdx] + siblingCount + 1
-			}
-		}
-
-		// f2
-		if isLeaf(e, pIdx) || isEndNode(e, i) {
-			f2[i] = f2[pIdx]
+		if isLeaf(e, pIdx) {
+			f[i] = f[pIdx]
 			continue
 		}
 
 		if isCondNode(e, pIdx) {
 			if isLeaf(e, i) {
-				f2[i] = f2[pIdx] + 1
+				f[i] = f[pIdx] + 1
 			} else {
-				f2[i] = f2[pIdx]
+				f[i] = f[pIdx]
 			}
 			continue
 		}
 
+		// left sibling count
+		siblingCount := i - e.nodes[pIdx].childIdx
 		if isLeaf(e, i) {
 			// f[i] = f[pIdx] + left sibling count + 1
-			siblingCount := i - e.nodes[pIdx].childIdx
-			f2[i] = f2[pIdx] + siblingCount + 1
+			f[i] = f[pIdx] + siblingCount + 1
 		} else {
 			// f[i] = f[pIdx] + left sibling count
-			siblingCount := i - e.nodes[pIdx].childIdx
-			f2[i] = f2[pIdx] + siblingCount
+			f[i] = f[pIdx] + siblingCount
 		}
 	}
 
 	var res int16 = 1
 	for i := int16(0); i < size; i++ {
-		res = maxInt16(res, f1[i])
-		res = maxInt16(res, f2[i])
+		res = maxInt16(res, f[i])
 	}
 
 	e.maxStackSize = res
 
-	//e.sfSize = f1
-	//e.osSize = f2
-
-	copy(e.sfSize, f1)
-	copy(e.osSize, f2)
+	copy(e.osSize, f)
 }
 
 func calAndSetShortCircuit(e *Expr) {
@@ -669,20 +631,12 @@ func calAndSetShortCircuit(e *Expr) {
 		return e.nodes[pIdx], pIdx
 	}
 
-	const mask = scIfTrue | scIfFalse
-
 	size := int16(len(e.nodes))
 
 	f := make([]int16, size)
 	for i := int16(1); i < size; i++ {
 		n := e.nodes[i]
 		p, pIdx := parentNode(i)
-
-		if n.getNodeType() == end {
-			f[i] = f[pIdx]
-			n.flag |= p.flag & mask
-			continue
-		}
 
 		if !isBoolOpNode(p) {
 			f[i] = i

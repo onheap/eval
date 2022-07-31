@@ -26,7 +26,6 @@ const (
 	operator     = uint8(0b011)
 	fastOperator = uint8(0b100)
 	cond         = uint8(0b101)
-	end          = uint8(0b110)
 	debug        = uint8(0b111)
 
 	// short circuit flag
@@ -174,16 +173,6 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 			if err != nil {
 				return nil, err
 			}
-		case cond:
-			res, osTop = os[osTop+1], osTop-1
-			switch res {
-			case true:
-			case false:
-				i += curt.scPos
-			default:
-				return nil, fmt.Errorf("eval error, result type of if condition should be bool, got: [%v]", res)
-			}
-			continue
 		default:
 			printDebugExpr(e, prev, i, os, osTop)
 			continue

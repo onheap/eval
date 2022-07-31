@@ -386,9 +386,6 @@ func Dump(e *Expr) string {
 		for i := 0; i < int(root.childCnt); i++ {
 			childIdx := int(root.childIdx) + i
 			child := getNode(childIdx)
-			if child.getNodeType() == end {
-				continue
-			}
 			cc, isLeaf := helper(child)
 			if isLeaf {
 				sb.WriteString(fmt.Sprintf(" %s", cc))
@@ -411,8 +408,6 @@ func dumpLeafNode(node *node) (string, bool) {
 	switch node.getNodeType() {
 	case debug:
 		return "debug", false
-	case end:
-		return "", true
 	case selector:
 		return fmt.Sprint(node.value), true
 	case operator, fastOperator:
@@ -506,8 +501,6 @@ func PrintExpr(expr *Expr, fields ...string) string {
 				res = "C"
 			case cond:
 				res = "IF"
-			case end:
-				res = "END"
 			case debug:
 				res = "D"
 			}
