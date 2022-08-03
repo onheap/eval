@@ -386,6 +386,9 @@ func Dump(e *Expr) string {
 		for i := 0; i < int(root.childCnt); i++ {
 			childIdx := int(root.childIdx) + i
 			child := getNode(childIdx)
+			if child.getNodeType() == end {
+				continue
+			}
 			cc, isLeaf := helper(child)
 			if isLeaf {
 				sb.WriteString(fmt.Sprintf(" %s", cc))
@@ -408,6 +411,8 @@ func dumpLeafNode(node *node) (string, bool) {
 	switch node.getNodeType() {
 	case debug:
 		return "debug", false
+	case end:
+		return "", true
 	case selector:
 		return fmt.Sprint(node.value), true
 	case operator, fastOperator:
@@ -462,99 +467,177 @@ func maxInt16(a, b int16) int16 {
 	}
 }
 
-func PrintExpr(expr *Expr, fields ...string) string {
-	type fetcher func(e *Expr, i int) Value
+func PrintExpr(expr *Expr) string {
+	type fetcher struct {
+		name string
+		fn   func(e *Expr, i int) Value
+	}
+
+	type field int
+
 	const (
-		idx   = "idx"
-		node  = "node"
-		pIdx  = "pIdx"
-		flag  = "flag"
-		cCnt  = "cCnt"
-		cIdx  = "cIdx"
-		scIdx = "scIdx"
-		scVal = "scVal"
-		osTop = "osTop"
+		idx field = iota
+		node
+		pIdx
+		flag
+		cCnt
+		cIdx
+		scIdx
+		scVal
+		osTop
+		_sep
+		_node
+		_flag
+		_cCnt
+		_scVal
+		_scPos
+		_osTop
 	)
 
-	fetchers := map[string]fetcher{
-		idx: func(_ *Expr, i int) Value {
-			return i
+	var getFlag = func(f uint8) Value {
+		res := ""
+		switch f & nodeTypeMask {
+		case operator:
+			res = "OP"
+		case fastOperator:
+			res = "OPf"
+		case selector:
+			res = "S"
+		case constant:
+			res = "C"
+		case cond:
+			res = "IF"
+		case debug:
+			res = "D"
+		case end:
+			res = "END"
+		}
+
+		if f&scIfTrue == scIfTrue {
+			res += "T"
+		}
+		if f&scIfFalse == scIfFalse {
+			res += "F"
+		}
+		return res
+	}
+
+	fetchers := [...]fetcher{
+		idx: {
+			name: "idx",
+			fn: func(_ *Expr, i int) Value {
+				return i
+			},
 		},
-		node: func(e *Expr, i int) Value {
-			return e.nodes[i].value
+		node: {
+			name: "node",
+			fn: func(e *Expr, i int) Value {
+				return e.nodes[i].value
+			},
 		},
-		pIdx: func(e *Expr, i int) Value {
-			return e.parentIdx[i]
+		pIdx: {
+			name: "pIdx",
+			fn: func(e *Expr, i int) Value {
+				return e.parentIdx[i]
+			},
 		},
-		flag: func(e *Expr, i int) Value {
-			f := e.nodes[i].flag
-			res := ""
-			switch f & nodeTypeMask {
-			case operator:
-				res = "OP"
-			case fastOperator:
-				res = "OPf"
-			case selector:
-				res = "S"
-			case constant:
-				res = "C"
-			case cond:
-				res = "IF"
-			case debug:
-				res = "D"
-			}
-			return res
+		flag: {
+			name: "flag",
+			fn: func(e *Expr, i int) Value {
+				return getFlag(e.nodes[i].flag & nodeTypeMask)
+			},
 		},
-		cCnt: func(e *Expr, i int) Value {
-			return e.nodes[i].childCnt
+		cCnt: {
+			name: "cCnt",
+			fn: func(e *Expr, i int) Value {
+				return e.nodes[i].childCnt
+			},
 		},
-		cIdx: func(e *Expr, i int) Value {
-			return e.nodes[i].childIdx
+		cIdx: {
+			name: "cIdx",
+			fn: func(e *Expr, i int) Value {
+				return e.nodes[i].childIdx
+			},
 		},
-		scIdx: func(e *Expr, i int) Value {
-			return e.scIdx[i]
+		scIdx: {
+			name: "scIdx",
+			fn: func(e *Expr, i int) Value {
+				return e.scIdx[i]
+			},
 		},
-		scVal: func(e *Expr, i int) Value {
-			f := e.nodes[i].flag
-			res := ""
-			if f&scIfTrue == scIfTrue {
-				res += "T"
-			}
-			if f&scIfFalse == scIfFalse {
-				res += "F"
-			}
-			return res
+		scVal: {
+			name: "scVal",
+			fn: func(e *Expr, i int) Value {
+				return getFlag(e.nodes[i].flag & (scIfFalse | scIfTrue))
+			},
 		},
-		osTop: func(e *Expr, i int) Value {
-			return e.osSize[i] - 1
+		osTop: {
+			name: "osTop",
+			fn: func(e *Expr, i int) Value {
+				return e.osSize[i] - 1
+			},
+		},
+		_sep: {
+			name: "----",
+			fn: func(_ *Expr, _ int) Value {
+				return "----"
+			},
+		},
+		_node: {
+			name: "node",
+			fn: func(e *Expr, i int) Value {
+				return e.labNodes[i].value
+			},
+		},
+		_flag: {
+			name: "flag",
+			fn: func(e *Expr, i int) Value {
+				return getFlag(e.labNodes[i].flag & nodeTypeMask)
+			},
+		},
+		_cCnt: {
+			name: "cCnt",
+			fn: func(e *Expr, i int) Value {
+				return e.labNodes[i].child
+			},
+		},
+		_scPos: {
+			name: "scPos",
+			fn: func(e *Expr, i int) Value {
+				return e.labNodes[i].scPos
+			},
+		},
+		_scVal: {
+			name: "scVal",
+			fn: func(e *Expr, i int) Value {
+				return getFlag(e.labNodes[i].flag & scMask)
+			},
+		},
+		_osTop: {
+			name: "osTop",
+			fn: func(e *Expr, i int) Value {
+				return e.labNodes[i].osTop
+			},
 		},
 	}
 
-	var defaultFields = []string{idx, node, pIdx, flag, cCnt, cIdx, scIdx, scVal, osTop}
-
-	if len(fields) == 0 {
-		fields = defaultFields
-	}
-
-	set := make(map[string]bool)
-	for _, field := range fields {
-		set[field] = true
-	}
-
-	size := len(expr.nodes)
+	size := len(expr.labNodes)
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("node  size: %4d\n", len(expr.nodes)))
 	sb.WriteString(fmt.Sprintf("stack size: %4d\n", expr.maxStackSize))
 
-	for i, field := range defaultFields {
-		if !set[field] && i >= 2 {
+	for f, n := range fetchers {
+		if ff := field(f); ff != idx && ff < _sep {
 			continue
 		}
-
-		sb.WriteString(fmt.Sprintf("%5s: ", field))
+		sb.WriteString(fmt.Sprintf("%5s: ", n.name))
 		for j := 0; j < size; j++ {
-			sb.WriteString(fmt.Sprintf("|%4v", fetchers[field](expr, j)))
+			if expr.labNodes[j].flag&nodeTypeMask == debug {
+				continue
+			}
+
+			sb.WriteString(fmt.Sprintf("|%4v", fetchers[f].fn(expr, j)))
 		}
 		sb.WriteString("|\n")
 	}

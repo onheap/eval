@@ -430,7 +430,7 @@ func TestOptimizeFastEvaluation(t *testing.T) {
 						},
 					},
 					{
-						tpy:  fastOperator,
+						tpy:  operator,
 						data: "*",
 						children: []verifyNode{
 							{tpy: selector, data: "v2"},
@@ -483,7 +483,7 @@ func TestOptimizeFastEvaluation(t *testing.T) {
 						},
 					},
 					{
-						tpy:  fastOperator,
+						tpy:  operator,
 						data: "*",
 						children: []verifyNode{
 							{tpy: constant, data: int64(5)},

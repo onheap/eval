@@ -13,7 +13,7 @@ import (
 )
 
 func TestDebugCases(t *testing.T) {
-	const debugMode = true
+	const debugMode = false
 
 	type optimizeLevel int
 	const (
@@ -350,6 +350,20 @@ func TestDebugCases(t *testing.T) {
   (= 6 6)
   (!= 7 7))`,
 		},
+		{
+			want:          false,
+			optimizeLevel: disable,
+			s: `
+(and
+  (if T
+    (= 0 0)
+    (= 0 0))
+  (not
+    (= 0 0)))`,
+			valMap: map[string]interface{}{
+				"T": true,
+			},
+		},
 	}
 
 	for _, c := range cs {
@@ -378,8 +392,7 @@ func TestDebugCases(t *testing.T) {
 			if debugMode {
 				fmt.Println(Dump(expr))
 				fmt.Println()
-				fmt.Println(PrintExpr(expr, c.fields...))
-
+				fmt.Println(PrintExpr(expr))
 			}
 
 			res, err := expr.Eval(ctx)
@@ -463,11 +476,11 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 
 func TestRandomExpressions(t *testing.T) {
 	const (
-		size          = 3000000
+		size          = 10000
 		level         = 53
 		step          = size / 100
 		showSample    = false
-		printProgress = true
+		printProgress = false
 	)
 
 	const (
@@ -528,7 +541,7 @@ func TestRandomExpressions(t *testing.T) {
 				}
 
 				if v&0b010 != 0 {
-					//options = append(options, EnableCondition)
+					options = append(options, EnableCondition)
 				}
 
 				if v&0b100 != 0 {

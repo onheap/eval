@@ -26,9 +26,11 @@ const (
 	operator     = uint8(0b011)
 	fastOperator = uint8(0b100)
 	cond         = uint8(0b101)
+	end          = uint8(0b110)
 	debug        = uint8(0b111)
 
 	// short circuit flag
+	scMask    = uint8(0b011000)
 	scIfFalse = uint8(0b001000)
 	scIfTrue  = uint8(0b010000)
 )
@@ -119,8 +121,6 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 	for i := int16(0); i < size; i++ {
 		curt = nodes[i]
 
-		//fmt.Printf("curt: %v\n", curt.value)
-
 		switch curt.flag & nodeTypeMask {
 		case fastOperator:
 			i++
@@ -181,6 +181,9 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 			default:
 				return nil, fmt.Errorf("eval error, result type of if condition should be bool, got: [%v]", res)
 			}
+			continue
+		case end:
+			i = curt.scPos
 			continue
 		default:
 			printDebugExpr(e, prev, i, os, osTop)

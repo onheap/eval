@@ -230,6 +230,8 @@ func calculateNodeCosts(conf *CompileConfig, root *astNode) {
 		baseCost = loops*(int64(len(children))+1) + funcCall
 	case cond:
 		baseCost = loops * 4
+	case end:
+		baseCost = 0
 	default:
 		baseCost = 10
 	}
@@ -413,8 +415,6 @@ func check(root *astNode) checkRes {
 
 func buildExpr(cc *CompileConfig, ast *astNode, size int) *Expr {
 	e := &Expr{
-		labNodes: make([]*labNode, size), // todo rename
-
 		nodes:     make([]*node, size),
 		scIdx:     make([]int16, size),
 		osSize:    make([]int16, size),
@@ -438,8 +438,8 @@ func calAndSetLabNode(e *Expr) {
 		nodes    = e.nodes
 		size     = len(nodes)
 		res      = make([]*labNode, 0, size)
-		posToIdx = make([]int16, size)
-		idxToPos = make([]int16, size)
+		posToIdx = make(map[int16]int16, size)
+		idxToPos = make(map[int16]int16, size)
 
 		appendNode func(i int16)
 	)
@@ -470,7 +470,6 @@ func calAndSetLabNode(e *Expr) {
 				osTop:    e.osSize[i] - 1,
 			})
 			pos = int16(len(res) - 1)
-
 		case fastOperator:
 			res = append(res, &labNode{
 				flag:     n.flag,
@@ -488,10 +487,15 @@ func calAndSetLabNode(e *Expr) {
 				appendNode(j)
 			}
 		case cond:
-			cIdx := n.childIdx
+			var (
+				condNode  = n.childIdx
+				trueNode  = n.childIdx + 1
+				falseNode = n.childIdx + 2
+				endNode   = n.childIdx + 3
+			)
 
 			// append condition node
-			appendNode(cIdx)
+			appendNode(condNode)
 
 			// append condition check node
 			res = append(res, &labNode{
@@ -501,13 +505,25 @@ func calAndSetLabNode(e *Expr) {
 			pos = int16(len(res) - 1)
 
 			// append true branch node
-			appendNode(cIdx + 1)
+			appendNode(trueNode)
+			// append first end node (end of true branch)
+			appendNode(endNode)
 
 			// update condition check node, jump to false branch
 			res[pos].scPos = int16(len(res) - 1)
 
 			// append false branch node
-			appendNode(cIdx + 2)
+			appendNode(falseNode)
+			// append second end node (end of if expression)
+			appendNode(endNode)
+		case end:
+			res = append(res, &labNode{
+				flag:   n.flag,
+				value:  n.value,
+				selKey: n.selKey,
+				osTop:  e.osSize[i] - 1,
+			})
+			pos = int16(len(res) - 1)
 		}
 
 		posToIdx[pos] = i
@@ -517,10 +533,10 @@ func calAndSetLabNode(e *Expr) {
 	appendNode(0)
 
 	for pos, n := range res {
-		if n.flag&nodeTypeMask == cond {
+		if typ := n.flag & nodeTypeMask; typ == cond {
 			continue
 		}
-		idx := posToIdx[pos]
+		idx := posToIdx[int16(pos)]
 		pIdx := e.nodes[idx].scIdx
 		if pIdx == -1 {
 			n.scPos = -1
@@ -529,7 +545,7 @@ func calAndSetLabNode(e *Expr) {
 		}
 	}
 
-	copy(e.labNodes, res)
+	e.labNodes = res
 }
 
 func calAndSetNodes(e *Expr, root *astNode) {
@@ -649,6 +665,14 @@ func calAndSetShortCircuit(e *Expr) {
 		return false
 	}
 
+	var isFirstChild = func(idx int16) bool {
+		parentIdx := e.parentIdx[idx]
+		if parentIdx == -1 {
+			return false
+		}
+		return e.nodes[parentIdx].childIdx == idx
+	}
+
 	var parentNode = func(idx int16) (*node, int16) {
 		pIdx := e.parentIdx[idx]
 		if pIdx == -1 {
@@ -663,6 +687,21 @@ func calAndSetShortCircuit(e *Expr) {
 	for i := int16(1); i < size; i++ {
 		n := e.nodes[i]
 		p, pIdx := parentNode(i)
+
+		if p.getNodeType() == cond {
+			if isFirstChild(i) || isLastChild(i) {
+				f[i] = i
+				continue
+			}
+
+			if f[pIdx] == pIdx {
+				continue
+			}
+
+			n.flag |= p.flag & scMask
+			f[i] = f[pIdx]
+			continue
+		}
 
 		if !isBoolOpNode(p) {
 			f[i] = i
