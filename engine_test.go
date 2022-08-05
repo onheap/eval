@@ -480,7 +480,7 @@ func TestRandomExpressions(t *testing.T) {
 		level         = 53
 		step          = size / 100
 		showSample    = false
-		printProgress = false
+		printProgress = true
 	)
 
 	const (

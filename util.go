@@ -506,7 +506,7 @@ func PrintExpr(expr *Expr) string {
 		case constant:
 			res = "C"
 		case cond:
-			res = "IF"
+			res = "COND"
 		case debug:
 			res = "D"
 		case end:
@@ -586,42 +586,42 @@ func PrintExpr(expr *Expr) string {
 		_node: {
 			name: "node",
 			fn: func(e *Expr, i int) Value {
-				return e.labNodes[i].value
+				return e.rpnNodes[i].value
 			},
 		},
 		_flag: {
 			name: "flag",
 			fn: func(e *Expr, i int) Value {
-				return getFlag(e.labNodes[i].flag & nodeTypeMask)
+				return getFlag(e.rpnNodes[i].flag & nodeTypeMask)
 			},
 		},
 		_cCnt: {
 			name: "cCnt",
 			fn: func(e *Expr, i int) Value {
-				return e.labNodes[i].child
+				return e.rpnNodes[i].child
 			},
 		},
 		_scPos: {
 			name: "scPos",
 			fn: func(e *Expr, i int) Value {
-				return e.labNodes[i].scPos
+				return e.rpnNodes[i].scPos
 			},
 		},
 		_scVal: {
 			name: "scVal",
 			fn: func(e *Expr, i int) Value {
-				return getFlag(e.labNodes[i].flag & scMask)
+				return getFlag(e.rpnNodes[i].flag & scMask)
 			},
 		},
 		_osTop: {
 			name: "osTop",
 			fn: func(e *Expr, i int) Value {
-				return e.labNodes[i].osTop
+				return e.rpnNodes[i].osTop
 			},
 		},
 	}
 
-	size := len(expr.labNodes)
+	size := len(expr.rpnNodes)
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("node  size: %4d\n", len(expr.nodes)))
@@ -633,7 +633,7 @@ func PrintExpr(expr *Expr) string {
 		}
 		sb.WriteString(fmt.Sprintf("%5s: ", n.name))
 		for j := 0; j < size; j++ {
-			if expr.labNodes[j].flag&nodeTypeMask == debug {
+			if expr.rpnNodes[j].flag&nodeTypeMask == debug {
 				continue
 			}
 

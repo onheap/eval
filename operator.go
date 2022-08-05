@@ -77,14 +77,6 @@ var (
 		"version":   versionConvert{mode: version, validLen: 3}.execute,
 		"t_version": versionConvert{mode: toVersion, validLen: 3}.execute,
 	}
-
-	condCheck Operator = func(_ *Ctx, params []Value) (Value, error) {
-		if b, ok := params[0].(bool); ok {
-			return b, nil
-		}
-
-		return nil, fmt.Errorf("condition node returns a non bool result: [%v]", params[0])
-	}
 )
 
 type mode int

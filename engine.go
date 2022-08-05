@@ -35,6 +35,16 @@ const (
 	scIfTrue  = uint8(0b010000)
 )
 
+type rpnNode struct {
+	flag     uint8
+	child    int8  // child count
+	osTop    int16 // os Top when short circuit triggered
+	scPos    int16 // pos of labExpr
+	selKey   SelectorKey
+	value    Value
+	operator Operator
+}
+
 type node struct {
 	flag     uint8
 	childCnt int8
@@ -51,7 +61,7 @@ func (n *node) getNodeType() uint8 {
 
 type Expr struct {
 	maxStackSize int16
-	labNodes     []*labNode
+	rpnNodes     []*rpnNode
 
 	// extra info
 	nodes     []*node
@@ -80,21 +90,9 @@ func Eval(expr string, vals map[string]interface{}, confs ...*CompileConfig) (Va
 	return tree.Eval(NewCtxWithMap(conf, vals))
 }
 
-func (e *Expr) EvalBool(ctx *Ctx) (bool, error) {
-	res, err := e.Eval(ctx)
-	if err != nil {
-		return false, err
-	}
-	v, ok := res.(bool)
-	if !ok {
-		return false, fmt.Errorf("invalid result type: %v", res)
-	}
-	return v, nil
-}
-
 func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 	var (
-		nodes = e.labNodes
+		nodes = e.rpnNodes
 		size  = int16(len(nodes))
 		m     = e.maxStackSize
 
@@ -114,7 +112,7 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 	var (
 		param  []Value
 		param2 [2]Value
-		curt   *labNode
+		curt   *rpnNode
 		prev   int16
 	)
 
@@ -174,20 +172,17 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 			}
 		case cond:
 			res, osTop = os[osTop], osTop-1
-			switch res {
-			case true:
-			case false:
-				i = curt.scPos
-			default:
-				return nil, fmt.Errorf("eval error, result type of if condition should be bool, got: [%v]", res)
+			res, err = curt.operator(ctx, []Value{res})
+			if err != nil {
+				return
 			}
-			continue
-		case end:
-			i = curt.scPos
+			if res == true {
+				osTop = curt.osTop
+				i = curt.scPos
+			}
 			continue
 		default:
 			printDebugExpr(e, prev, i, os, osTop)
-			prev = i
 			continue
 		}
 		if b, ok := res.(bool); ok {
@@ -203,6 +198,7 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 		}
 
 		os[osTop+1], osTop = res, osTop+1
+		prev = i
 	}
 	return os[0], nil
 }
@@ -210,11 +206,11 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 func printDebugExpr(e *Expr, prevIdx, curtIdx int16, os []Value, osTop int16) {
 	var (
 		sb   strings.Builder
-		curt = e.labNodes[curtIdx].value
+		curt = e.rpnNodes[curtIdx].value
 	)
 
 	if curtIdx-prevIdx > 2 {
-		sb.WriteString(fmt.Sprintf("%13s: [%v] jump to [%v]\n\n", "Short Circuit", e.labNodes[prevIdx].value, curt))
+		sb.WriteString(fmt.Sprintf("%13s: [%v] jump to [%v]\n\n", "Short Circuit", e.rpnNodes[prevIdx].value, curt))
 	} else {
 		sb.WriteString(fmt.Sprintf("\n"))
 	}

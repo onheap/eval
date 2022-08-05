@@ -6,18 +6,9 @@ import (
 )
 
 type (
-	labNode struct {
-		flag     uint8
-		child    int8  // child count
-		osTop    int16 // os Top when short circuit triggered
-		scPos    int16 // pos of labExpr
-		selKey   SelectorKey
-		value    Value
-		operator Operator
-	}
 	labExpr struct {
 		maxStackSize int16
-		nodes        []*labNode
+		nodes        []*rpnNode
 		osSize       []int16
 	}
 )
@@ -26,7 +17,7 @@ func ConvertLabExpr(e *Expr) *labExpr {
 	var (
 		nodes    = e.nodes
 		size     = len(nodes)
-		res      = make([]*labNode, 0, size)
+		res      = make([]*rpnNode, 0, size)
 		posToIdx = make([]int16, size)
 		idxToPos = make([]int16, size)
 
@@ -38,7 +29,7 @@ func ConvertLabExpr(e *Expr) *labExpr {
 		var pos int16
 		switch n.getNodeType() {
 		case constant, selector:
-			res = append(res, &labNode{
+			res = append(res, &rpnNode{
 				flag:   n.flag,
 				value:  n.value,
 				selKey: n.selKey,
@@ -50,7 +41,7 @@ func ConvertLabExpr(e *Expr) *labExpr {
 			for j := cIdx; j < cIdx+cCnt; j++ {
 				helper(j)
 			}
-			res = append(res, &labNode{
+			res = append(res, &rpnNode{
 				flag:     n.flag,
 				child:    n.childCnt,
 				value:    n.value,
@@ -59,7 +50,7 @@ func ConvertLabExpr(e *Expr) *labExpr {
 			pos = int16(len(res) - 1)
 
 		case fastOperator:
-			res = append(res, &labNode{
+			res = append(res, &rpnNode{
 				flag:     n.flag,
 				child:    n.childCnt,
 				value:    n.value,
@@ -120,7 +111,7 @@ func (e *labExpr) Eval(ctx *Ctx) (res Value, err error) {
 	var (
 		param  []Value
 		param2 [2]Value
-		curt   *labNode
+		curt   *rpnNode
 		prev   int16
 	)
 
