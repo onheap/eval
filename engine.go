@@ -119,7 +119,7 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 
 	for i := int16(0); i < size; i++ {
 		curt = nodes[i]
-		printDebugExpr(e, prev, i, os, osTop)
+		//printDebugExpr(e, prev, i, os, osTop)
 		switch curt.flag & nodeTypeMask {
 		case fastOperator:
 			i++
@@ -144,7 +144,7 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 			}
 			param2[1] = res
 			res, err = curt.operator(ctx, param2[:])
-			fmt.Printf("exec, op:[%v], param:[%v], res:[%v], err:[%v]\n", curt.value, param2, res, err)
+			//fmt.Printf("exec, op:[%v], param:[%v], res:[%v], err:[%v]\n", curt.value, param2, res, err)
 			if err != nil {
 				return
 			}
@@ -167,7 +167,7 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 			}
 
 			res, err = curt.operator(ctx, param)
-			fmt.Printf("exec, op:[%v], param:[%v], res:[%v], err:[%v]\n", curt.value, param, res, err)
+			//fmt.Printf("exec, op:[%v], param:[%v], res:[%v], err:[%v]\n", curt.value, param, res, err)
 			if err != nil {
 				return nil, err
 			}
@@ -193,10 +193,10 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 				if i == -1 {
 					return res, nil
 				}
-				fmt.Print("sc from [", curt.value)
+				//fmt.Print("sc from [", curt.value)
 				curt = nodes[i]
 				osTop = curt.osTop - 1
-				fmt.Println("] to [", curt.value, "], osTop:", osTop)
+				//fmt.Println("] to [", curt.value, "], osTop:", osTop)
 			}
 		}
 

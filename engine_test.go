@@ -20,14 +20,18 @@ func TestDebug(t *testing.T) {
 		fields []string
 		want   Value
 	}{
-		want: false,
-		s:    `(if (!= T1 T2) T F)`,
+		want: true,
+		s: `
+(not
+  (and
+    (if T
+      (!= 3 3)
+      (= 4 4))
+    (= 5 5)
+    (= 6 6)))`,
 		valMap: map[string]interface{}{
-			"T1": true,
-			"T2": true,
-			"T3": true,
-			"T":  true,
-			"F":  false,
+			"T": true,
+			"F": false,
 		},
 	}
 	cc := NewCompileConfig(Optimizations(false, ConstantFolding, Reordering, FastEvaluation), RegisterSelKeys(c.valMap))
@@ -417,6 +421,42 @@ func TestDebugCases(t *testing.T) {
     (= 0 0)
     (= 0 0)))`,
 		},
+		{
+			want:          false,
+			optimizeLevel: disable,
+			s: `
+(or               ;; false
+  (if             ;; false
+    (not          ;; true
+  	  (!= 0 0))
+      (if T       ;; false
+  	    (!= 0 0)
+  	    (= 0 0)) T)
+  (eq             ;; false
+    (!= 0 0) T))`,
+			valMap: map[string]interface{}{
+				"T": true,
+				"F": false,
+			},
+		},
+		{
+			want:          true,
+			optimizeLevel: disable,
+			s: `
+(or
+  (if            ;; true
+    (not         ;; true 
+      (!= 0 0))  ;; false
+    (if F        ;; true
+      (!= 0 0)
+      (eq 1 1)) F)
+  (eq
+    (!= 0 0) T))`,
+			valMap: map[string]interface{}{
+				"T": true,
+				"F": false,
+			},
+		},
 	}
 
 	for _, c := range cs {
@@ -529,8 +569,8 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 
 func TestRandomExpressions(t *testing.T) {
 	const (
-		size          = 10000
-		level         = 3
+		size          = 3000000
+		level         = 53
 		step          = size / 100
 		showSample    = false
 		printProgress = true
@@ -594,7 +634,7 @@ func TestRandomExpressions(t *testing.T) {
 				}
 
 				if v&0b010 != 0 {
-					//options = append(options, EnableCondition)
+					options = append(options, EnableCondition)
 				}
 
 				if v&0b100 != 0 {

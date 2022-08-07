@@ -251,7 +251,7 @@ func calculateNodeCosts(conf *CompileConfig, root *astNode) {
 		operationCost = int64(conf.getCosts(nodeType, n.value.(string)))
 	}
 
-	if nodeType == cond {
+	if nodeType == cond && n.value == "if" {
 		childrenCost = int64(children[0].cost) + int64(max(children[1].cost, children[2].cost))
 	} else {
 		for _, child := range children {
@@ -585,7 +585,7 @@ func calAndSetNodes(e *Expr, root *astNode) {
 				condNode    = root.children[0]
 				trueBranch  = root.children[1]
 				falseBranch = root.children[2]
-				fiNode      = root.children[3]
+				endIfNode   = root.children[3]
 			)
 
 			calAndSetNodes(e, condNode) // condition node
@@ -594,9 +594,11 @@ func calAndSetNodes(e *Expr, root *astNode) {
 			root.idx = len(e.nodes) - 1
 
 			calAndSetNodes(e, trueBranch) // true branch
-			calAndSetNodes(e, fiNode)     // jump to the end of if logic
+			calAndSetNodes(e, endIfNode)  // jump to the end of if logic
+			n.scIdx = int16(len(e.nodes) - 1)
 
 			calAndSetNodes(e, falseBranch) // false branch
+			endIfNode.node.scIdx = int16(len(e.nodes) - 1)
 		} else {
 			e.nodes = append(e.nodes, n)
 			root.idx = len(e.nodes) - 1
@@ -628,20 +630,12 @@ func calAndSetParentIndex(e *Expr, root *astNode) {
 func calAndSetStackSize(e *Expr) {
 	var (
 		size = int16(len(e.nodes))
-		f    = make([]int16, size)
+		f    = make([]int16, size) // stack size
 	)
 
-	var isIfBranch = func(e *Expr, idx int16) bool {
-		p, pIdx := parentNode(e, idx)
-		if pIdx == -1 {
-			return false
-		}
-
-		if p.getNodeType() != cond || p.value != "if" {
-			return false
-		}
-
-		return idx > pIdx
+	var isEndIfNode = func(e *Expr, idx int16) bool {
+		n := e.nodes[idx]
+		return n.getNodeType() == cond && n.value == "fi"
 	}
 
 	f[0] = 1
@@ -654,8 +648,10 @@ func calAndSetStackSize(e *Expr) {
 
 		prev := i - 1
 
-		if isIfBranch(e, i) {
-			prev = pIdx
+		// if its previous node is `fi`. it's the false node,
+		// so it should calculate stack size based `if` node
+		if isEndIfNode(e, prev) {
+			_, prev = parentNode(e, prev)
 		}
 
 		n := e.nodes[i]
@@ -668,7 +664,7 @@ func calAndSetStackSize(e *Expr) {
 			if n.value == "if" {
 				f[i] = f[prev] - 1
 			} else {
-				f[i] = f[prev] + 1
+				f[i] = f[prev]
 			}
 		}
 	}
@@ -741,10 +737,24 @@ func calAndSetShortCircuit(e *Expr) {
 	}
 
 	for i := int16(0); i < size; i++ {
+		n := e.nodes[i]
+		p, pIdx := parentNode(e, i)
+		// check is if it's true or false branch
+		if pIdx != -1 && p.getNodeType() == cond && i > pIdx {
+			if f[pIdx] != pIdx {
+				n.flag |= p.flag & scMask
+				f[i] = f[pIdx]
+			}
+		}
+
+		if n.getNodeType() == cond {
+			continue
+		}
+
 		if f[i] == size-1 {
-			e.nodes[i].scIdx = -1
+			n.scIdx = -1
 		} else {
-			e.nodes[i].scIdx = f[i]
+			n.scIdx = f[i]
 		}
 	}
 }

@@ -365,6 +365,9 @@ func IndentByParentheses(s string) string {
 }
 
 func Dump(e *Expr) string {
+	if e != nil {
+		return ""
+	}
 	var getNode = func(idx int) *node {
 		n := e.nodes[idx]
 		if n.getNodeType() != debug {
@@ -640,6 +643,7 @@ func PrintExpr(expr *Expr) string {
 		osTop: true,
 		scIdx: true,
 		scVal: true,
+		cCnt:  true,
 	}
 
 	for f, n := range fetchers {
