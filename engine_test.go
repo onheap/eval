@@ -12,8 +12,40 @@ import (
 	"time"
 )
 
+func TestDebug(t *testing.T) {
+
+	c := struct {
+		s      string
+		valMap map[string]interface{}
+		fields []string
+		want   Value
+	}{
+		want: false,
+		s:    `(if (!= T1 T2) T F)`,
+		valMap: map[string]interface{}{
+			"T1": true,
+			"T2": true,
+			"T3": true,
+			"T":  true,
+			"F":  false,
+		},
+	}
+	cc := NewCompileConfig(Optimizations(false, ConstantFolding, Reordering, FastEvaluation), RegisterSelKeys(c.valMap))
+
+	expr, err := Compile(cc, c.s)
+	assertNil(t, err)
+
+	fmt.Println(PrintExpr(expr))
+
+	ctx := NewCtxWithMap(cc, c.valMap)
+	res, err := expr.Eval(ctx)
+	assertNil(t, err)
+	fmt.Println(res)
+	assertEquals(t, res, c.want)
+}
+
 func TestDebugCases(t *testing.T) {
-	const debugMode = false
+	const debugMode = true
 
 	type optimizeLevel int
 	const (
@@ -364,6 +396,27 @@ func TestDebugCases(t *testing.T) {
 				"T": true,
 			},
 		},
+		{
+			want:          int64(471240),
+			optimizeLevel: disable,
+			s: `
+(-
+  (/ 48 -36 9)
+  (* 1 -26 28 -45)
+  (* 32
+    (% 1 22)
+    (/ 37 28)
+    (* 15 -3 -7 -50)))`,
+		},
+		{
+			want:          false,
+			optimizeLevel: disable,
+			s: `
+(not
+  (and
+    (= 0 0)
+    (= 0 0)))`,
+		},
 	}
 
 	for _, c := range cs {
@@ -477,7 +530,7 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 func TestRandomExpressions(t *testing.T) {
 	const (
 		size          = 10000
-		level         = 53
+		level         = 3
 		step          = size / 100
 		showSample    = false
 		printProgress = true
@@ -541,7 +594,7 @@ func TestRandomExpressions(t *testing.T) {
 				}
 
 				if v&0b010 != 0 {
-					options = append(options, EnableCondition)
+					//options = append(options, EnableCondition)
 				}
 
 				if v&0b100 != 0 {
@@ -570,6 +623,14 @@ func TestRandomExpressions(t *testing.T) {
 				cc.CompileOptions[Reordering] = v&0b1 != 0
 				cc.CompileOptions[FastEvaluation] = v&0b10 != 0
 				cc.CompileOptions[ConstantFolding] = v&0b100 != 0
+
+				//defer func() {
+				//	rec := recover()
+				//	if rec != nil {
+				//		fmt.Println(rec)
+				//		fmt.Println(IndentByParentheses(expr.Expr))
+				//	}
+				//}()
 				got, err := Eval(expr.Expr, valMap, cc)
 
 				verifyChan <- execRes{

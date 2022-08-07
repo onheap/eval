@@ -195,6 +195,14 @@ func isOrOpNode(n *node) bool {
 	return v == "or" || v == "|"
 }
 
+func parentNode(e *Expr, idx int16) (*node, int16) {
+	pIdx := e.parentIdx[idx]
+	if pIdx == -1 {
+		return nil, -1
+	}
+	return e.nodes[pIdx], pIdx
+}
+
 func calculateNodeCosts(conf *CompileConfig, root *astNode) {
 	children := root.children
 	for _, child := range children {
@@ -415,20 +423,20 @@ func check(root *astNode) checkRes {
 
 func buildExpr(cc *CompileConfig, ast *astNode, size int) *Expr {
 	e := &Expr{
-		nodes:     make([]*node, size),
-		scIdx:     make([]int16, size),
-		osSize:    make([]int16, size),
-		parentIdx: make([]int16, size),
+		nodes:     make([]*node, 0, size),
+		scIdx:     make([]int16, 0, size),
+		osSize:    make([]int16, 0, size),
+		parentIdx: make([]int16, 0, size),
 	}
 
 	calAndSetNodes(e, ast)
-	calAndSetParentIndex(e)
+	calAndSetParentIndex(e, ast)
 	calAndSetStackSize(e)
 	calAndSetShortCircuit(e)
-	calAndSetRpnNode(e)
-	if cc.CompileOptions[Debug] {
-		calAndSetDebugInfo(e)
-	}
+	//calAndSetRpnNode(e)
+	//if cc.CompileOptions[Debug] {
+	//	calAndSetDebugInfo(e)
+	//}
 
 	return e
 }
@@ -553,174 +561,166 @@ func calAndSetRpnNode(e *Expr) {
 }
 
 func calAndSetNodes(e *Expr, root *astNode) {
-	size := len(e.nodes)
-	nodes := make([]*node, 0, size)
+	root.parentIdx = -1
+	n := root.node
+	switch n.getNodeType() {
+	case constant, selector:
+		e.nodes = append(e.nodes, n)
+		root.idx = len(e.nodes) - 1
+	case operator:
+		for _, child := range root.children {
+			calAndSetNodes(e, child)
+		}
+		e.nodes = append(e.nodes, n)
+		root.idx = len(e.nodes) - 1
+	case fastOperator:
+		e.nodes = append(e.nodes, n)
+		root.idx = len(e.nodes) - 1
+		for _, child := range root.children {
+			calAndSetNodes(e, child)
+		}
+	case cond:
+		if n.value == "if" {
+			var (
+				condNode    = root.children[0]
+				trueBranch  = root.children[1]
+				falseBranch = root.children[2]
+				fiNode      = root.children[3]
+			)
+
+			calAndSetNodes(e, condNode) // condition node
+
+			e.nodes = append(e.nodes, n) // check condition node result
+			root.idx = len(e.nodes) - 1
+
+			calAndSetNodes(e, trueBranch) // true branch
+			calAndSetNodes(e, fiNode)     // jump to the end of if logic
+
+			calAndSetNodes(e, falseBranch) // false branch
+		} else {
+			e.nodes = append(e.nodes, n)
+			root.idx = len(e.nodes) - 1
+		}
+	}
+
+	n.childCnt = int8(len(root.children))
+	for _, child := range root.children {
+		child.parentIdx = root.idx
+	}
+}
+
+func calAndSetParentIndex(e *Expr, root *astNode) {
+	size := int16(len(e.nodes))
+	f := make([]int16, size)
+
 	queue := make([]*astNode, 0, size)
 	queue = append(queue, root)
 
-	idx := 0
-	for idx < len(queue) {
-		curt := queue[idx]
-		childIdx := len(queue)
-		childCnt := len(curt.children)
-
-		n := curt.node
-		n.childCnt = int8(childCnt)
-		switch n.getNodeType() {
-		case constant, selector:
-			n.childIdx = -1
-		default:
-			n.childIdx = int16(childIdx)
-		}
-		nodes = append(nodes, n)
-
-		for _, child := range curt.children {
-			queue = append(queue, child)
-		}
-		idx++
+	for len(queue) != 0 {
+		root, queue = queue[0], queue[1:]
+		f[root.idx] = int16(root.parentIdx)
+		queue = append(queue, root.children...)
 	}
-
-	copy(e.nodes, nodes)
-}
-
-func calAndSetParentIndex(e *Expr) {
-	size := int16(len(e.nodes))
-	f := make([]int16, size)
-	f[0] = -1
-
-	for i := int16(0); i < size; i++ {
-		n := e.nodes[i]
-		cCnt := int(n.childCnt)
-		if cCnt == 0 {
-			continue
-		}
-		cIdx := int(n.childIdx)
-		for j := cIdx; j < cIdx+cCnt; j++ {
-			f[j] = i
-		}
-	}
-
-	//e.parentIdx = f
-	copy(e.parentIdx, f)
+	e.parentIdx = f
+	//copy(e.parentIdx, f)
 }
 
 func calAndSetStackSize(e *Expr) {
-	var isLeaf = func(e *Expr, idx int16) bool {
-		n := e.nodes[idx]
-		return n.childCnt == 0 || n.flag&nodeTypeMask == fastOperator
+	var (
+		size = int16(len(e.nodes))
+		f    = make([]int16, size)
+	)
+
+	var isIfBranch = func(e *Expr, idx int16) bool {
+		p, pIdx := parentNode(e, idx)
+		if pIdx == -1 {
+			return false
+		}
+
+		if p.getNodeType() != cond || p.value != "if" {
+			return false
+		}
+
+		return idx > pIdx
 	}
 
-	var isCondNode = func(e *Expr, idx int16) bool {
-		return e.nodes[idx].flag&nodeTypeMask == cond
-	}
-
-	size := int16(len(e.nodes))
-	f := make([]int16, size) // for operator stack
+	f[0] = 1
 	for i := int16(1); i < size; i++ {
-		pIdx := e.parentIdx[i]
-
-		if isLeaf(e, pIdx) {
-			f[i] = f[pIdx]
+		p, pIdx := parentNode(e, i)
+		if pIdx != -1 && p.getNodeType() == fastOperator {
+			f[i] = f[i-1]
 			continue
 		}
 
-		if isCondNode(e, pIdx) {
-			if isLeaf(e, i) {
-				f[i] = f[pIdx] + 1
+		prev := i - 1
+
+		if isIfBranch(e, i) {
+			prev = pIdx
+		}
+
+		n := e.nodes[i]
+		switch n.getNodeType() {
+		case constant, selector, fastOperator:
+			f[i] = f[prev] + 1
+		case operator:
+			f[i] = f[prev] - int16(n.childCnt) + 1
+		case cond:
+			if n.value == "if" {
+				f[i] = f[prev] - 1
 			} else {
-				f[i] = f[pIdx]
+				f[i] = f[prev] + 1
 			}
-			continue
-		}
-
-		// left sibling count
-		siblingCount := i - e.nodes[pIdx].childIdx
-		if isLeaf(e, i) {
-			// f[i] = f[pIdx] + left sibling count + 1
-			f[i] = f[pIdx] + siblingCount + 1
-		} else {
-			// f[i] = f[pIdx] + left sibling count
-			f[i] = f[pIdx] + siblingCount
 		}
 	}
 
-	var res int16 = 1
-	for i := int16(0); i < size; i++ {
-		res = maxInt16(res, f[i])
+	maxStackSize := f[0]
+	for i, n := range e.nodes {
+		maxStackSize = maxInt16(maxStackSize, f[i])
+		n.osTop = f[i] - 1
 	}
-
-	e.maxStackSize = res
-
-	copy(e.osSize, f)
+	e.maxStackSize = maxStackSize
 }
 
 func calAndSetShortCircuit(e *Expr) {
-	var isLastChild = func(idx int16) bool {
-		parentIdx := e.parentIdx[idx]
-		if parentIdx == -1 {
-			return false
+	var (
+		size = int16(len(e.nodes))
+		f    = make([]int16, size)
+	)
+	var (
+		isLastChild = func(e *Expr, idx int16) bool {
+			nodeType := e.nodes[idx].getNodeType()
+			_, pIdx := parentNode(e, idx)
+			if nodeType == fastOperator {
+				return pIdx == idx+3
+			} else {
+				return pIdx == idx+1
+			}
 		}
+	)
 
-		cnt := int16(e.nodes[parentIdx].childCnt)
-		childIdx := e.nodes[parentIdx].childIdx
-		if childIdx+cnt-1 == idx {
-			return true
-		}
-		return false
-	}
-
-	var isFirstChild = func(idx int16) bool {
-		parentIdx := e.parentIdx[idx]
-		if parentIdx == -1 {
-			return false
-		}
-		return e.nodes[parentIdx].childIdx == idx
-	}
-
-	var parentNode = func(idx int16) (*node, int16) {
-		pIdx := e.parentIdx[idx]
-		if pIdx == -1 {
-			return nil, -1
-		}
-		return e.nodes[pIdx], pIdx
-	}
-
-	size := int16(len(e.nodes))
-
-	f := make([]int16, size)
-	for i := int16(1); i < size; i++ {
+	for i := size - 1; i >= 0; i-- {
 		n := e.nodes[i]
-		p, pIdx := parentNode(i)
-
-		if p.getNodeType() == cond {
-			if isFirstChild(i) || isLastChild(i) {
-				f[i] = i
-				continue
-			}
-
-			if f[pIdx] == pIdx {
-				continue
-			}
-
-			n.flag |= p.flag & scMask
-			f[i] = f[pIdx]
-			continue
-		}
-
-		if !isBoolOpNode(p) {
+		p, pIdx := parentNode(e, i)
+		if pIdx == -1 {
 			f[i] = i
 			continue
 		}
+
 		var flag uint8
 		switch {
-		case isLastChild(i):
-			flag |= scIfTrue
-			flag |= scIfFalse
 		case isAndOpNode(p):
 			flag |= scIfFalse
 		case isOrOpNode(p):
 			flag |= scIfTrue
+		default:
+			f[i] = i
+			continue
 		}
+		if isLastChild(e, i) {
+			flag |= scIfTrue
+			flag |= scIfFalse
+		}
+
 		// when its parent node is a bool operator (and/or)
 		// it can definitely short-circuit to its parent node
 		n.flag |= flag
@@ -730,15 +730,22 @@ func calAndSetShortCircuit(e *Expr) {
 		// it can directly short-circuit to the target node of its parent
 		for p.flag&flag == flag {
 			f[i] = f[pIdx]
-			p, pIdx = parentNode(pIdx)
+
+			// parent's sc flag exactly equals current node
+			if p.flag&scMask == flag {
+				break
+			}
+
+			p, pIdx = parentNode(e, pIdx)
 		}
 	}
 
-	//e.scIdx = f
-	copy(e.scIdx, f)
-
 	for i := int16(0); i < size; i++ {
-		e.nodes[i].scIdx = f[i]
+		if f[i] == size-1 {
+			e.nodes[i].scIdx = -1
+		} else {
+			e.nodes[i].scIdx = f[i]
+		}
 	}
 }
 

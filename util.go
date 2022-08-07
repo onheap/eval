@@ -532,7 +532,12 @@ func PrintExpr(expr *Expr) string {
 		node: {
 			name: "node",
 			fn: func(e *Expr, i int) Value {
-				return e.nodes[i].value
+				res := fmt.Sprintf("%v", e.nodes[i].value)
+				l := len(res)
+				if l > 4 {
+					l = 4
+				}
+				return res[0:l]
 			},
 		},
 		pIdx: {
@@ -562,7 +567,7 @@ func PrintExpr(expr *Expr) string {
 		scIdx: {
 			name: "scIdx",
 			fn: func(e *Expr, i int) Value {
-				return e.scIdx[i]
+				return e.nodes[i].scIdx
 			},
 		},
 		scVal: {
@@ -574,7 +579,7 @@ func PrintExpr(expr *Expr) string {
 		osTop: {
 			name: "osTop",
 			fn: func(e *Expr, i int) Value {
-				return e.osSize[i] - 1
+				return e.nodes[i].osTop
 			},
 		},
 		_sep: {
@@ -621,19 +626,29 @@ func PrintExpr(expr *Expr) string {
 		},
 	}
 
-	size := len(expr.rpnNodes)
+	size := len(expr.nodes)
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("node  size: %4d\n", len(expr.nodes)))
 	sb.WriteString(fmt.Sprintf("stack size: %4d\n", expr.maxStackSize))
 
+	fieldList := [len(fetchers)]bool{
+		idx:   true,
+		node:  true,
+		flag:  true,
+		pIdx:  true,
+		osTop: true,
+		scIdx: true,
+		scVal: true,
+	}
+
 	for f, n := range fetchers {
-		if ff := field(f); ff != idx && ff < _sep {
+		if ff := field(f); ff != idx && !fieldList[ff] {
 			continue
 		}
 		sb.WriteString(fmt.Sprintf("%5s: ", n.name))
 		for j := 0; j < size; j++ {
-			if expr.rpnNodes[j].flag&nodeTypeMask == debug {
+			if expr.nodes[j].flag&nodeTypeMask == debug {
 				continue
 			}
 

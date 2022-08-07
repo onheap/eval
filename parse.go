@@ -31,9 +31,11 @@ type token struct {
 
 // ast
 type astNode struct {
-	node     *node
-	children []*astNode
-	cost     int
+	node      *node
+	children  []*astNode
+	cost      int
+	idx       int
+	parentIdx int
 }
 
 type parser struct {
@@ -523,26 +525,35 @@ func (p *parser) buildKeywordNode(car token, children []*astNode) (*astNode, err
 		return nil, p.errWithToken(fmt.Errorf("[%s] is not currently supported", car.val), car)
 	}
 
-	n := &astNode{
-		node: &node{value: car.val},
-	}
-
 	if len(children) != 3 {
 		return nil, p.paramsCountErr(3, len(children), car)
 	}
 
-	// append an end node
-	children = append(children, &astNode{
+	return &astNode{
 		node: &node{
-			flag:  end,
-			value: "end",
+			flag:  cond,
+			value: "if",
+			// trigger short circuit when cond node returns false
+			operator: func(_ *Ctx, params []Value) (Value, error) {
+				if b, ok := params[0].(bool); ok {
+					return !b, nil
+				}
+
+				return nil, fmt.Errorf("condition node returns a non bool result: [%v]", params[0])
+			},
 		},
-	})
 
-	n.node.flag = cond
-	n.children = children
-
-	return n, nil
+		// append an end if node
+		children: append(children, &astNode{
+			node: &node{
+				flag:  cond,
+				value: "fi",
+				operator: func(_ *Ctx, _ []Value) (Value, error) {
+					return true, nil
+				},
+			},
+		}),
+	}, nil
 }
 
 func (p *parser) buildNode(car token, children []*astNode) (*astNode, error) {

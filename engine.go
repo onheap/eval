@@ -49,6 +49,7 @@ type node struct {
 	flag     uint8
 	childCnt int8
 	scIdx    int16
+	osTop    int16
 	childIdx int16
 	selKey   SelectorKey
 	value    Value
@@ -92,7 +93,7 @@ func Eval(expr string, vals map[string]interface{}, confs ...*CompileConfig) (Va
 
 func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 	var (
-		nodes = e.rpnNodes
+		nodes = e.nodes
 		size  = int16(len(nodes))
 		m     = e.maxStackSize
 
@@ -112,13 +113,13 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 	var (
 		param  []Value
 		param2 [2]Value
-		curt   *rpnNode
+		curt   *node
 		prev   int16
 	)
 
 	for i := int16(0); i < size; i++ {
 		curt = nodes[i]
-
+		printDebugExpr(e, prev, i, os, osTop)
 		switch curt.flag & nodeTypeMask {
 		case fastOperator:
 			i++
@@ -143,7 +144,7 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 			}
 			param2[1] = res
 			res, err = curt.operator(ctx, param2[:])
-			//fmt.Printf("exec, op:[%v], param:[%v], res:[%v], err:[%v]\n", curt.value, param2, res, err)
+			fmt.Printf("exec, op:[%v], param:[%v], res:[%v], err:[%v]\n", curt.value, param2, res, err)
 			if err != nil {
 				return
 			}
@@ -155,7 +156,7 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 		case constant:
 			res = curt.value
 		case operator:
-			cCnt := int16(curt.child)
+			cCnt := int16(curt.childCnt)
 			osTop = osTop - cCnt
 			if cCnt == 2 {
 				param2[0], param2[1] = os[osTop+1], os[osTop+2]
@@ -166,7 +167,7 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 			}
 
 			res, err = curt.operator(ctx, param)
-			//fmt.Printf("exec, op:[%v], param:[%v], res:[%v], err:[%v]\n", curt.value, param2, res, err)
+			fmt.Printf("exec, op:[%v], param:[%v], res:[%v], err:[%v]\n", curt.value, param, res, err)
 			if err != nil {
 				return nil, err
 			}
@@ -178,7 +179,7 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 			}
 			if res == true {
 				osTop = curt.osTop
-				i = curt.scPos
+				i = curt.scIdx
 			}
 			continue
 		default:
@@ -188,12 +189,14 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 		if b, ok := res.(bool); ok {
 			for (!b && curt.flag&scIfFalse == scIfFalse) ||
 				(b && curt.flag&scIfTrue == scIfTrue) {
-				i = curt.scPos
+				i = curt.scIdx
 				if i == -1 {
 					return res, nil
 				}
+				fmt.Print("sc from [", curt.value)
 				curt = nodes[i]
-				osTop = curt.osTop
+				osTop = curt.osTop - 1
+				fmt.Println("] to [", curt.value, "], osTop:", osTop)
 			}
 		}
 
@@ -206,11 +209,11 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 func printDebugExpr(e *Expr, prevIdx, curtIdx int16, os []Value, osTop int16) {
 	var (
 		sb   strings.Builder
-		curt = e.rpnNodes[curtIdx].value
+		curt = e.nodes[curtIdx].value
 	)
 
 	if curtIdx-prevIdx > 2 {
-		sb.WriteString(fmt.Sprintf("%13s: [%v] jump to [%v]\n\n", "Short Circuit", e.rpnNodes[prevIdx].value, curt))
+		sb.WriteString(fmt.Sprintf("%13s: [%v] jump to [%v]\n\n", "Short Circuit", e.nodes[prevIdx].value, curt))
 	} else {
 		sb.WriteString(fmt.Sprintf("\n"))
 	}
