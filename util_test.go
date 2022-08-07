@@ -215,7 +215,7 @@ func TestGenerateRandomExpr_Bool(t *testing.T) {
 	}
 
 	for i := 1; i < size; i++ {
-		expr := GenerateRandomExpr(i, r, GenType(Bool), EnableSelector, EnableCondition, GenSelectors(valMap))
+		expr := GenerateRandomExpr(i, r, GenType(GenBool), EnableSelector, EnableCondition, GenSelectors(valMap))
 
 		got, err := Eval(expr.Expr, valMap, cc)
 		if err != nil {
@@ -260,7 +260,7 @@ func TestGenerateRandomExpr_Number(t *testing.T) {
 	}
 
 	for i := 0; i < size; i++ {
-		expr := GenerateRandomExpr(size, r, GenType(Number), EnableCondition, EnableSelector, GenSelectors(valMap))
+		expr := GenerateRandomExpr(size, r, GenType(GenNumber), EnableCondition, EnableSelector, GenSelectors(valMap))
 		//fmt.Println(IndentByParentheses(expr.Expr))
 		//fmt.Println(expr.Res)
 

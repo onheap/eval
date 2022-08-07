@@ -13,9 +13,8 @@ var empty = struct{}{}
 type GenExprType int
 
 const (
-	Bool GenExprType = iota
-	Number
-	Hybrid
+	GenBool GenExprType = iota
+	GenNumber
 )
 
 type GenExprConfig struct {
@@ -99,7 +98,7 @@ func GenerateRandomExpr(level int, random *rand.Rand, opts ...GenExprOption) Gen
 		r := random.Intn(10)
 		if n == 0 {
 			v := random.Intn(100)
-			if genType == Bool {
+			if genType == GenBool {
 				switch {
 				case r < 4 && c.EnableSelector && len(c.BoolSelectors) != 0:
 					idx := (v) % len(c.BoolSelectors)
@@ -113,7 +112,7 @@ func GenerateRandomExpr(level int, random *rand.Rand, opts ...GenExprOption) Gen
 				}
 			}
 
-			if genType == Number {
+			if genType == GenNumber {
 				switch {
 				case r < 4 && c.EnableSelector && len(c.NumSelectors) != 0:
 					idx := (v) % len(c.NumSelectors)
@@ -128,7 +127,7 @@ func GenerateRandomExpr(level int, random *rand.Rand, opts ...GenExprOption) Gen
 			}
 		}
 
-		if genType == Bool && r < 3 {
+		if genType == GenBool && r < 3 {
 			// unary operator
 			op := boolUnaryOps[r%len(boolUnaryOps)]
 			genRes := helper(genType, n-1)
@@ -140,7 +139,7 @@ func GenerateRandomExpr(level int, random *rand.Rand, opts ...GenExprOption) Gen
 
 		if c.EnableCondition && r == 3 {
 			// if node
-			condExpr := helper(Bool, random.Intn(n))
+			condExpr := helper(GenBool, random.Intn(n))
 			trueBranch := helper(genType, random.Intn(n))
 			falseBranch := helper(genType, random.Intn(n))
 
@@ -164,7 +163,7 @@ func GenerateRandomExpr(level int, random *rand.Rand, opts ...GenExprOption) Gen
 		}
 
 		var op string
-		if genType == Bool {
+		if genType == GenBool {
 			op = boolMultiOps[r%len(boolMultiOps)]
 		} else {
 			safe := true
@@ -484,17 +483,9 @@ func PrintExpr(expr *Expr) string {
 		pIdx
 		flag
 		cCnt
-		cIdx
 		scIdx
 		scVal
 		osTop
-		_sep
-		_node
-		_flag
-		_cCnt
-		_scVal
-		_scPos
-		_osTop
 	)
 
 	var getFlag = func(f uint8) Value {
@@ -561,12 +552,6 @@ func PrintExpr(expr *Expr) string {
 				return e.nodes[i].childCnt
 			},
 		},
-		cIdx: {
-			name: "cIdx",
-			fn: func(e *Expr, i int) Value {
-				return e.nodes[i].childIdx
-			},
-		},
 		scIdx: {
 			name: "scIdx",
 			fn: func(e *Expr, i int) Value {
@@ -583,48 +568,6 @@ func PrintExpr(expr *Expr) string {
 			name: "osTop",
 			fn: func(e *Expr, i int) Value {
 				return e.nodes[i].osTop
-			},
-		},
-		_sep: {
-			name: "----",
-			fn: func(_ *Expr, _ int) Value {
-				return "----"
-			},
-		},
-		_node: {
-			name: "node",
-			fn: func(e *Expr, i int) Value {
-				return e.rpnNodes[i].value
-			},
-		},
-		_flag: {
-			name: "flag",
-			fn: func(e *Expr, i int) Value {
-				return getFlag(e.rpnNodes[i].flag & nodeTypeMask)
-			},
-		},
-		_cCnt: {
-			name: "cCnt",
-			fn: func(e *Expr, i int) Value {
-				return e.rpnNodes[i].child
-			},
-		},
-		_scPos: {
-			name: "scPos",
-			fn: func(e *Expr, i int) Value {
-				return e.rpnNodes[i].scPos
-			},
-		},
-		_scVal: {
-			name: "scVal",
-			fn: func(e *Expr, i int) Value {
-				return getFlag(e.rpnNodes[i].flag & scMask)
-			},
-		},
-		_osTop: {
-			name: "osTop",
-			fn: func(e *Expr, i int) Value {
-				return e.rpnNodes[i].osTop
 			},
 		},
 	}

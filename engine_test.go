@@ -13,7 +13,6 @@ import (
 )
 
 func TestDebug(t *testing.T) {
-
 	c := struct {
 		s      string
 		valMap map[string]interface{}
@@ -34,7 +33,7 @@ func TestDebug(t *testing.T) {
 			"F": false,
 		},
 	}
-	cc := NewCompileConfig(Optimizations(false, ConstantFolding, Reordering, FastEvaluation), RegisterSelKeys(c.valMap))
+	cc := NewCompileConfig(EnableDebug, Optimizations(false, ConstantFolding, Reordering, FastEvaluation), RegisterSelKeys(c.valMap))
 
 	expr, err := Compile(cc, c.s)
 	assertNil(t, err)
@@ -351,7 +350,6 @@ func TestDebugCases(t *testing.T) {
 				"Adults":  1,
 			},
 			optimizeLevel: disable,
-			//fields: []string{"scIdx", "scVal", "pIdx"},
 		},
 		{
 			want: false,
@@ -569,7 +567,7 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 
 func TestRandomExpressions(t *testing.T) {
 	const (
-		size          = 3000000
+		size          = 30000
 		level         = 53
 		step          = size / 100
 		showSample    = false
@@ -628,9 +626,9 @@ func TestRandomExpressions(t *testing.T) {
 				v := random.Intn(0b1000)
 
 				if v&0b001 != 0 {
-					options = append(options, GenType(Bool))
+					options = append(options, GenType(GenBool))
 				} else {
-					options = append(options, GenType(Number))
+					options = append(options, GenType(GenNumber))
 				}
 
 				if v&0b010 != 0 {

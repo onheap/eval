@@ -433,131 +433,11 @@ func buildExpr(cc *CompileConfig, ast *astNode, size int) *Expr {
 	calAndSetParentIndex(e, ast)
 	calAndSetStackSize(e)
 	calAndSetShortCircuit(e)
-	//calAndSetRpnNode(e)
-	//if cc.CompileOptions[Debug] {
-	//	calAndSetDebugInfo(e)
-	//}
+	if cc.CompileOptions[Debug] {
+		calAndSetDebugInfo(e)
+	}
 
 	return e
-}
-
-func calAndSetRpnNode(e *Expr) {
-	var (
-		nodes    = e.nodes
-		size     = len(nodes)
-		res      = make([]*rpnNode, 0, size)
-		posToIdx = make(map[int16]int16, size)
-		idxToPos = make(map[int16]int16, size)
-
-		appendNode func(i int16)
-
-		appendNodeAtIdx = func(i int16) (pos int16) {
-			n := nodes[i]
-			res = append(res, &rpnNode{
-				flag:     n.flag,
-				value:    n.value,
-				selKey:   n.selKey,
-				child:    n.childCnt,
-				operator: n.operator,
-				osTop:    e.osSize[i] - 1,
-			})
-			return int16(len(res) - 1)
-		}
-
-		condCheck Operator = func(_ *Ctx, params []Value) (Value, error) {
-			if b, ok := params[0].(bool); ok {
-				return !b, nil // sc when cond node returns false
-			}
-
-			return nil, fmt.Errorf("condition node returns a non bool result: [%v]", params[0])
-		}
-
-		alwaysTrue Operator = func(_ *Ctx, _ []Value) (Value, error) {
-			return true, nil
-		}
-	)
-
-	appendNode = func(i int16) {
-		n := nodes[i]
-		var pos int16
-		switch n.getNodeType() {
-		case constant, selector:
-			pos = appendNodeAtIdx(i)
-		case operator:
-			cCnt := int16(n.childCnt)
-			cIdx := n.childIdx
-			for j := cIdx; j < cIdx+cCnt; j++ {
-				appendNode(j)
-			}
-			pos = appendNodeAtIdx(i)
-		case fastOperator:
-			pos = appendNodeAtIdx(i)
-
-			cCnt := int16(n.childCnt)
-			cIdx := n.childIdx
-			for j := cIdx; j < cIdx+cCnt; j++ {
-				appendNode(j)
-			}
-		case cond:
-			var (
-				condNode  = n.childIdx
-				trueNode  = n.childIdx + 1
-				falseNode = n.childIdx + 2
-				endNode   = n.childIdx + 3
-			)
-
-			// append condition node
-			appendNode(condNode)
-
-			// append first jump node
-			// if the condition check returns false
-			// it will jump to the false branch
-			pos1 := appendNodeAtIdx(i)
-
-			// append true branch node
-			appendNode(trueNode)
-
-			// append second jump node
-			// it will jump to the end of if logic
-			pos2 := appendNodeAtIdx(endNode)
-
-			// update condition check node, jump to the false branch
-			res[pos1].flag = cond
-			res[pos1].operator = condCheck
-			res[pos1].scPos = int16(len(res) - 1)
-
-			// append false branch node
-			appendNode(falseNode)
-
-			// update end node, jump to the end of if logic
-			res[pos2].flag = cond
-			res[pos2].operator = alwaysTrue
-			res[pos2].scPos = int16(len(res) - 1)
-
-			pos = pos1
-		}
-
-		posToIdx[pos] = i
-		idxToPos[i] = pos
-	}
-
-	appendNode(0)
-
-	for pos, n := range res {
-		typ := n.flag & nodeTypeMask
-		if typ == cond {
-			continue
-		}
-		idx := posToIdx[int16(pos)]
-		pIdx := e.nodes[idx].scIdx
-		if pIdx == -1 {
-			n.scPos = -1
-		} else {
-			n.scPos = idxToPos[pIdx]
-		}
-	}
-
-	e.rpnNodes = res
 }
 
 func calAndSetNodes(e *Expr, root *astNode) {
@@ -768,24 +648,27 @@ func calAndSetDebugInfo(e *Expr) {
 		}
 	}
 
-	nodes := e.rpnNodes
-	size := int16(len(nodes))
-	res := make([]*rpnNode, 0, size*2)
-
-	debugPos := make([]int16, size)
+	var (
+		nodes    = e.nodes
+		size     = int16(len(nodes))
+		res      = make([]*node, 0, size*2)
+		parents  = make([]int16, 0, size*2)
+		debugIdx = make([]int16, size)
+	)
 
 	for i := int16(0); i < size; i++ {
 		realNode := nodes[i]
-		debugNode := &rpnNode{
-			flag:   debug,
-			child:  realNode.child,
-			osTop:  realNode.osTop,
-			scPos:  realNode.scPos,
-			selKey: realNode.selKey,
-			value:  realNode.value,
+		debugNode := &node{
+			flag:     debug,
+			childCnt: realNode.childCnt,
+			osTop:    realNode.osTop,
+			scIdx:    realNode.scIdx,
+			selKey:   realNode.selKey,
+			value:    realNode.value,
 		}
 		res = append(res, debugNode, realNode)
-		debugPos[i] = int16(len(res) - 1)
+		parents = append(parents, e.parentIdx[i], e.parentIdx[i])
+		debugIdx[i] = int16(len(res) - 1)
 
 		switch realNode.flag & nodeTypeMask {
 		case operator:
@@ -794,13 +677,17 @@ func calAndSetDebugInfo(e *Expr) {
 			realNode.operator = wrapDebugInfo(realNode.value, realNode.operator)
 			// append child nodes of fast operator
 			res = append(res, nodes[i+1], nodes[i+2])
+			parents = append(parents, e.parentIdx[i+1], e.parentIdx[i+2])
 			i += 2
 		}
 	}
 
 	for _, n := range res {
-		n.scPos = debugPos[n.scPos]
+		if n.scIdx != -1 {
+			n.scIdx = debugIdx[n.scIdx]
+		}
 	}
 
-	e.rpnNodes = res
+	e.nodes = res
+	e.parentIdx = parents
 }
