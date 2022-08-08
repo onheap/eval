@@ -26,7 +26,6 @@ func TestDebugCases(t *testing.T) {
 		s             string
 		valMap        map[string]interface{}
 		optimizeLevel optimizeLevel // default: all
-		fields        []string
 		want          Value
 	}{
 		{
@@ -76,11 +75,13 @@ func TestDebugCases(t *testing.T) {
 			optimizeLevel: disable,
 			s: `
 (eq
-  (if T F T)
-  (not T))`,
+  (if T1 F T2)
+  (not T3))`,
 			valMap: map[string]interface{}{
-				"T": true,
-				"F": false,
+				"T1": true,
+				"T2": true,
+				"T3": true,
+				"F":  false,
 			},
 		},
 		{
@@ -312,7 +313,7 @@ func TestDebugCases(t *testing.T) {
 				"Value":   100,
 				"Adults":  1,
 			},
-			//fields: []string{"scIdx", "scVal", "pIdx"},
+			optimizeLevel: disable,
 		},
 		{
 			want: false,
@@ -328,7 +329,6 @@ func TestDebugCases(t *testing.T) {
 				"Value":   100,
 				"Adults":  1,
 			},
-			fields: []string{"scIdx", "scVal", "pIdx"},
 		},
 		{
 
@@ -346,6 +346,77 @@ func TestDebugCases(t *testing.T) {
       (!= 5 5)))
   (= 6 6)
   (!= 7 7))`,
+		},
+		{
+			want:          false,
+			optimizeLevel: disable,
+			s: `
+(and
+  (if T
+    (= 0 0)
+    (= 0 0))
+  (not
+    (= 0 0)))`,
+			valMap: map[string]interface{}{
+				"T": true,
+			},
+		},
+		{
+			want:          int64(471240),
+			optimizeLevel: disable,
+			s: `
+(-
+  (/ 48 -36 9)
+  (* 1 -26 28 -45)
+  (* 32
+    (% 1 22)
+    (/ 37 28)
+    (* 15 -3 -7 -50)))`,
+		},
+		{
+			want:          false,
+			optimizeLevel: disable,
+			s: `
+(not
+  (and
+    (= 0 0)
+    (= 0 0)))`,
+		},
+		{
+			want:          false,
+			optimizeLevel: disable,
+			s: `
+(or               ;; false
+  (if             ;; false
+    (not          ;; true
+  	  (!= 0 0))
+      (if T       ;; false
+  	    (!= 0 0)
+  	    (= 0 0)) T)
+  (eq             ;; false
+    (!= 0 0) T))`,
+			valMap: map[string]interface{}{
+				"T": true,
+				"F": false,
+			},
+		},
+		{
+			want:          true,
+			optimizeLevel: disable,
+			s: `
+(or
+  (if            ;; true
+    (not         ;; true 
+      (!= 0 0))  ;; false
+    (if F        ;; true
+      (!= 0 0)
+      (eq 1 1)) F)
+  (eq
+    (!= 0 0) T))`,
+			valMap: map[string]interface{}{
+				"T": true,
+				"F": false,
+			},
 		},
 	}
 
@@ -375,8 +446,7 @@ func TestDebugCases(t *testing.T) {
 			if debugMode {
 				fmt.Println(Dump(expr))
 				fmt.Println()
-				fmt.Println(PrintExpr(expr, c.fields...))
-
+				fmt.Println(DumpTable(expr))
 			}
 
 			res, err := expr.Eval(ctx)
@@ -519,9 +589,9 @@ func TestRandomExpressions(t *testing.T) {
 				v := random.Intn(0b1000)
 
 				if v&0b001 != 0 {
-					options = append(options, GenType(Bool))
+					options = append(options, GenType(GenBool))
 				} else {
-					options = append(options, GenType(Number))
+					options = append(options, GenType(GenNumber))
 				}
 
 				if v&0b010 != 0 {
@@ -554,6 +624,7 @@ func TestRandomExpressions(t *testing.T) {
 				cc.CompileOptions[Reordering] = v&0b1 != 0
 				cc.CompileOptions[FastEvaluation] = v&0b10 != 0
 				cc.CompileOptions[ConstantFolding] = v&0b100 != 0
+
 				got, err := Eval(expr.Expr, valMap, cc)
 
 				verifyChan <- execRes{

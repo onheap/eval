@@ -430,7 +430,7 @@ func TestOptimizeFastEvaluation(t *testing.T) {
 						},
 					},
 					{
-						tpy:  fastOperator,
+						tpy:  operator,
 						data: "*",
 						children: []verifyNode{
 							{tpy: selector, data: "v2"},
@@ -483,7 +483,7 @@ func TestOptimizeFastEvaluation(t *testing.T) {
 						},
 					},
 					{
-						tpy:  fastOperator,
+						tpy:  operator,
 						data: "*",
 						children: []verifyNode{
 							{tpy: constant, data: int64(5)},
@@ -783,7 +783,7 @@ func TestReordering(t *testing.T) {
 		}
 
 		calculateNodeCosts(cc, ast)
-		optimizeReordering(ast)
+		optimizeReordering(cc, ast)
 		if len(c.errMsg) != 0 {
 			assertErrStrContains(t, err, c.errMsg, c)
 			continue

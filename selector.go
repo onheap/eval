@@ -3,6 +3,7 @@ package eval
 import (
 	"fmt"
 	"math"
+	"time"
 )
 
 var (
@@ -169,4 +170,45 @@ func (s MapSelector) Set(_ SelectorKey, key string, val Value) error {
 func (s MapSelector) Cached(_ SelectorKey, key string) bool {
 	_, exist := s.Values[key]
 	return exist
+}
+
+func UnifyType(val Value) Value {
+	switch val.(type) {
+	case bool, string, int64, []int64, []string:
+		return val
+	default:
+		return unifyType(val)
+	}
+}
+
+func unifyType(val Value) Value {
+	switch v := val.(type) {
+	case int:
+		return int64(v)
+	case time.Time:
+		return v.Unix()
+	case time.Duration:
+		return int64(v / time.Second)
+	case []int:
+		temp := make([]int64, len(v))
+		for i, iv := range v {
+			temp[i] = int64(iv)
+		}
+		return temp
+	case int32:
+		return int64(v)
+	case int16:
+		return int64(v)
+	case int8:
+		return int64(v)
+	case uint64:
+		return int64(v)
+	case uint32:
+		return int64(v)
+	case uint16:
+		return int64(v)
+	case uint8:
+		return int64(v)
+	}
+	return val
 }
