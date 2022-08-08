@@ -783,7 +783,7 @@ func TestReordering(t *testing.T) {
 		}
 
 		calculateNodeCosts(cc, ast)
-		optimizeReordering(ast)
+		optimizeReordering(cc, ast)
 		if len(c.errMsg) != 0 {
 			assertErrStrContains(t, err, c.errMsg, c)
 			continue

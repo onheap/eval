@@ -364,34 +364,38 @@ func IndentByParentheses(s string) string {
 }
 
 func Dump(e *Expr) string {
-	if e != nil {
-		return ""
-	}
-	var getNode = func(idx int) *node {
-		n := e.nodes[idx]
-		if n.getNodeType() != debug {
-			return n
+	var getChildIdxes = func(idx int16) (res []int16) {
+		for i, p := range e.parentIdx {
+			if p == idx && e.nodes[i].getNodeType() != debug {
+				res = append(res, int16(i))
+			}
 		}
-		offset := len(e.nodes) / 2
-		return e.nodes[idx+offset]
+
+		if e.nodes[idx].getNodeType() == cond {
+			res = []int16{
+				res[0], // condition node
+				res[1], // true branch
+				res[3], // false branch
+			}
+		}
+		return
 	}
 
-	var helper func(*node) (string, bool)
+	var helper func(int16) (string, bool)
 
-	helper = func(root *node) (string, bool) {
-		if root.childCnt == 0 {
-			return dumpLeafNode(root)
+	helper = func(idx int16) (string, bool) {
+		n := e.nodes[idx]
+		if n.childCnt == 0 {
+			return dumpLeafNode(n)
 		}
 
 		var sb strings.Builder
-		sb.WriteString(fmt.Sprintf("(%v", root.value))
-		for i := 0; i < int(root.childCnt); i++ {
-			childIdx := int(root.childIdx) + i
-			child := getNode(childIdx)
-			if child.getNodeType() == end {
-				continue
-			}
-			cc, isLeaf := helper(child)
+		sb.WriteString(fmt.Sprintf("(%v", n.value))
+
+		childIdxes := getChildIdxes(idx)
+
+		for _, cIdx := range childIdxes {
+			cc, isLeaf := helper(cIdx)
 			if isLeaf {
 				sb.WriteString(fmt.Sprintf(" %s", cc))
 				continue
@@ -405,7 +409,14 @@ func Dump(e *Expr) string {
 		return sb.String(), false
 	}
 
-	res, _ := helper(getNode(0))
+	var rootIdx int16
+	for idx, pIdx := range e.parentIdx {
+		if pIdx == -1 {
+			rootIdx = int16(idx)
+		}
+	}
+
+	res, _ := helper(rootIdx)
 	return res
 }
 
@@ -413,8 +424,6 @@ func dumpLeafNode(node *node) (string, bool) {
 	switch node.getNodeType() {
 	case debug:
 		return "debug", false
-	case end:
-		return "", true
 	case selector:
 		return fmt.Sprint(node.value), true
 	case operator, fastOperator:
@@ -469,7 +478,11 @@ func maxInt16(a, b int16) int16 {
 	}
 }
 
-func PrintExpr(expr *Expr) string {
+func DumpTable(expr *Expr, skipDebug ...bool) string {
+	if len(skipDebug) == 0 {
+		skipDebug = []bool{true}
+	}
+
 	type fetcher struct {
 		name string
 		fn   func(e *Expr, i int) Value
@@ -503,8 +516,6 @@ func PrintExpr(expr *Expr) string {
 			res = "COND"
 		case debug:
 			res = "D"
-		case end:
-			res = "END"
 		}
 
 		if f&scIfTrue == scIfTrue {
@@ -578,24 +589,10 @@ func PrintExpr(expr *Expr) string {
 	sb.WriteString(fmt.Sprintf("node  size: %4d\n", len(expr.nodes)))
 	sb.WriteString(fmt.Sprintf("stack size: %4d\n", expr.maxStackSize))
 
-	fieldList := [len(fetchers)]bool{
-		idx:   true,
-		node:  true,
-		flag:  true,
-		pIdx:  true,
-		osTop: true,
-		scIdx: true,
-		scVal: true,
-		cCnt:  true,
-	}
-
 	for f, n := range fetchers {
-		if ff := field(f); ff != idx && !fieldList[ff] {
-			continue
-		}
 		sb.WriteString(fmt.Sprintf("%5s: ", n.name))
 		for j := 0; j < size; j++ {
-			if expr.nodes[j].flag&nodeTypeMask == debug {
+			if expr.nodes[j].flag&nodeTypeMask == debug && skipDebug[0] {
 				continue
 			}
 

@@ -19,6 +19,22 @@ const (
 	comment tokenType = "comment"
 )
 
+type keyword string
+
+const (
+	keywordIf      keyword = "if"
+	keywordLet     keyword = "let"
+	keywordAny     keyword = "any"
+	keywordAll     keyword = "all"
+	keywordMap     keyword = "map"
+	keywordFilter  keyword = "filter"
+	keywordReduce  keyword = "reduce"
+	keywordCollect keyword = "collect"
+)
+
+var keywords = [...]keyword{keywordIf, keywordLet, keywordAny,
+	keywordAll, keywordMap, keywordFilter, keywordReduce, keywordCollect}
+
 func (t tokenType) String() string {
 	return string(t)
 }
@@ -511,9 +527,8 @@ func (p *parser) parseExpression() (*astNode, error) {
 }
 
 func (p *parser) isKeyword(car token) bool {
-	keywords := []string{"if", "let", "map", "filter", "any", "all", "collect", "reduce"}
-	for _, keyword := range keywords {
-		if car.val == keyword {
+	for _, kw := range keywords {
+		if car.val == string(kw) {
 			return true
 		}
 	}
@@ -521,7 +536,7 @@ func (p *parser) isKeyword(car token) bool {
 }
 
 func (p *parser) buildKeywordNode(car token, children []*astNode) (*astNode, error) {
-	if car.val != "if" {
+	if car.val != string(keywordIf) {
 		return nil, p.errWithToken(fmt.Errorf("[%s] is not currently supported", car.val), car)
 	}
 
@@ -532,7 +547,7 @@ func (p *parser) buildKeywordNode(car token, children []*astNode) (*astNode, err
 	return &astNode{
 		node: &node{
 			flag:  cond,
-			value: "if",
+			value: keywordIf,
 			// trigger short circuit when cond node returns false
 			operator: func(_ *Ctx, params []Value) (Value, error) {
 				if b, ok := params[0].(bool); ok {
@@ -557,11 +572,6 @@ func (p *parser) buildKeywordNode(car token, children []*astNode) (*astNode, err
 }
 
 func (p *parser) buildNode(car token, children []*astNode) (*astNode, error) {
-	treeNode := &astNode{
-		node:     &node{value: car.val},
-		children: children,
-	}
-
 	// parse op node
 	op, exist := builtinOperators[car.val]
 	if !exist {
@@ -570,10 +580,14 @@ func (p *parser) buildNode(car token, children []*astNode) (*astNode, error) {
 	if !exist {
 		return nil, p.unknownTokenError(car)
 	}
-	flag := operator
-	treeNode.node.operator = op
-	treeNode.node.flag = flag
-	return treeNode, nil
+	return &astNode{
+		children: children,
+		node: &node{
+			flag:     operator,
+			value:    car.val,
+			operator: op,
+		},
+	}, nil
 }
 
 func (p *parser) parseConfig() error {

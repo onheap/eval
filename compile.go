@@ -158,8 +158,7 @@ func optimize(cc *CompileConfig, root *astNode) {
 	}
 
 	if enabled, exist := cc.CompileOptions[Reordering]; enabled || !exist {
-		calculateNodeCosts(cc, root)
-		optimizeReordering(root)
+		optimizeReordering(cc, root)
 	}
 }
 
@@ -203,12 +202,25 @@ func parentNode(e *Expr, idx int16) (*node, int16) {
 	return e.nodes[pIdx], pIdx
 }
 
-func calculateNodeCosts(conf *CompileConfig, root *astNode) {
-	children := root.children
-	for _, child := range children {
-		calculateNodeCosts(conf, child)
+func optimizeReordering(cc *CompileConfig, root *astNode) {
+	for _, child := range root.children {
+		optimizeReordering(cc, child)
 	}
 
+	calculateNodeCosts(cc, root)
+
+	if !isBoolOpNode(root.node) {
+		return
+	}
+
+	// reordering child nodes based on node cost
+	sort.SliceStable(root.children, func(i, j int) bool {
+		return root.children[i].cost < root.children[j].cost
+	})
+}
+
+func calculateNodeCosts(conf *CompileConfig, root *astNode) {
+	children := root.children
 	const (
 		loops       int64 = 1
 		inlinedCall int64 = 1
@@ -238,8 +250,6 @@ func calculateNodeCosts(conf *CompileConfig, root *astNode) {
 		baseCost = loops*(int64(len(children))+1) + funcCall
 	case cond:
 		baseCost = loops * 4
-	case end:
-		baseCost = 0
 	default:
 		baseCost = 10
 	}
@@ -251,7 +261,7 @@ func calculateNodeCosts(conf *CompileConfig, root *astNode) {
 		operationCost = int64(conf.getCosts(nodeType, n.value.(string)))
 	}
 
-	if nodeType == cond && n.value == "if" {
+	if nodeType == cond && n.value == keywordIf {
 		childrenCost = int64(children[0].cost) + int64(max(children[1].cost, children[2].cost))
 	} else {
 		for _, child := range children {
@@ -269,21 +279,6 @@ func calculateNodeCosts(conf *CompileConfig, root *astNode) {
 	}
 
 	root.cost = int(cost)
-}
-
-func optimizeReordering(root *astNode) {
-	for _, child := range root.children {
-		optimizeReordering(child)
-	}
-
-	if !isBoolOpNode(root.node) {
-		return
-	}
-
-	// reordering child nodes based on node cost
-	sort.SliceStable(root.children, func(i, j int) bool {
-		return root.children[i].cost < root.children[j].cost
-	})
 }
 
 func optimizeConstantFolding(cc *CompileConfig, root *astNode) error {
@@ -424,8 +419,6 @@ func check(root *astNode) checkRes {
 func buildExpr(cc *CompileConfig, ast *astNode, size int) *Expr {
 	e := &Expr{
 		nodes:     make([]*node, 0, size),
-		scIdx:     make([]int16, 0, size),
-		osSize:    make([]int16, 0, size),
 		parentIdx: make([]int16, 0, size),
 	}
 
@@ -460,7 +453,7 @@ func calAndSetNodes(e *Expr, root *astNode) {
 			calAndSetNodes(e, child)
 		}
 	case cond:
-		if n.value == "if" {
+		if n.value == keywordIf {
 			var (
 				condNode    = root.children[0]
 				trueBranch  = root.children[1]
@@ -541,7 +534,7 @@ func calAndSetStackSize(e *Expr) {
 		case operator:
 			f[i] = f[prev] - int16(n.childCnt) + 1
 		case cond:
-			if n.value == "if" {
+			if n.value == keywordIf {
 				f[i] = f[prev] - 1
 			} else {
 				f[i] = f[prev]
@@ -649,11 +642,12 @@ func calAndSetDebugInfo(e *Expr) {
 	}
 
 	var (
-		nodes    = e.nodes
-		size     = int16(len(nodes))
-		res      = make([]*node, 0, size*2)
-		parents  = make([]int16, 0, size*2)
-		debugIdx = make([]int16, size)
+		nodes      = e.nodes
+		size       = int16(len(nodes))
+		res        = make([]*node, 0, size*2)
+		parents    = make([]int16, 0, size*2)
+		debugIdxes = make([]int16, size)
+		realIdxes  = make([]int16, size)
 	)
 
 	for i := int16(0); i < size; i++ {
@@ -666,9 +660,12 @@ func calAndSetDebugInfo(e *Expr) {
 			selKey:   realNode.selKey,
 			value:    realNode.value,
 		}
-		res = append(res, debugNode, realNode)
+		res = append(res, debugNode)
+		debugIdxes[i] = int16(len(res) - 1)
+		res = append(res, realNode)
+		realIdxes[i] = int16(len(res) - 1)
+
 		parents = append(parents, e.parentIdx[i], e.parentIdx[i])
-		debugIdx[i] = int16(len(res) - 1)
 
 		switch realNode.flag & nodeTypeMask {
 		case operator:
@@ -682,9 +679,20 @@ func calAndSetDebugInfo(e *Expr) {
 		}
 	}
 
-	for _, n := range res {
+	for i, n := range res {
 		if n.scIdx != -1 {
-			n.scIdx = debugIdx[n.scIdx]
+			n.scIdx = realIdxes[n.scIdx]
+		}
+
+		p := parents[i]
+		if p == -1 {
+			continue
+		}
+
+		if n.getNodeType() == debug {
+			parents[i] = debugIdxes[p]
+		} else {
+			parents[i] = realIdxes[p]
 		}
 	}
 

@@ -19,20 +19,19 @@ type Ctx struct {
 }
 
 const (
-	// node types
-	nodeTypeMask = uint8(0b111)
-	constant     = uint8(0b001)
-	selector     = uint8(0b010)
-	operator     = uint8(0b011)
-	fastOperator = uint8(0b100)
-	cond         = uint8(0b101)
-	end          = uint8(0b110)
-	debug        = uint8(0b111)
+	// node types flag
+	nodeTypeMask = uint8(0b00000111)
+	constant     = uint8(0b00000001)
+	selector     = uint8(0b00000010)
+	operator     = uint8(0b00000011)
+	fastOperator = uint8(0b00000100)
+	cond         = uint8(0b00000101)
+	debug        = uint8(0b00000110)
 
 	// short circuit flag
-	scMask    = uint8(0b011000)
-	scIfFalse = uint8(0b001000)
-	scIfTrue  = uint8(0b010000)
+	scMask    = uint8(0b00011000)
+	scIfFalse = uint8(0b00001000)
+	scIfTrue  = uint8(0b00010000)
 )
 
 type node struct {
@@ -40,7 +39,6 @@ type node struct {
 	childCnt int8
 	scIdx    int16
 	osTop    int16
-	childIdx int16 // todo
 	selKey   SelectorKey
 	value    Value
 	operator Operator
@@ -54,10 +52,6 @@ type Expr struct {
 	maxStackSize int16
 	nodes        []*node
 	parentIdx    []int16
-
-	// extra info
-	scIdx  []int16
-	osSize []int16
 }
 
 func Eval(expr string, vals map[string]interface{}, confs ...*CompileConfig) (Value, error) {
@@ -100,7 +94,7 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 	}
 
 	var (
-		param  []Value
+		params []Value
 		param2 [2]Value
 		curt   *node
 		prev   int16
@@ -147,15 +141,15 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 			osTop = osTop - cCnt
 			if cCnt == 2 {
 				param2[0], param2[1] = os[osTop+1], os[osTop+2]
-				param = param2[:]
+				params = param2[:]
 			} else {
-				param = make([]Value, cCnt)
-				copy(param, os[osTop+1:])
+				params = make([]Value, cCnt)
+				copy(params, os[osTop+1:])
 			}
 
-			res, err = curt.operator(ctx, param)
+			res, err = curt.operator(ctx, params)
 			if err != nil {
-				return nil, err
+				return
 			}
 		case cond:
 			res, osTop = os[osTop], osTop-1
@@ -177,7 +171,7 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 				(b && curt.flag&scIfTrue == scIfTrue) {
 				i = curt.scIdx
 				if i == -1 {
-					return res, nil
+					return
 				}
 
 				curt = nodes[i]

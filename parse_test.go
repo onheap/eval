@@ -659,7 +659,7 @@ func TestParseAstTree(t *testing.T) {
         "hello"))`,
 			ast: verifyNode{
 				tpy:  cond,
-				data: "if",
+				data: keywordIf,
 				children: []verifyNode{
 					{
 						tpy:  operator,
@@ -672,7 +672,7 @@ func TestParseAstTree(t *testing.T) {
 					{tpy: constant, data: "👋~ 👶"},
 					{
 						tpy:  cond,
-						data: "if",
+						data: keywordIf,
 						children: []verifyNode{
 							{
 								tpy:  operator,
@@ -698,10 +698,10 @@ func TestParseAstTree(t *testing.T) {
 							},
 							{tpy: constant, data: "你好"},
 							{tpy: constant, data: "hello"},
-							{tpy: end, data: "end"},
+							{tpy: cond, data: "fi"},
 						},
 					},
-					{tpy: end, data: "end"},
+					{tpy: cond, data: "fi"},
 				},
 			},
 		},
