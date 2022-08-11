@@ -228,8 +228,7 @@ func (e *Expr) EvalRCO(ctx *Ctx) (res Value, err error) {
 			if err != nil {
 				return
 			}
-			res, err = executeOperatorProxy(ctx, curt.operator, param2[:])
-			fmt.Printf("exec, op:[%v], param:[%v], res:[%v], err:[%v]\n", curt.value, param2, res, err)
+			res, err = executeOperatorProxy(ctx, curt, param2[:])
 			if err != nil {
 				return
 			}
@@ -252,8 +251,7 @@ func (e *Expr) EvalRCO(ctx *Ctx) (res Value, err error) {
 				copy(param, os[osTop+1:])
 			}
 
-			res, err = executeOperatorProxy(ctx, curt.operator, param)
-			fmt.Printf("exec, op:[%v], param:[%v], res:[%v], err:[%v]\n", curt.value, param, res, err)
+			res, err = executeOperatorProxy(ctx, curt, param)
 			if err != nil {
 				return
 			}
@@ -279,12 +277,14 @@ func (e *Expr) EvalRCO(ctx *Ctx) (res Value, err error) {
 				return
 			}
 			if curt.flag&nodeTypeMask == cond {
-				i = nodes[curt.scIdx].scIdx
-				curt = nodes[i]
+				if !matchesShortCircuit(res, curt) {
+					i = nodes[curt.scIdx].scIdx
+					osTop = nodes[i].osTop - 1
+					break
+				}
+			} else {
 				osTop = curt.osTop - 1
-				break
 			}
-			osTop = curt.osTop - 1
 		}
 
 		os[osTop+1], osTop = res, osTop+1
@@ -304,13 +304,16 @@ func matchesShortCircuit(res Value, n *node) bool {
 	}
 }
 
-func executeOperatorProxy(ctx *Ctx, operator Operator, params []Value) (Value, error) {
-	for _, v := range params {
-		if v == DNE {
-			return DNE, nil
-		}
+func executeOperatorProxy(ctx *Ctx, n *node, params []Value) (Value, error) {
+	switch {
+	case isAndOpNode(n) && contains(params, false):
+		return false, nil
+	case isOrOpNode(n) && contains(params, true):
+		return true, nil
+	case contains(params, DNE):
+		return DNE, nil
 	}
-	return operator(ctx, params)
+	return n.operator(ctx, params)
 }
 
 func getNodeValueProxy(ctx *Ctx, n *node) (res Value, err error) {
@@ -347,7 +350,7 @@ func printDebugExpr(e *Expr, prevIdx, curtIdx int16, os []Value, osTop int16) {
 		sb.WriteString(fmt.Sprintf("\n"))
 	}
 
-	sb.WriteString(fmt.Sprintf("%13s: [%v]\n", "Current Node", curt))
+	sb.WriteString(fmt.Sprintf("%13s: [%v], idx:[%d]\n", "Current Node", curt, curtIdx))
 
 	sb.WriteString(fmt.Sprintf("%13s: ", "Operand Stack"))
 	for i := osTop; i >= 0; i-- {

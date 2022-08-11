@@ -559,7 +559,7 @@ func TestExpr_EvalRCO(t *testing.T) {
   (and
     (if dne
       (!= 3 3)
-      (= 4 4))
+      (eq 4 4))
     (= 5 5)
     (= 6 6)))`,
 		},
@@ -907,6 +907,26 @@ func TestExpr_EvalRCO(t *testing.T) {
 				"F": false,
 			},
 		},
+		{
+			want:          true,
+			optimizeLevel: all,
+			s:             `(or T dne)`,
+			valMap: map[string]interface{}{
+				"T": true,
+			},
+		},
+		{
+			want:          DNE,
+			optimizeLevel: disable,
+			s: `
+(if
+  (if dne
+    (!= 0 0)
+    (= 0 0)) -30 v_5)`,
+			valMap: map[string]interface{}{
+				"v_5": int64(5),
+			},
+		},
 	}
 
 	for _, c := range cs {
@@ -992,42 +1012,60 @@ func TestRandomExpressions(t *testing.T) {
 		_ = GetOrRegisterKey(conf, k)
 	}
 
-	type execRes struct {
-		expr GenExprResult
-		got  Value
-		err  error
+	dneMap := map[string]interface{}{
+		"select_dne_1": DNE,
+		"select_dne_2": DNE,
+		"select_dne_3": DNE,
 	}
 
-	exprChan := make(chan GenExprResult, bufferSize)
-	verifyChan := make(chan execRes, bufferSize)
+	type testCase struct {
+		rco  bool
+		expr string
+		want Value
+
+		got Value
+		err error
+	}
+
+	exprChan := make(chan testCase, bufferSize)
+	verifyChan := make(chan testCase, bufferSize)
 
 	var pwg sync.WaitGroup
 
 	var genCnt int32
-	for p := 0; p < producerCount; p++ {
+	for cnt := 0; cnt < producerCount; cnt++ {
 		pwg.Add(1)
 		go func(r *rand.Rand) {
 			defer pwg.Done()
 			for atomic.LoadInt32(&genCnt) < size {
 				i := int(atomic.AddInt32(&genCnt, 1))
 				options := make([]GenExprOption, 0, 4)
-				v := random.Intn(0b1000)
+				v := random.Intn(0b10000)
 
-				if v&0b001 != 0 {
+				if v&0b0001 != 0 {
 					options = append(options, GenType(GenBool))
 				} else {
 					options = append(options, GenType(GenNumber))
 				}
 
-				if v&0b010 != 0 {
+				if v&0b0010 != 0 {
 					options = append(options, EnableCondition)
 				}
 
-				if v&0b100 != 0 {
+				if v&0b0100 != 0 {
 					options = append(options, EnableSelector, GenSelectors(valMap))
 				}
 
-				exprChan <- GenerateRandomExpr((i%level)+1, r, options...)
+				if v&0b1100 == 0b1100 {
+					options = append(options, EnableRCO, GenSelectors(dneMap))
+				}
+
+				expr := GenerateRandomExpr((i%level)+1, r, options...)
+				exprChan <- testCase{
+					rco:  v&0b1100 == 0b1100,
+					expr: expr.Expr,
+					want: expr.Res,
+				}
 			}
 		}(rand.New(rand.NewSource(random.Int63())))
 	}
@@ -1038,25 +1076,34 @@ func TestRandomExpressions(t *testing.T) {
 	}()
 
 	var cwg sync.WaitGroup
-	for c := 0; c < consumerCount; c++ {
+	for cnt := 0; cnt < consumerCount; cnt++ {
 		cwg.Add(1)
 		go func(r *rand.Rand) {
 			defer cwg.Done()
-			for expr := range exprChan {
+			for c := range exprChan {
 				v := r.Intn(0b1000)
 				// combination of optimizations
 				cc := CopyCompileConfig(conf)
 				cc.CompileOptions[Reordering] = v&0b1 != 0
 				cc.CompileOptions[FastEvaluation] = v&0b10 != 0
 				cc.CompileOptions[ConstantFolding] = v&0b100 != 0
+				cc.CompileOptions[AllowUnknownSelectors] = c.rco
 
-				got, err := Eval(expr.Expr, valMap, cc)
-
-				verifyChan <- execRes{
-					expr: expr,
-					got:  got,
-					err:  err,
+				expr, err := Compile(cc, c.expr)
+				if err != nil {
+					c.err = err
+					verifyChan <- c
+					continue
 				}
+
+				ctx := NewCtxWithMap(cc, valMap)
+				if c.rco {
+					c.got, c.err = expr.EvalRCO(ctx)
+				} else {
+					c.got, c.err = expr.Eval(ctx)
+				}
+				verifyChan <- c
+
 			}
 		}(rand.New(rand.NewSource(random.Int63())))
 	}
@@ -1072,20 +1119,20 @@ func TestRandomExpressions(t *testing.T) {
 	var i int
 	for res := range verifyChan {
 		i++
-		expr, got, err := res.expr, res.got, res.err
+		expr, want, got, err := res.expr, res.want, res.got, res.err
 		if err != nil {
-			fmt.Println(GenerateTestCase(expr, valMap))
+			fmt.Println(GenerateTestCase(expr, want, valMap))
 			t.Fatalf("assertNil failed, got: %+v\n", err)
 		}
 
-		if got != expr.Res {
-			fmt.Println(GenerateTestCase(expr, valMap))
-			t.Fatalf("assertEquals failed, got: %+v, want: %+v\n", got, expr.Res)
+		if got != want {
+			fmt.Println(GenerateTestCase(expr, want, valMap))
+			t.Fatalf("assertEquals failed, got: %+v, want: %+v\n", got, want)
 		}
 
 		if i%step == 0 {
 			if showSample {
-				fmt.Println(GenerateTestCase(expr, valMap))
+				fmt.Println(GenerateTestCase(expr, want, valMap))
 			}
 			if printProgress {
 				if i == step {
