@@ -536,7 +536,7 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 }
 
 func TestExpr_EvalRCO(t *testing.T) {
-	const debugMode = true
+	const debugMode = false
 
 	type optimizeLevel int
 	const (
