@@ -272,16 +272,16 @@ func (e *Expr) EvalRCO(ctx *Ctx) (res Value, err error) {
 		}
 
 		for matchesShortCircuit(res, curt) {
+			// jump to parent node
 			curt, i = parentNode(e, i)
 			if i == -1 {
 				return
 			}
-			if curt.flag&nodeTypeMask == cond {
-				if !matchesShortCircuit(res, curt) {
-					i = nodes[curt.scIdx].scIdx
-					osTop = nodes[i].osTop - 1
-					break
-				}
+			if curt.flag&nodeTypeMask == cond &&
+				!matchesShortCircuit(res, curt) {
+				i = nodes[curt.scIdx].scIdx
+				osTop = nodes[i].osTop - 1
+				break
 			} else {
 				osTop = curt.osTop - 1
 			}

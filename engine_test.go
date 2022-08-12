@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-func TestDebugCases(t *testing.T) {
+func TestExpr_Eval(t *testing.T) {
 	const debugMode = false
 
 	type optimizeLevel int
@@ -975,11 +975,11 @@ func TestExpr_EvalRCO(t *testing.T) {
 
 func TestRandomExpressions(t *testing.T) {
 	const (
-		size          = 10000
+		size          = 3000000
 		level         = 53
 		step          = size / 100
 		showSample    = false
-		printProgress = false
+		printProgress = true
 	)
 
 	const (
