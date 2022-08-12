@@ -13,7 +13,14 @@ var (
 	}
 )
 
+// UndefinedSelKey means that the current key is defined in the SelectorKey type
+// In this case you should use the string type key
 const UndefinedSelKey SelectorKey = math.MinInt16
+
+// DNE means Does Not Exist, it used in RCO (remote call optimization).
+// When executing an expression with RCO, if the value of a SelectorKey is not cached,
+// the selector proxy will return DNE as its value
+var DNE = struct{ DoesNotExist string }{DoesNotExist: "DNE"}
 
 // Selector is used to get values of the expression variables.
 // Note that there are two types of keys in each method parameters,

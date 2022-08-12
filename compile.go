@@ -426,6 +426,7 @@ func buildExpr(cc *CompileConfig, ast *astNode, size int) *Expr {
 	calAndSetParentIndex(e, ast)
 	calAndSetStackSize(e)
 	calAndSetShortCircuit(e)
+	calAndSetShortCircuitForRCO(e)
 	if cc.CompileOptions[Debug] {
 		calAndSetDebugInfo(e)
 	}
@@ -628,6 +629,20 @@ func calAndSetShortCircuit(e *Expr) {
 			n.scIdx = -1
 		} else {
 			n.scIdx = f[i]
+		}
+	}
+}
+
+func calAndSetShortCircuitForRCO(e *Expr) {
+	for i, n := range e.nodes {
+		p, _ := parentNode(e, int16(i))
+		switch {
+		case p == nil:
+			continue
+		case isAndOpNode(p):
+			n.flag |= andOp
+		case isOrOpNode(p):
+			n.flag |= orOp
 		}
 	}
 }

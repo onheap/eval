@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-func TestDebugCases(t *testing.T) {
+func TestExpr_Eval(t *testing.T) {
 	const debugMode = false
 
 	type optimizeLevel int
@@ -459,6 +459,14 @@ func TestDebugCases(t *testing.T) {
 			if c.want != nil {
 				assertEquals(t, res, c.want)
 			}
+
+			// eval with remote call optimization
+			rcoRes, err := expr.EvalRCO(ctx)
+			assertNil(t, err)
+
+			if c.want != nil {
+				assertEquals(t, rcoRes, c.want)
+			}
 		})
 	}
 }
@@ -525,7 +533,444 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 			assertEquals(t, got, c.want)
 		})
 	}
+}
 
+func TestExpr_EvalRCO(t *testing.T) {
+	const debugMode = false
+
+	type optimizeLevel int
+	const (
+		all optimizeLevel = iota
+		onlyFast
+		disable
+	)
+
+	cs := []struct {
+		s             string
+		valMap        map[string]interface{}
+		optimizeLevel optimizeLevel // default: all
+		want          Value
+	}{
+		{
+			want:          DNE,
+			optimizeLevel: disable,
+			s: `
+(not
+  (and
+    (if dne
+      (!= 3 3)
+      (eq 4 4))
+    (= 5 5)
+    (= 6 6)))`,
+		},
+		{
+			want:          DNE,
+			optimizeLevel: disable,
+			s: `
+(or
+  (if
+    (= 1 1)
+    (< 4 2)
+    (!= 5 6))
+  (eq dne -8))`,
+		},
+		{
+			want:          DNE,
+			optimizeLevel: disable,
+			s: `
+(if
+  (= 1 2)
+  (not dne)
+  (and
+    (!= dne 3 4) T1 T2))`,
+			valMap: map[string]interface{}{
+				"T1": true,
+				"T2": true,
+				"F":  false,
+			},
+		},
+		{
+			want:          DNE,
+			optimizeLevel: disable,
+			s: `
+(eq
+  (if (= T1 dne) F T2)
+  (not T3))`,
+			valMap: map[string]interface{}{
+				"T1": true,
+				"T2": true,
+				"T3": true,
+				"F":  false,
+			},
+		},
+		{
+			want: DNE,
+			s: `
+(<
+ (+ 1
+   (- 2 dne) (/ 6 3) 4)
+ (* 5 6 7)
+)`,
+			valMap: map[string]interface{}{
+				"v3": 3,
+			},
+		},
+
+		{
+			want:          int64(-1),
+			optimizeLevel: disable,
+			s:             "(if less -1 dne)",
+			valMap: map[string]interface{}{
+				"less": true,
+			},
+		},
+
+		{
+			want:          DNE,
+			optimizeLevel: disable,
+			s:             "(+ 1 dne)",
+			valMap:        nil,
+		},
+		{
+			want:          true,
+			optimizeLevel: disable,
+			s: `
+(not
+  (and
+    (if T
+      (!= 0 0)
+      (= 0 0))
+    (= dne 0)
+    (= 1 0)))`,
+			valMap: map[string]interface{}{
+				"T": true,
+				"F": false,
+			},
+		},
+		{
+
+			want:          DNE,
+			optimizeLevel: disable,
+			s:             `(if T dne 0)`,
+			valMap: map[string]interface{}{
+				"T": true,
+				"F": false,
+			},
+		},
+
+		{
+			want:          true,
+			optimizeLevel: disable,
+			s: `
+(and
+  (if T T T)
+  (or dne T
+    (!= 0 0)))`,
+			valMap: map[string]interface{}{
+				"T": true,
+				"F": false,
+			},
+		},
+		{
+			want:          true,
+			optimizeLevel: disable,
+			s: `
+(if T
+  (or
+    (eq 1 2 dne) T)
+  (= 3 4))`,
+			valMap: map[string]interface{}{
+				"T": true,
+				"F": false,
+			},
+		},
+		{
+			want:          DNE,
+			optimizeLevel: disable,
+			s: `
+(if
+  (and
+    (= 0 0) dne)
+  (not
+    (= 0 0))
+  (!= 0 0))`,
+			valMap: map[string]interface{}{
+				"T": true,
+				"F": false,
+			},
+		},
+		{
+			want:          true,
+			optimizeLevel: disable,
+			s: `
+(if
+  (= 1 2)
+  (not F)
+  (or
+    (!= 3 dne) dne T2))`,
+			valMap: map[string]interface{}{
+				"T1": true,
+				"T2": true,
+				"F":  false,
+			},
+		},
+		{
+			want:          DNE,
+			optimizeLevel: disable,
+			s: `
+(if
+  (and  
+    true
+    (!= 0 0))
+  dne
+  dne)
+`,
+		},
+		{
+			want:          false,
+			optimizeLevel: disable,
+			s: `
+(if
+  (not
+    (and true
+      (!= 0 0)
+      (!= dne dne)))
+  (eq
+    (or true true false)
+    (!= 0 0)) 
+  true)
+`,
+			valMap: map[string]interface{}{
+				"select_true_1":  true,
+				"select_false_1": false,
+				"select_false":   false,
+			},
+		},
+		{
+
+			want: DNE,
+			s:    `(= dne dne)`,
+		},
+
+		{
+			want:          true,
+			optimizeLevel: disable,
+			s: `
+(and
+  (= 0 0)
+  (or
+    (&  ;; ok
+      (ne 1 1)
+      (!= 0 dne)
+      (!= dne 0))
+    (not
+      (!= 0 0))
+    (not
+      (!= 0 0))))`,
+		},
+
+		{
+
+			want:          DNE,
+			optimizeLevel: onlyFast,
+			s: `
+(not
+  (and
+    (= dne 0)
+    (or
+      (!= 0 0)
+      (!= dne 0))
+    (= 0 0)))`,
+		},
+		{
+
+			want:          true,
+			optimizeLevel: onlyFast,
+			s: `
+(not
+  (&
+    (and
+      (= 0 0)
+      (= dne 0))
+    (!= 1 1)
+    (= dne 0)
+    (and
+      (= 0 0)
+      (= 0 0))))`,
+		},
+		{
+
+			want:          true,
+			optimizeLevel: onlyFast,
+			s: `
+(and
+  (not
+    (and
+      (!= 0 0)
+      (= 0 0)
+      (= dne 0)
+      (= 0 0)))
+  (or
+    (!= dne 0)
+    (!= dne dne)
+    (= dne dne)
+    (= 0 0)))`,
+		},
+		{
+			want: true,
+			s: `
+(and
+  (|
+    (eq Origin "MOW")
+    (= Country "RU"))
+  (or
+    (>= Value 100)
+    (<= Adults 1)))`,
+			valMap: map[string]interface{}{
+				"Country": "RU",
+				"Adults":  1,
+			},
+			optimizeLevel: disable,
+		},
+		{
+			want: DNE,
+			s: `
+			(and
+			  (= Origin "MOW")
+			  (= Country "RU")
+			  (>= Value 100)
+			  (= Adults 1))`,
+			valMap: map[string]interface{}{
+				"Country": "RU",
+				"Value":   100,
+				"Adults":  1,
+			},
+		},
+		{
+
+			want: false,
+			s: `
+;;;;optimize:false
+(and
+  (and
+    (not
+      (!= 1 1))
+    (or
+      (!= 2 2)
+      (!= dne 3)
+      (= 4 4)
+      (!= 5 5)))
+  (= 6 dne)
+  (!= 7 7))`,
+		},
+		{
+			want:          false,
+			optimizeLevel: disable,
+			s: `
+(and
+  (if T
+    (= 0 0)
+    (= dne 0))
+  (not
+    (= 0 0)))`,
+			valMap: map[string]interface{}{
+				"T": true,
+			},
+		},
+		{
+			want:          DNE,
+			optimizeLevel: disable,
+			s: `
+(-
+  (/ 48 -36 9)
+  (* 1 -26 28 -45)
+  (* 32
+    (% dne 22)
+    (/ 37 28)
+    (* 15 -3 -7 -50)))`,
+		},
+		{
+			want:          DNE,
+			optimizeLevel: disable,
+			s: `
+(or
+  (if          
+    (not       
+      (!= 0 0))
+    (if T    
+      (!= dne 0)
+      (eq 1 1)) F)
+  (eq
+    (!= 0 0) T))`,
+			valMap: map[string]interface{}{
+				"T": true,
+				"F": false,
+			},
+		},
+		{
+			want:          true,
+			optimizeLevel: all,
+			s:             `(or T dne)`,
+			valMap: map[string]interface{}{
+				"T": true,
+			},
+		},
+		{
+			want:          DNE,
+			optimizeLevel: disable,
+			s: `
+(if
+  (if dne
+    (!= 0 0)
+    (= 0 0)) -30 v_5)`,
+			valMap: map[string]interface{}{
+				"v_5": int64(5),
+			},
+		},
+	}
+
+	for _, c := range cs {
+		t.Run(c.s, func(t *testing.T) {
+			var options []CompileOption
+			options = append(options, EnableStringSelectors)
+			if debugMode {
+				options = append(options, EnableDebug)
+			}
+
+			switch c.optimizeLevel {
+			case all:
+				options = append(options, Optimizations(true))
+			case disable:
+				options = append(options, Optimizations(false))
+			case onlyFast:
+				// disable all optimizations and enable fast evaluation
+				options = append(options, Optimizations(false), Optimizations(true, FastEvaluation))
+			}
+
+			cc := NewCompileConfig(options...)
+
+			ctx := NewCtxWithMap(cc, c.valMap)
+
+			expr, err := Compile(cc, c.s)
+			assertNil(t, err)
+			if debugMode {
+				fmt.Println(Dump(expr))
+				fmt.Println()
+				fmt.Println(DumpTable(expr))
+			}
+
+			res, err := expr.EvalRCO(ctx)
+			assertNil(t, err)
+
+			if debugMode {
+				fmt.Println(res)
+			}
+
+			if c.want != nil {
+				assertEquals(t, res, c.want)
+			}
+		})
+	}
 }
 
 func TestRandomExpressions(t *testing.T) {
@@ -567,42 +1012,60 @@ func TestRandomExpressions(t *testing.T) {
 		_ = GetOrRegisterKey(conf, k)
 	}
 
-	type execRes struct {
-		expr GenExprResult
-		got  Value
-		err  error
+	dneMap := map[string]interface{}{
+		"select_dne_1": DNE,
+		"select_dne_2": DNE,
+		"select_dne_3": DNE,
 	}
 
-	exprChan := make(chan GenExprResult, bufferSize)
-	verifyChan := make(chan execRes, bufferSize)
+	type testCase struct {
+		rco  bool
+		expr string
+		want Value
+
+		got Value
+		err error
+	}
+
+	exprChan := make(chan testCase, bufferSize)
+	verifyChan := make(chan testCase, bufferSize)
 
 	var pwg sync.WaitGroup
 
 	var genCnt int32
-	for p := 0; p < producerCount; p++ {
+	for cnt := 0; cnt < producerCount; cnt++ {
 		pwg.Add(1)
 		go func(r *rand.Rand) {
 			defer pwg.Done()
 			for atomic.LoadInt32(&genCnt) < size {
 				i := int(atomic.AddInt32(&genCnt, 1))
 				options := make([]GenExprOption, 0, 4)
-				v := random.Intn(0b1000)
+				v := random.Intn(0b10000)
 
-				if v&0b001 != 0 {
+				if v&0b0001 != 0 {
 					options = append(options, GenType(GenBool))
 				} else {
 					options = append(options, GenType(GenNumber))
 				}
 
-				if v&0b010 != 0 {
+				if v&0b0010 != 0 {
 					options = append(options, EnableCondition)
 				}
 
-				if v&0b100 != 0 {
+				if v&0b0100 != 0 {
 					options = append(options, EnableSelector, GenSelectors(valMap))
 				}
 
-				exprChan <- GenerateRandomExpr((i%level)+1, r, options...)
+				if v&0b1100 == 0b1100 {
+					options = append(options, EnableRCO, GenSelectors(dneMap))
+				}
+
+				expr := GenerateRandomExpr((i%level)+1, r, options...)
+				exprChan <- testCase{
+					rco:  v&0b1100 == 0b1100,
+					expr: expr.Expr,
+					want: expr.Res,
+				}
 			}
 		}(rand.New(rand.NewSource(random.Int63())))
 	}
@@ -613,25 +1076,34 @@ func TestRandomExpressions(t *testing.T) {
 	}()
 
 	var cwg sync.WaitGroup
-	for c := 0; c < consumerCount; c++ {
+	for cnt := 0; cnt < consumerCount; cnt++ {
 		cwg.Add(1)
 		go func(r *rand.Rand) {
 			defer cwg.Done()
-			for expr := range exprChan {
+			for c := range exprChan {
 				v := r.Intn(0b1000)
 				// combination of optimizations
 				cc := CopyCompileConfig(conf)
 				cc.CompileOptions[Reordering] = v&0b1 != 0
 				cc.CompileOptions[FastEvaluation] = v&0b10 != 0
 				cc.CompileOptions[ConstantFolding] = v&0b100 != 0
+				cc.CompileOptions[AllowUnknownSelectors] = c.rco
 
-				got, err := Eval(expr.Expr, valMap, cc)
-
-				verifyChan <- execRes{
-					expr: expr,
-					got:  got,
-					err:  err,
+				expr, err := Compile(cc, c.expr)
+				if err != nil {
+					c.err = err
+					verifyChan <- c
+					continue
 				}
+
+				ctx := NewCtxWithMap(cc, valMap)
+				if c.rco {
+					c.got, c.err = expr.EvalRCO(ctx)
+				} else {
+					c.got, c.err = expr.Eval(ctx)
+				}
+				verifyChan <- c
+
 			}
 		}(rand.New(rand.NewSource(random.Int63())))
 	}
@@ -647,20 +1119,20 @@ func TestRandomExpressions(t *testing.T) {
 	var i int
 	for res := range verifyChan {
 		i++
-		expr, got, err := res.expr, res.got, res.err
+		expr, want, got, err := res.expr, res.want, res.got, res.err
 		if err != nil {
-			fmt.Println(GenerateTestCase(expr, valMap))
+			fmt.Println(GenerateTestCase(expr, want, valMap))
 			t.Fatalf("assertNil failed, got: %+v\n", err)
 		}
 
-		if got != expr.Res {
-			fmt.Println(GenerateTestCase(expr, valMap))
-			t.Fatalf("assertEquals failed, got: %+v, want: %+v\n", got, expr.Res)
+		if got != want {
+			fmt.Println(GenerateTestCase(expr, want, valMap))
+			t.Fatalf("assertEquals failed, got: %+v, want: %+v\n", got, want)
 		}
 
 		if i%step == 0 {
 			if showSample {
-				fmt.Println(GenerateTestCase(expr, valMap))
+				fmt.Println(GenerateTestCase(expr, want, valMap))
 			}
 			if printProgress {
 				if i == step {

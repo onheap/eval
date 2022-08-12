@@ -219,12 +219,12 @@ func TestGenerateRandomExpr_Bool(t *testing.T) {
 
 		got, err := Eval(expr.Expr, valMap, cc)
 		if err != nil {
-			fmt.Println(GenerateTestCase(expr, valMap))
+			fmt.Println(GenerateTestCase(expr.Expr, expr.Res, valMap))
 			t.Fatalf("assertNil failed, got: %+v\n", err)
 		}
 
 		if got != expr.Res {
-			fmt.Println(GenerateTestCase(expr, valMap))
+			fmt.Println(GenerateTestCase(expr.Expr, expr.Res, valMap))
 			t.Fatalf("assertEquals failed, got: %+v, want: %+v\n", got, expr.Res)
 		}
 	}
@@ -266,13 +266,64 @@ func TestGenerateRandomExpr_Number(t *testing.T) {
 
 		got, err := Eval(expr.Expr, valMap, cc)
 		if err != nil {
-			fmt.Println(GenerateTestCase(expr, valMap))
+			fmt.Println(GenerateTestCase(expr.Expr, expr.Res, valMap))
 			t.Fatalf("assertNil failed, got: %+v\n", err)
 		}
 
 		if got != expr.Res {
-			fmt.Println(GenerateTestCase(expr, valMap))
+			fmt.Println(GenerateTestCase(expr.Expr, expr.Res, valMap))
 			t.Fatalf("assertEquals failed, got: %+v, want: %+v\n", got, expr.Res)
+		}
+	}
+}
+
+func TestGenerateRandomExpr_RCO(t *testing.T) {
+	const size = 50
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	cc := &CompileConfig{
+		SelectorMap: map[string]SelectorKey{
+			"select_true":    SelectorKey(1),
+			"select_false":   SelectorKey(2),
+			"select_true_1":  SelectorKey(3),
+			"select_false_1": SelectorKey(4),
+		},
+		CompileOptions: map[Option]bool{
+			ConstantFolding:       false,
+			AllowUnknownSelectors: true,
+		},
+	}
+	valMap := map[string]interface{}{
+		"select_true":    true,
+		"select_false":   false,
+		"select_true_1":  true,
+		"select_false_1": true,
+	}
+
+	dneMap := map[string]interface{}{
+		"select_dne_1": DNE,
+		"select_dne_2": DNE,
+		"select_dne_3": DNE,
+	}
+
+	ctx := NewCtxWithMap(cc, valMap)
+
+	for i := 1; i < size; i++ {
+		genRes := GenerateRandomExpr(i, r,
+			GenType(GenBool), EnableCondition, EnableSelector, GenSelectors(valMap), EnableRCO, GenSelectors(dneMap))
+
+		expr, err := Compile(cc, genRes.Expr)
+
+		assertNil(t, err)
+
+		got, err := expr.EvalRCO(ctx)
+		if err != nil {
+			fmt.Println(GenerateTestCase(genRes.Expr, genRes.Res, valMap))
+			t.Fatalf("assertNil failed, got: %+v\n", err)
+		}
+
+		if got != genRes.Res {
+			fmt.Println(GenerateTestCase(genRes.Expr, genRes.Res, valMap))
+			t.Fatalf("assertEquals failed, got: %+v, want: %+v\n", got, genRes.Res)
 		}
 	}
 }
@@ -359,7 +410,7 @@ func TestGenerateTestCase(t *testing.T) {
 
 	for _, c := range testCases {
 		t.Run(c.expr.Expr, func(t *testing.T) {
-			got := GenerateTestCase(c.expr, c.vals)
+			got := GenerateTestCase(c.expr.Expr, c.expr.Res, c.vals)
 			assertEquals(t, got, c.want)
 		})
 	}

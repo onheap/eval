@@ -20,10 +20,12 @@ const (
 type GenExprConfig struct {
 	EnableSelector  bool
 	EnableCondition bool
+	EnableRCO       bool
 	WantError       bool
 	GenType         GenExprType
 	NumSelectors    []GenExprResult
 	BoolSelectors   []GenExprResult
+	DneSelectors    []GenExprResult
 }
 
 type GenExprResult struct {
@@ -40,6 +42,9 @@ var (
 	EnableCondition GenExprOption = func(c *GenExprConfig) {
 		c.EnableCondition = true
 	}
+	EnableRCO GenExprOption = func(c *GenExprConfig) {
+		c.EnableRCO = true
+	}
 
 	GenType = func(genType GenExprType) GenExprOption {
 		return func(c *GenExprConfig) {
@@ -51,8 +56,13 @@ var (
 		return func(c *GenExprConfig) {
 			var ns []GenExprResult
 			var bs []GenExprResult
+			var ds []GenExprResult
 			for k, v := range m {
-				v = unifyType(v)
+				if v == DNE {
+					ds = append(ds, GenExprResult{Expr: k, Res: v})
+					continue
+				}
+				v = UnifyType(v)
 				switch v.(type) {
 				case int64:
 					ns = append(ns, GenExprResult{Expr: k, Res: v})
@@ -60,8 +70,9 @@ var (
 					bs = append(bs, GenExprResult{Expr: k, Res: v})
 				}
 			}
-			c.NumSelectors = ns
-			c.BoolSelectors = bs
+			c.NumSelectors = append(c.NumSelectors, ns...)
+			c.BoolSelectors = append(c.BoolSelectors, bs...)
+			c.DneSelectors = append(c.DneSelectors, ds...)
 		}
 	}
 )
@@ -87,6 +98,15 @@ func GenerateRandomExpr(level int, random *rand.Rand, opts ...GenExprOption) Gen
 		numAllOps  = []string{"+", "-", "*", "/", "%"}
 
 		execOp = func(op string, param ...Value) Value {
+			switch {
+			case op == "and" && contains(param, false):
+				return false
+			case op == "or" && contains(param, true):
+				return true
+			case contains(param, DNE):
+				return DNE
+			}
+
 			fn := builtinOperators[op]
 			res, _ := fn(nil, param)
 			return res
@@ -100,6 +120,9 @@ func GenerateRandomExpr(level int, random *rand.Rand, opts ...GenExprOption) Gen
 			v := random.Intn(100)
 			if genType == GenBool {
 				switch {
+				case r == 1 && c.EnableRCO && len(c.DneSelectors) != 0:
+					idx := (v) % len(c.DneSelectors)
+					return c.DneSelectors[idx]
 				case r < 4 && c.EnableSelector && len(c.BoolSelectors) != 0:
 					idx := (v) % len(c.BoolSelectors)
 					return c.BoolSelectors[idx]
@@ -114,6 +137,9 @@ func GenerateRandomExpr(level int, random *rand.Rand, opts ...GenExprOption) Gen
 
 			if genType == GenNumber {
 				switch {
+				case r == 1 && c.EnableRCO && len(c.DneSelectors) != 0:
+					idx := (v) % len(c.DneSelectors)
+					return c.DneSelectors[idx]
 				case r < 4 && c.EnableSelector && len(c.NumSelectors) != 0:
 					idx := (v) % len(c.NumSelectors)
 					return c.NumSelectors[idx]
@@ -148,6 +174,15 @@ func GenerateRandomExpr(level int, random *rand.Rand, opts ...GenExprOption) Gen
 				res = trueBranch.Res
 			} else {
 				res = falseBranch.Res
+			}
+
+			switch condExpr.Res {
+			case true:
+				res = trueBranch.Res
+			case false:
+				res = falseBranch.Res
+			case DNE:
+				res = DNE
 			}
 			return GenExprResult{
 				Expr: fmt.Sprintf(`(if %s %s %s)`, condExpr.Expr, trueBranch.Expr, falseBranch.Expr),
@@ -188,7 +223,7 @@ func GenerateRandomExpr(level int, random *rand.Rand, opts ...GenExprOption) Gen
 	return helper(c.GenType, level)
 }
 
-func GenerateTestCase(res GenExprResult, valMap map[string]interface{}) string {
+func GenerateTestCase(expr string, want Value, valMap map[string]interface{}) string {
 	var valStr = func(val Value) string {
 		switch v := val.(type) {
 		case bool:
@@ -205,6 +240,9 @@ func GenerateTestCase(res GenExprResult, valMap map[string]interface{}) string {
 			}
 			return fmt.Sprintf(`"%s"`, v)
 		default:
+			if v == DNE {
+				return "DNE"
+			}
 			panic("unsupported type")
 		}
 	}
@@ -237,7 +275,7 @@ func GenerateTestCase(res GenExprResult, valMap map[string]interface{}) string {
 		mapStr.WriteString("       nil")
 	}
 
-	expr := IndentByParentheses(res.Expr)
+	expr = IndentByParentheses(expr)
 	if strings.ContainsRune(expr, '\n') {
 		expr = fmt.Sprintf("`\n%s`", expr)
 	} else {
@@ -250,7 +288,7 @@ func GenerateTestCase(res GenExprResult, valMap map[string]interface{}) string {
             optimizeLevel: disable,
             s: %s,
             valMap: %s,
-        },`, valStr(res.Res), expr, mapStr.String())
+        },`, valStr(want), expr, mapStr.String())
 }
 
 func IndentByParentheses(s string) string {
@@ -476,6 +514,15 @@ func maxInt16(a, b int16) int16 {
 	} else {
 		return b
 	}
+}
+
+func contains(params []Value, target Value) bool {
+	for _, v := range params {
+		if v == target {
+			return true
+		}
+	}
+	return false
 }
 
 func DumpTable(expr *Expr, skipDebug ...bool) string {

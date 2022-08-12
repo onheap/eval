@@ -32,6 +32,11 @@ const (
 	scMask    = uint8(0b00011000)
 	scIfFalse = uint8(0b00001000)
 	scIfTrue  = uint8(0b00010000)
+
+	// parent bool op flag
+	parentOpMask = uint8(0b01100000)
+	andOp        = uint8(0b00100000)
+	orOp         = uint8(0b01000000)
 )
 
 type node struct {
@@ -185,6 +190,154 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 	return os[0], nil
 }
 
+func (e *Expr) EvalRCO(ctx *Ctx) (res Value, err error) {
+	var (
+		nodes = e.nodes
+		size  = int16(len(nodes))
+		m     = e.maxStackSize
+
+		os    []Value
+		osTop = int16(-1)
+	)
+
+	switch {
+	case m <= 8:
+		os = make([]Value, 8)
+	case m <= 16:
+		os = make([]Value, 16)
+	default:
+		os = make([]Value, size)
+	}
+
+	var (
+		param  []Value
+		param2 [2]Value
+		curt   *node
+		prev   int16
+	)
+
+	for i := int16(0); i < size; i++ {
+		curt = nodes[i]
+		switch curt.flag & nodeTypeMask {
+		case fastOperator:
+			param2[0], err = getNodeValueProxy(ctx, nodes[i+1])
+			if err != nil {
+				return
+			}
+			param2[1], err = getNodeValueProxy(ctx, nodes[i+2])
+			if err != nil {
+				return
+			}
+			res, err = executeOperatorProxy(ctx, curt, param2[:])
+			if err != nil {
+				return
+			}
+			i += 2
+		case selector:
+			res, err = getSelectorValueProxy(ctx, curt)
+			if err != nil {
+				return
+			}
+		case constant:
+			res = curt.value
+		case operator:
+			cCnt := int16(curt.childCnt)
+			osTop = osTop - cCnt
+			if cCnt == 2 {
+				param2[0], param2[1] = os[osTop+1], os[osTop+2]
+				param = param2[:]
+			} else {
+				param = make([]Value, cCnt)
+				copy(param, os[osTop+1:])
+			}
+
+			res, err = executeOperatorProxy(ctx, curt, param)
+			if err != nil {
+				return
+			}
+		case cond:
+			res, osTop = os[osTop], osTop-1
+			res, err = curt.operator(ctx, []Value{res})
+			if err != nil {
+				return
+			}
+			if res == true {
+				osTop = curt.osTop
+				i = curt.scIdx
+			}
+			continue
+		default:
+			printDebugExpr(e, prev, i, os, osTop)
+			continue
+		}
+
+		for matchesShortCircuit(res, curt) {
+			// jump to parent node
+			curt, i = parentNode(e, i)
+			if i == -1 {
+				return
+			}
+			if curt.flag&nodeTypeMask == cond &&
+				!matchesShortCircuit(res, curt) {
+				i = nodes[curt.scIdx].scIdx
+				osTop = nodes[i].osTop - 1
+				break
+			} else {
+				osTop = curt.osTop - 1
+			}
+		}
+
+		os[osTop+1], osTop = res, osTop+1
+		prev = i
+	}
+	return os[0], nil
+}
+
+func matchesShortCircuit(res Value, n *node) bool {
+	switch n.flag & parentOpMask {
+	case andOp:
+		return res == false
+	case orOp:
+		return res == true
+	default:
+		return res == DNE
+	}
+}
+
+func executeOperatorProxy(ctx *Ctx, n *node, params []Value) (Value, error) {
+	switch {
+	case isAndOpNode(n) && contains(params, false):
+		return false, nil
+	case isOrOpNode(n) && contains(params, true):
+		return true, nil
+	case contains(params, DNE):
+		return DNE, nil
+	}
+	return n.operator(ctx, params)
+}
+
+func getNodeValueProxy(ctx *Ctx, n *node) (res Value, err error) {
+	if n.flag&nodeTypeMask == constant {
+		res = n.value
+	} else {
+		res, err = getSelectorValueProxy(ctx, n)
+	}
+	return
+}
+
+func getSelectorValueProxy(ctx *Ctx, n *node) (Value, error) {
+	var (
+		selKey = n.selKey
+		strKey = n.value.(string)
+	)
+
+	if !ctx.Cached(selKey, strKey) {
+		return DNE, nil
+	}
+
+	return ctx.Get(selKey, strKey)
+}
+
 func printDebugExpr(e *Expr, prevIdx, curtIdx int16, os []Value, osTop int16) {
 	var (
 		sb   strings.Builder
@@ -197,7 +350,7 @@ func printDebugExpr(e *Expr, prevIdx, curtIdx int16, os []Value, osTop int16) {
 		sb.WriteString(fmt.Sprintf("\n"))
 	}
 
-	sb.WriteString(fmt.Sprintf("%13s: [%v]\n", "Current Node", curt))
+	sb.WriteString(fmt.Sprintf("%13s: [%v], idx:[%d]\n", "Current Node", curt, curtIdx))
 
 	sb.WriteString(fmt.Sprintf("%13s: ", "Operand Stack"))
 	for i := osTop; i >= 0; i-- {
