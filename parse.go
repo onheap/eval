@@ -285,6 +285,10 @@ func (p *parser) next() token {
 	return t
 }
 
+func (p *parser) allowUnknownSelectors() bool {
+	return p.conf.CompileOptions[AllowUnknownSelectors]
+}
+
 func (p *parser) eat(expectTypes ...tokenType) error {
 	t := p.next()
 	if len(expectTypes) == 0 {
@@ -458,44 +462,48 @@ func (p *parser) parseSelector() (*astNode, error) {
 	if t.typ != ident {
 		return nil, nil
 	}
-	if key, ok := p.conf.SelectorMap[t.val]; ok {
-		p.walk()
-		return &astNode{
-			node: &node{
-				flag:   selector,
-				value:  t.val,
-				selKey: key,
-			},
-		}, nil
+	key, ok := p.conf.SelectorMap[t.val]
+	if !ok {
+		if p.allowUnknownSelectors() {
+			key = UndefinedSelKey
+		} else {
+			return nil, nil
+		}
 	}
-	return nil, nil
+
+	p.walk()
+	return &astNode{
+		node: &node{
+			flag:   selector,
+			value:  t.val,
+			selKey: key,
+		},
+	}, nil
 }
 
-func (p *parser) parseExpression() (*astNode, error) {
+func (p *parser) parseSingleNode() (ast *astNode, err error) {
 	fns := []func() (*astNode, error){
 		p.parseInt, p.parseStr, p.parseConst, p.parseSelector, p.parseList}
 	for _, fn := range fns {
-		n, err := fn()
-		if n != nil || err != nil {
-			return n, err
+		ast, err = fn()
+		if ast != nil || err != nil {
+			return ast, err
 		}
+	}
+	return ast, err
+}
+
+func (p *parser) parseExpression() (ast *astNode, err error) {
+	ast, err = p.parseSingleNode()
+	if ast != nil || err != nil {
+		return ast, err
 	}
 
 	if t := p.peek(); t.typ == ident {
-		if p.conf.CompileOptions[AllowUnknownSelectors] {
-			p.walk()
-			return &astNode{
-				node: &node{
-					flag:   selector,
-					value:  t.val,
-					selKey: UndefinedSelKey,
-				},
-			}, nil
-		}
 		return nil, p.unknownTokenError(p.peek())
 	}
 
-	err := p.eat(lParen)
+	err = p.eat(lParen)
 	if err != nil {
 		return nil, err
 	}
@@ -516,14 +524,7 @@ func (p *parser) parseExpression() (*astNode, error) {
 
 	p.walk()
 
-	var n *astNode
-	if p.isKeyword(car) {
-		n, err = p.buildKeywordNode(car, children)
-	} else {
-		n, err = p.buildNode(car, children)
-	}
-
-	return n, err
+	return p.buildNode(car, children)
 }
 
 func (p *parser) isKeyword(car token) bool {
@@ -572,6 +573,10 @@ func (p *parser) buildKeywordNode(car token, children []*astNode) (*astNode, err
 }
 
 func (p *parser) buildNode(car token, children []*astNode) (*astNode, error) {
+	if p.isKeyword(car) {
+		return p.buildKeywordNode(car, children)
+	}
+
 	// parse op node
 	op, exist := builtinOperators[car.val]
 	if !exist {
