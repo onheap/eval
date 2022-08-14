@@ -1049,6 +1049,50 @@ func TestParseInfixAstTree(t *testing.T) {
 				},
 			},
 		},
+		{
+			expr: `3 + 4 * 2 / ( 1 - 5 ) - 6`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "-",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "+",
+						children: []verifyNode{
+							{tpy: constant, data: int64(3)},
+							{
+								tpy:  operator,
+								data: "/",
+								children: []verifyNode{
+									{
+										tpy:  operator,
+										data: "*",
+										children: []verifyNode{
+											{tpy: constant, data: int64(4)},
+											{tpy: constant, data: int64(2)},
+										},
+									},
+									{
+										tpy:  operator,
+										data: "-",
+										children: []verifyNode{
+											{tpy: constant, data: int64(1)},
+											{tpy: constant, data: int64(5)},
+										},
+									},
+								},
+							},
+						},
+					},
+					{tpy: constant, data: int64(6)},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation: true,
+				},
+			},
+		},
 	}
 
 	for _, c := range testCases {

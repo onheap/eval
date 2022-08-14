@@ -238,7 +238,7 @@ func (p *parser) parseAstTree() (root *astNode, err error) {
 		return nil, err
 	}
 
-	if !p.hasNext() {
+	if p.hasNext() {
 		return nil, p.invalidExprErr(p.idx)
 	}
 	return root, nil
@@ -303,9 +303,9 @@ func (p *parser) peek() token {
 
 func (p *parser) hasNext() bool {
 	if p.direction > 0 {
-		return p.idx == len(p.tokens)
+		return p.idx < len(p.tokens)
 	} else {
-		return p.idx == -1
+		return p.idx >= 0
 	}
 }
 
@@ -428,7 +428,7 @@ func (p *parser) parseList() (*astNode, error) {
 		strs = append(strs, T[j].val)
 	}
 
-	// todo: return error when list is empty
+	// todo: return error when list is empty?
 
 	n := &node{flag: constant}
 	if typ == integer {
@@ -605,6 +605,9 @@ func (p *parser) parseInfixExpression() (ast *astNode, err error) {
 				"/": 100,
 				"+": 50,
 				"-": 50,
+				"=": 40,
+				"&": 30,
+				"|": 20,
 				")": 1,
 				"(": 1,
 			}
@@ -615,6 +618,7 @@ func (p *parser) parseInfixExpression() (ast *astNode, err error) {
 		buildTopOperators = func(car token) error {
 			for l := len(operatorStack); l != 0; l = len(operatorStack) {
 				top := operatorStack[l-1]
+
 				if car.typ == lParen && top.typ == rParen {
 					operatorStack = operatorStack[:l-1]
 					break
@@ -637,7 +641,7 @@ func (p *parser) parseInfixExpression() (ast *astNode, err error) {
 		}
 	)
 
-	for !p.hasNext() {
+	for p.hasNext() {
 		fns := []func() (*astNode, error){p.parseInt, p.parseStr, p.parseConst, p.parseSelector}
 		for _, fn := range fns {
 			ast, err = fn()
@@ -668,6 +672,8 @@ func (p *parser) parseInfixExpression() (ast *astNode, err error) {
 			if err != nil {
 				return nil, err
 			}
+		default:
+			return nil, p.tokenTypeError(ident, car)
 		}
 	}
 
