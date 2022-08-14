@@ -55,16 +55,18 @@ type astNode struct {
 }
 
 type parser struct {
-	source string
-	conf   *CompileConfig
-	tokens []token
-	idx    int
+	source    string
+	conf      *CompileConfig
+	tokens    []token
+	idx       int
+	direction int // walk direction
 }
 
 func newParser(cc *CompileConfig, source string) *parser {
 	return &parser{
-		source: source,
-		conf:   cc,
+		source:    source,
+		conf:      cc,
+		direction: 1,
 	}
 }
 
@@ -212,7 +214,7 @@ func (p *parser) lex() error {
 	return nil
 }
 
-func (p *parser) parseAstTree() (*astNode, error) {
+func (p *parser) parseAstTree() (root *astNode, err error) {
 	n := 0
 	for _, t := range p.tokens {
 		if t.typ != comment {
@@ -222,24 +224,32 @@ func (p *parser) parseAstTree() (*astNode, error) {
 	}
 	p.tokens = p.tokens[:n]
 
-	if err := p.checkParentheses(); err != nil {
+	if err = p.checkParentheses(); err != nil {
 		return nil, err
 	}
 
-	root, err := p.parseExpression()
+	if p.isInfixNotation() {
+		root, err = p.parseInfixExpression()
+	} else {
+		root, err = p.parseExpression()
+	}
+
 	if err != nil {
 		return nil, err
 	}
 
-	if p.idx != n {
+	if !p.hasNext() {
 		return nil, p.invalidExprErr(p.idx)
 	}
 	return root, nil
 }
 
 func (p *parser) checkParentheses() error {
+	prefixNotation := !p.isInfixNotation()
+
 	last := len(p.tokens) - 1
-	if p.tokens[0].typ != lParen || p.tokens[last].typ != rParen {
+	if prefixNotation &&
+		(p.tokens[0].typ != lParen || p.tokens[last].typ != rParen) {
 		return p.parenUnmatchedErr(0)
 	}
 
@@ -251,7 +261,11 @@ func (p *parser) checkParentheses() error {
 		case rParen:
 			parenCnt--
 		}
-		if parenCnt < 0 || (parenCnt == 0 && i != last) {
+		if parenCnt < 0 {
+			return p.parenUnmatchedErr(t.pos)
+		}
+
+		if prefixNotation && parenCnt == 0 && i != last {
 			return p.parenUnmatchedErr(t.pos)
 		}
 	}
@@ -275,18 +289,30 @@ func (p *parser) parse() (*astNode, *CompileConfig, error) {
 	return ast, p.conf, nil
 }
 
+func (p *parser) allowUnknownSelectors() bool {
+	return p.conf.CompileOptions[AllowUnknownSelectors]
+}
+
+func (p *parser) isInfixNotation() bool {
+	return p.conf.CompileOptions[InfixNotation]
+}
+
 func (p *parser) peek() token {
 	return p.tokens[p.idx]
 }
 
-func (p *parser) next() token {
-	t := p.tokens[p.idx]
-	p.idx++
-	return t
+func (p *parser) hasNext() bool {
+	if p.direction > 0 {
+		return p.idx == len(p.tokens)
+	} else {
+		return p.idx == -1
+	}
 }
 
-func (p *parser) allowUnknownSelectors() bool {
-	return p.conf.CompileOptions[AllowUnknownSelectors]
+func (p *parser) next() token {
+	t := p.tokens[p.idx]
+	p.walk()
+	return t
 }
 
 func (p *parser) eat(expectTypes ...tokenType) error {
@@ -304,7 +330,12 @@ func (p *parser) eat(expectTypes ...tokenType) error {
 }
 
 func (p *parser) walk() {
-	p.idx++
+	p.idx += p.direction
+}
+
+func (p *parser) traverseBackward() {
+	p.direction = -1
+	p.idx = len(p.tokens) - 1
 }
 
 func (p *parser) invalidExprErr(pos int) error {
@@ -464,11 +495,7 @@ func (p *parser) parseSelector() (*astNode, error) {
 	}
 	key, ok := p.conf.SelectorMap[t.val]
 	if !ok {
-		if p.allowUnknownSelectors() {
-			key = UndefinedSelKey
-		} else {
-			return nil, nil
-		}
+		return nil, nil
 	}
 
 	p.walk()
@@ -477,6 +504,25 @@ func (p *parser) parseSelector() (*astNode, error) {
 			flag:   selector,
 			value:  t.val,
 			selKey: key,
+		},
+	}, nil
+}
+
+func (p *parser) mustParseUnknownSelector() (*astNode, error) {
+	if !p.allowUnknownSelectors() {
+		return nil, p.unknownTokenError(p.peek())
+	}
+
+	t := p.peek()
+	if t.typ != ident {
+		return nil, p.tokenTypeError(ident, t)
+	}
+	p.walk()
+	return &astNode{
+		node: &node{
+			flag:   selector,
+			value:  t.val,
+			selKey: UndefinedSelKey,
 		},
 	}, nil
 }
@@ -500,7 +546,7 @@ func (p *parser) parseExpression() (ast *astNode, err error) {
 	}
 
 	if t := p.peek(); t.typ == ident {
-		return nil, p.unknownTokenError(p.peek())
+		return p.mustParseUnknownSelector()
 	}
 
 	err = p.eat(lParen)
@@ -522,9 +568,115 @@ func (p *parser) parseExpression() (ast *astNode, err error) {
 		children = append(children, child)
 	}
 
-	p.walk()
+	err = p.eat(rParen)
+	if err != nil {
+		return nil, err
+	}
 
-	return p.buildNode(car, children)
+	if p.isKeyword(car) {
+		ast, err = p.buildKeywordNode(car, children)
+	} else {
+		ast, err = p.buildOperatorNode(car, children)
+	}
+
+	return ast, err
+}
+
+func (p *parser) parseInfixExpression() (ast *astNode, err error) {
+	p.traverseBackward()
+	var (
+		operatorStack []token
+		outputStack   []*astNode
+	)
+
+	var (
+		push = func(n *astNode) {
+			outputStack = append(outputStack, n)
+		}
+		pop = func() (res *astNode) {
+			l := len(outputStack)
+			res, outputStack = outputStack[l-1], outputStack[:l-1]
+			return res
+		}
+
+		topHasHigherPrecedence = func(top token, car token) bool {
+			precedence := map[string]int{
+				"*": 100,
+				"/": 100,
+				"+": 50,
+				"-": 50,
+				")": 1,
+				"(": 1,
+			}
+
+			return precedence[top.val]-precedence[car.val] > 0
+		}
+
+		buildTopOperators = func(car token) error {
+			for l := len(operatorStack); l != 0; l = len(operatorStack) {
+				top := operatorStack[l-1]
+				if car.typ == lParen && top.typ == rParen {
+					operatorStack = operatorStack[:l-1]
+					break
+				}
+
+				if !topHasHigherPrecedence(top, car) {
+					break
+				}
+
+				operatorStack = operatorStack[:l-1]
+				children := []*astNode{pop(), pop()}
+				opNode, err := p.buildOperatorNode(top, children)
+				if err != nil {
+					return err
+				}
+
+				push(opNode)
+			}
+			return nil
+		}
+	)
+
+	for !p.hasNext() {
+		fns := []func() (*astNode, error){p.parseInt, p.parseStr, p.parseConst, p.parseSelector}
+		for _, fn := range fns {
+			ast, err = fn()
+			if ast != nil || err != nil {
+				break
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+		if ast != nil {
+			push(ast)
+			continue
+		}
+
+		car := p.next()
+		switch car.typ {
+		case ident:
+			err = buildTopOperators(car)
+			if err != nil {
+				return nil, err
+			}
+			operatorStack = append(operatorStack, car)
+		case rParen:
+			operatorStack = append(operatorStack, car)
+		case lParen:
+			err = buildTopOperators(car)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	err = buildTopOperators(token{})
+	if err != nil {
+		return nil, err
+	}
+
+	return pop(), nil
 }
 
 func (p *parser) isKeyword(car token) bool {
@@ -572,11 +724,7 @@ func (p *parser) buildKeywordNode(car token, children []*astNode) (*astNode, err
 	}, nil
 }
 
-func (p *parser) buildNode(car token, children []*astNode) (*astNode, error) {
-	if p.isKeyword(car) {
-		return p.buildKeywordNode(car, children)
-	}
-
+func (p *parser) buildOperatorNode(car token, children []*astNode) (*astNode, error) {
 	// parse op node
 	op, exist := builtinOperators[car.val]
 	if !exist {

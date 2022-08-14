@@ -195,11 +195,11 @@ func TestLex(t *testing.T) {
 		},
 
 		{
-			expr:   `(< age 18.0)`,
+			expr:   `(< age 18.0)`, // can not parse float
 			errMsg: "can not parse token",
 		},
 		{
-			expr:   `(+ 1 1.0)`,
+			expr:   `(+ 1 1.0)`, // can not parse float
 			errMsg: "can not parse token",
 		},
 		{
@@ -862,6 +862,192 @@ func TestParseAstTree(t *testing.T) {
 		{
 			expr:   `(+ 1 1) (+ 1 1)`,
 			errMsg: "parentheses unmatched error",
+		},
+	}
+
+	for _, c := range testCases {
+		t.Run(c.expr, func(t *testing.T) {
+			ast, _, err := newParser(c.cc, c.expr).parse()
+			if len(c.errMsg) != 0 {
+				assertErrStrContains(t, err, c.errMsg, c)
+				return
+			}
+
+			assertNil(t, err)
+			assertAstTreeIdentical(t, ast, c.ast, c)
+		})
+	}
+}
+
+func TestParseInfixAstTree(t *testing.T) {
+	testCases := []struct {
+		cc     *CompileConfig
+		expr   string
+		ast    verifyNode
+		errMsg string
+	}{
+		{
+			expr: `1 + 2`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "+",
+				children: []verifyNode{
+					{tpy: constant, data: int64(1)},
+					{tpy: constant, data: int64(2)},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation: true,
+				},
+			},
+		},
+
+		{
+			expr: `1 + 2 + 3 + 4`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "+",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "+",
+						children: []verifyNode{
+							{
+								tpy:  operator,
+								data: "+",
+								children: []verifyNode{
+									{tpy: constant, data: int64(1)},
+									{tpy: constant, data: int64(2)},
+								},
+							},
+							{tpy: constant, data: int64(3)},
+						},
+					},
+					{tpy: constant, data: int64(4)},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation: true,
+				},
+			},
+		},
+
+		{
+			expr: `1 + 2 * 3`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "+",
+				children: []verifyNode{
+					{tpy: constant, data: int64(1)},
+					{
+						tpy:  operator,
+						data: "*",
+						children: []verifyNode{
+							{tpy: constant, data: int64(2)},
+							{tpy: constant, data: int64(3)},
+						},
+					},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation: true,
+				},
+			},
+		},
+
+		{
+			expr: `(1 + 2) * 3`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "*",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "+",
+						children: []verifyNode{
+							{tpy: constant, data: int64(1)},
+							{tpy: constant, data: int64(2)},
+						},
+					},
+					{tpy: constant, data: int64(3)},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation: true,
+				},
+			},
+		},
+
+		{
+			expr: `((1 + 2) * 3) / 1`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "/",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "*",
+						children: []verifyNode{
+							{
+								tpy:  operator,
+								data: "+",
+								children: []verifyNode{
+									{tpy: constant, data: int64(1)},
+									{tpy: constant, data: int64(2)},
+								},
+							},
+							{tpy: constant, data: int64(3)},
+						},
+					},
+					{tpy: constant, data: int64(1)},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation: true,
+				},
+			},
+		},
+		{
+			expr: `1 + 2 * 3 - 4 / 5`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "-",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "+",
+						children: []verifyNode{
+							{tpy: constant, data: int64(1)},
+							{
+								tpy:  operator,
+								data: "*",
+								children: []verifyNode{
+									{tpy: constant, data: int64(2)},
+									{tpy: constant, data: int64(3)},
+								},
+							},
+						},
+					},
+					{
+						tpy:  operator,
+						data: "/",
+						children: []verifyNode{
+							{tpy: constant, data: int64(4)},
+							{tpy: constant, data: int64(5)},
+						},
+					},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation: true,
+				},
+			},
 		},
 	}
 

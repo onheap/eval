@@ -42,7 +42,6 @@ var (
 		"not": logicNot,
 		"&":   logic{mode: and}.execute,
 		"|":   logic{mode: or}.execute,
-		"^":   logic{mode: xor}.execute,
 		"!":   logicNot,
 
 		// comparison
