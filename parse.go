@@ -17,6 +17,7 @@ const (
 	lParen  tokenType = "lParen"
 	rParen  tokenType = "rParen"
 	comment tokenType = "comment"
+	comma   tokenType = "comma"
 )
 
 type keyword string
@@ -75,11 +76,21 @@ func (p *parser) lex() error {
 		nextToken = func(A []rune, i int) (string, int) {
 			j := i
 			for ; j < len(A); j++ {
-				if r := A[j]; unicode.IsSpace(r) || r == '(' || r == ')' || r == ';' {
+				if r := A[j]; unicode.IsSpace(r) || r == '(' || r == ')' || r == ',' || r == ';' {
 					break
 				}
 			}
 			return string(A[i:j]), j
+		}
+
+		lexComma = func(A []rune, i int) (token, int) {
+			if A[i] == ',' {
+				return token{
+					typ: comma,
+					val: string(A[i]),
+				}, i + 1
+			}
+			return token{}, i
 		}
 
 		lexParen = func(A []rune, i int) (token, int) {
@@ -178,6 +189,7 @@ func (p *parser) lex() error {
 		}
 
 		lexers = []func([]rune, int) (token, int){
+			lexComma,
 			lexParen,
 			lexInteger,
 			lexStr,
@@ -224,7 +236,7 @@ func (p *parser) parseAstTree() (root *astNode, err error) {
 	}
 	p.tokens = p.tokens[:n]
 
-	if err = p.checkParentheses(); err != nil {
+	if err = p.check(); err != nil {
 		return nil, err
 	}
 
@@ -244,7 +256,7 @@ func (p *parser) parseAstTree() (root *astNode, err error) {
 	return root, nil
 }
 
-func (p *parser) checkParentheses() error {
+func (p *parser) check() error {
 	prefixNotation := !p.isInfixNotation()
 
 	last := len(p.tokens) - 1
@@ -260,6 +272,10 @@ func (p *parser) checkParentheses() error {
 			parenCnt++
 		case rParen:
 			parenCnt--
+		case comma:
+			if prefixNotation { // commas can be used in infix expressions only
+				return p.unknownTokenError(t)
+			}
 		}
 		if parenCnt < 0 {
 			return p.parenUnmatchedErr(t.pos)
@@ -599,37 +615,46 @@ func (p *parser) parseInfixExpression() (ast *astNode, err error) {
 			return res
 		}
 
-		topHasHigherPrecedence = func(top token, car token) bool {
+		comparePrecedence = func(top token, car token) int {
 			precedence := map[string]int{
-				"*": 100,
-				"/": 100,
-				"+": 50,
-				"-": 50,
-				"=": 40,
-				"&": 30,
-				"|": 20,
-				")": 1,
-				"(": 1,
+				"add": 1000,
+				"mod": 1000,
+				"*":   100,
+				"/":   100,
+				"+":   50,
+				"-":   50,
+				"=":   40,
+				"&":   30,
+				"|":   20,
+				")":   1,
+				"(":   1,
+				",":   1,
 			}
 
-			return precedence[top.val]-precedence[car.val] > 0
+			return precedence[top.val] - precedence[car.val]
+		}
+
+		getChildCount = func(car token) int {
+			return 2
 		}
 
 		buildTopOperators = func(car token) error {
 			for l := len(operatorStack); l != 0; l = len(operatorStack) {
 				top := operatorStack[l-1]
-
 				if car.typ == lParen && top.typ == rParen {
 					operatorStack = operatorStack[:l-1]
 					break
 				}
 
-				if !topHasHigherPrecedence(top, car) {
+				if comparePrecedence(top, car) <= 0 {
 					break
 				}
 
 				operatorStack = operatorStack[:l-1]
-				children := []*astNode{pop(), pop()}
+				var children []*astNode
+				for i := 0; i < getChildCount(top); i++ {
+					children = append(children, pop())
+				}
 				opNode, err := p.buildOperatorNode(top, children)
 				if err != nil {
 					return err
@@ -668,6 +693,11 @@ func (p *parser) parseInfixExpression() (ast *astNode, err error) {
 		case rParen:
 			operatorStack = append(operatorStack, car)
 		case lParen:
+			err = buildTopOperators(car)
+			if err != nil {
+				return nil, err
+			}
+		case comma:
 			err = buildTopOperators(car)
 			if err != nil {
 				return nil, err

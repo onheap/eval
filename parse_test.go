@@ -983,6 +983,127 @@ func TestParseInfixAstTree(t *testing.T) {
 		},
 
 		{
+			expr: `mod(4, 2) * 3`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "*",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "mod",
+						children: []verifyNode{
+							{tpy: constant, data: int64(4)},
+							{tpy: constant, data: int64(2)},
+						},
+					},
+					{tpy: constant, data: int64(3)},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation: true,
+				},
+			},
+		},
+
+		{
+			expr: `mod(16 + 2, add(3 + 1, 8)) * 5`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "*",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "mod",
+						children: []verifyNode{
+							{
+								tpy:  operator,
+								data: "+",
+								children: []verifyNode{
+									{tpy: constant, data: int64(16)},
+									{tpy: constant, data: int64(2)},
+								},
+							},
+							{
+								tpy:  operator,
+								data: "add",
+								children: []verifyNode{
+									{
+										tpy:  operator,
+										data: "+",
+										children: []verifyNode{
+											{tpy: constant, data: int64(3)},
+											{tpy: constant, data: int64(1)},
+										},
+									},
+									{tpy: constant, data: int64(8)},
+								},
+							},
+						},
+					},
+					{tpy: constant, data: int64(5)},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation: true,
+				},
+			},
+		},
+
+		{
+			expr: `1 + 1 = 2 | 4 = 2 + 2 & true`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "|",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "=",
+						children: []verifyNode{
+							{
+								tpy:  operator,
+								data: "+",
+								children: []verifyNode{
+									{tpy: constant, data: int64(1)},
+									{tpy: constant, data: int64(1)},
+								},
+							},
+							{tpy: constant, data: int64(2)},
+						},
+					},
+					{
+						tpy:  operator,
+						data: "&",
+						children: []verifyNode{
+							{
+								tpy:  operator,
+								data: "=",
+								children: []verifyNode{
+									{tpy: constant, data: int64(4)},
+									{
+										tpy:  operator,
+										data: "+",
+										children: []verifyNode{
+											{tpy: constant, data: int64(2)},
+											{tpy: constant, data: int64(2)},
+										},
+									},
+								},
+							},
+							{tpy: constant, data: true},
+						},
+					},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation: true,
+				},
+			},
+		},
+
+		{
 			expr: `((1 + 2) * 3) / 1`,
 			ast: verifyNode{
 				tpy:  operator,
