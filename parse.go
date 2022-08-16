@@ -432,7 +432,7 @@ func (p *parser) parseList() (*astNode, error) {
 	if typ != rParen && typ != integer && typ != str {
 		return nil, nil
 	}
-	strs := []string{}
+	strs := make([]string, 0)
 	for j := i + 1; j < len(T); j++ {
 		if T[j].typ == rParen {
 			i = j
