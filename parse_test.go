@@ -83,16 +83,15 @@ func TestLex(t *testing.T) {
 			},
 		},
 		{
-			expr: `1+2`,
+			expr: `!a`,
 			tokens: []token{
-				{typ: integer, val: "1"},
-				{typ: ident, val: "+"},
-				{typ: integer, val: "2"},
+				{typ: ident, val: "!"},
+				{typ: ident, val: "a"},
 			},
 			cc: NewCompileConfig(EnableInfixNotation),
 		},
 		{
-			expr: `1+2 == (3)`,
+			expr: `1 + 2 == (3)`,
 			tokens: []token{
 				{typ: integer, val: "1"},
 				{typ: ident, val: "+"},
@@ -105,16 +104,30 @@ func TestLex(t *testing.T) {
 			cc: NewCompileConfig(EnableInfixNotation),
 		},
 		{
-			expr: `1+2==3`,
+			expr: `a & !b == c`,
+			tokens: []token{
+				{typ: ident, val: "a"},
+				{typ: ident, val: "&"},
+				{typ: ident, val: "!"},
+				{typ: ident, val: "b"},
+				{typ: ident, val: "=="},
+				{typ: ident, val: "c"},
+			},
+			cc: NewCompileConfig(EnableInfixNotation),
+		},
+
+		{
+			expr: `1 + 2 == -3`,
 			tokens: []token{
 				{typ: integer, val: "1"},
 				{typ: ident, val: "+"},
 				{typ: integer, val: "2"},
 				{typ: ident, val: "=="},
-				{typ: integer, val: "3"},
+				{typ: integer, val: "-3"},
 			},
 			cc: NewCompileConfig(EnableInfixNotation),
 		},
+
 		{
 			expr: `(+ -1 1)`,
 			tokens: []token{
@@ -1196,7 +1209,7 @@ func TestParseInfixAstTree(t *testing.T) {
 		},
 
 		{
-			expr: `! b`,
+			expr: `!b`,
 			ast: verifyNode{
 				tpy:  operator,
 				data: "!",
@@ -1213,7 +1226,7 @@ func TestParseInfixAstTree(t *testing.T) {
 		},
 
 		{
-			expr: `! b && (a + 1 == c)`,
+			expr: `!b && (a + 1 == c)`,
 			ast: verifyNode{
 				tpy:  operator,
 				data: "&&",
@@ -1251,7 +1264,34 @@ func TestParseInfixAstTree(t *testing.T) {
 		},
 
 		{
-			expr: `and(! c, e == ! f)`,
+			expr: `in(!a, ["b" "c" "d"])`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "in",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "!",
+						children: []verifyNode{
+							{tpy: selector, data: "a"},
+						},
+					},
+					{
+						tpy:  constant,
+						data: []string{"b", "c", "d"},
+					},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation:         true,
+					AllowUnknownSelectors: true,
+				},
+			},
+		},
+
+		{
+			expr: `and(!c, e == !f)`,
 			ast: verifyNode{
 				tpy:  operator,
 				data: "and",
@@ -1288,7 +1328,7 @@ func TestParseInfixAstTree(t *testing.T) {
 		},
 
 		{
-			expr: `! b && (a + 1 == c) && (d == ! c) && and(! c, e == ! f)`,
+			expr: `!b && (a + 1 == c) && (d == !c) && and(!c, e == !f)`,
 			ast: verifyNode{
 				tpy:  operator,
 				data: "&&",

@@ -11,13 +11,15 @@ import (
 type tokenType string
 
 const (
-	integer tokenType = "integer"
-	str     tokenType = "str"
-	ident   tokenType = "ident"
-	lParen  tokenType = "lParen"
-	rParen  tokenType = "rParen"
-	comment tokenType = "comment"
-	comma   tokenType = "comma"
+	integer  tokenType = "integer"
+	str      tokenType = "str"
+	ident    tokenType = "ident"
+	lParen   tokenType = "lParen"
+	rParen   tokenType = "rParen"
+	lBracket tokenType = "lBracket"
+	rBracket tokenType = "rBracket"
+	comment  tokenType = "comment"
+	comma    tokenType = "comma"
 )
 
 type keyword string
@@ -105,46 +107,25 @@ func (p *parser) lex() error {
 			if A[i] == ';' {
 				return lexComment()
 			}
-
 			if A[i] == '"' {
 				return lexString()
 			}
 
 			start := i
-			var doubleRunes bool
 			for ; i < len(A); i++ {
 				r := A[i]
-				if unicode.IsSpace(r) || strings.ContainsRune("();", r) {
+				if unicode.IsSpace(r) || strings.ContainsRune("()[];", r) {
 					break
 				}
-				if p.isInfixNotation() {
-					if strings.ContainsRune("+-*/%!,", r) {
-						break
-					}
-					// ==, >=, <=
-					if strings.ContainsRune("=><", r) {
-						if i == start && i+1 < len(A) && A[i+1] == '=' {
-							doubleRunes = true
-							i += 1
-						}
-						break
-					}
 
-					// &&, ||
-					if strings.ContainsRune("&|", r) {
-						if i == start && i+1 < len(A) && A[i+1] == r {
-							doubleRunes = true
-							i += 1
-						}
-						break
-					}
+				if p.isInfixNotation() && strings.ContainsRune(",!", r) {
+					break
 				}
 			}
 
-			if i == start || (doubleRunes && i == start+1) {
+			if i == start {
 				i += 1
 			}
-
 			return string(A[start:i]), nil
 		}
 
@@ -198,6 +179,10 @@ func (p *parser) lex() error {
 			tk.typ = lParen
 		case t == ")":
 			tk.typ = rParen
+		case t == "[":
+			tk.typ = lBracket
+		case t == "]":
+			tk.typ = rBracket
 		case t == ",":
 			tk.typ = comma
 		case strings.HasPrefix(t, ";"):
@@ -428,48 +413,50 @@ func (p *parser) valNode(v Value) *astNode {
 	}
 }
 
-func (p *parser) parseList() (*astNode, error) {
-	i := p.idx
-	T := p.tokens
-	if T[i].typ != lParen {
-		return nil, nil
-	}
-	typ := T[i+1].typ
-	if typ != rParen && typ != integer && typ != str {
-		return nil, nil
-	}
-	strs := make([]string, 0)
-	for j := i + 1; j < len(T); j++ {
-		if T[j].typ == rParen {
-			i = j
-			break
+func (p *parser) parseList(leftType, rightType tokenType) func() (*astNode, error) {
+	return func() (*astNode, error) {
+		i := p.idx
+		T := p.tokens
+		if T[i].typ != leftType {
+			return nil, nil
 		}
-		if T[j].typ != typ {
-			return nil, p.tokenTypeError(typ, T[j])
+		typ := T[i+1].typ
+		if typ != rightType && typ != integer && typ != str {
+			return nil, nil
 		}
-		strs = append(strs, T[j].val)
-	}
-
-	// todo: return error when list is empty?
-
-	n := &node{flag: constant}
-	if typ == integer {
-		ints := make([]int64, 0, len(strs))
-		for _, s := range strs {
-			v, err := strconv.ParseInt(s, 10, 64)
-			if err != nil {
-				return nil, err
+		strs := make([]string, 0)
+		for j := i + 1; j < len(T); j++ {
+			if T[j].typ == rightType {
+				i = j
+				break
 			}
-			ints = append(ints, v)
+			if T[j].typ != typ {
+				return nil, p.tokenTypeError(typ, T[j])
+			}
+			strs = append(strs, T[j].val)
 		}
-		n.value = ints
-	} else {
-		n.value = strs
+
+		// todo: return error when list is empty?
+
+		n := &node{flag: constant}
+		if typ == integer {
+			ints := make([]int64, 0, len(strs))
+			for _, s := range strs {
+				v, err := strconv.ParseInt(s, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				ints = append(ints, v)
+			}
+			n.value = ints
+		} else {
+			n.value = strs
+		}
+		p.idx = i + 1
+		return &astNode{
+			node: n,
+		}, nil
 	}
-	p.idx = i + 1
-	return &astNode{
-		node: n,
-	}, nil
 }
 
 func (p *parser) parseInt() (*astNode, error) {
@@ -558,9 +545,15 @@ func (p *parser) parseUnknownSelector() (*astNode, error) {
 func (p *parser) parseSingleNode() (ast *astNode, err error) {
 	fns := []func() (*astNode, error){
 		p.parseInt, p.parseStr, p.parseConst, p.parseSelector, p.parseUnknownSelector}
-	if !p.isInfixNotation() {
-		fns = append(fns, p.parseList)
+
+	if p.isInfixNotation() {
+		// For infix expressions only lists with brackets are supported
+		fns = append(fns, p.parseList(lBracket, rBracket))
+	} else {
+		// For prefix expressions, lists with brackets or parentheses both are supported
+		fns = append(fns, p.parseList(lBracket, rBracket), p.parseList(lParen, rParen))
 	}
+
 	for _, fn := range fns {
 		ast, err = fn()
 		if ast != nil || err != nil {
