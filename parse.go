@@ -114,11 +114,7 @@ func (p *parser) lex() error {
 			start := i
 			for ; i < len(A); i++ {
 				r := A[i]
-				if unicode.IsSpace(r) || strings.ContainsRune("()[];", r) {
-					break
-				}
-
-				if p.isInfixNotation() && strings.ContainsRune(",!", r) {
+				if unicode.IsSpace(r) || strings.ContainsRune("()[];,", r) {
 					break
 				}
 			}
@@ -171,6 +167,19 @@ func (p *parser) lex() error {
 
 		if len(t) == 1 && unicode.IsSpace(rune(t[0])) {
 			continue
+		}
+
+		if p.isInfixNotation() && strings.HasPrefix(t, "!") {
+			if isValidIdent(t) {
+				p.tokens = append(p.tokens, token{typ: ident, val: t})
+				continue
+			}
+
+			if next := t[1:]; isValidIdent(next) {
+				p.tokens = append(p.tokens, token{typ: ident, val: "!"})
+				p.tokens = append(p.tokens, token{typ: ident, val: next})
+				continue
+			}
 		}
 
 		tk := token{val: t}
@@ -527,6 +536,10 @@ func (p *parser) parseUnknownSelector() (*astNode, error) {
 		return nil, nil
 	}
 
+	if p.isKeyword(t) {
+		return nil, nil
+	}
+
 	_, exist := p.getOperator(t.val)
 	if exist {
 		return nil, nil
@@ -542,7 +555,7 @@ func (p *parser) parseUnknownSelector() (*astNode, error) {
 	}, nil
 }
 
-func (p *parser) parseSingleNode() (ast *astNode, err error) {
+func (p *parser) buildLeafNode() (ast *astNode, err error) {
 	fns := []func() (*astNode, error){
 		p.parseInt, p.parseStr, p.parseConst, p.parseSelector, p.parseUnknownSelector}
 
@@ -564,7 +577,7 @@ func (p *parser) parseSingleNode() (ast *astNode, err error) {
 }
 
 func (p *parser) parseExpression() (ast *astNode, err error) {
-	ast, err = p.parseSingleNode()
+	ast, err = p.buildLeafNode()
 	if ast != nil || err != nil {
 		return ast, err
 	}
@@ -597,16 +610,10 @@ func (p *parser) parseExpression() (ast *astNode, err error) {
 		return nil, err
 	}
 
-	if p.isKeyword(car) {
-		ast, err = p.buildKeywordNode(car, children)
-	} else {
-		ast, err = p.buildOperatorNode(car, children)
-	}
-
-	return ast, err
+	return p.buildParentNode(car, children)
 }
 
-func (p *parser) parseInfixExpression() (ast *astNode, err error) {
+func (p *parser) parseInfixExpression() (*astNode, error) {
 	type op struct {
 		t token // token
 		l int   // output stack size
@@ -659,19 +666,19 @@ func (p *parser) parseInfixExpression() (ast *astNode, err error) {
 					children[i] = pop()
 				}
 
-				opNode, err := p.buildOperatorNode(top.t, children)
+				ast, err := p.buildParentNode(top.t, children)
 				if err != nil {
 					return err
 				}
 
-				push(opNode)
+				push(ast)
 			}
 			return nil
 		}
 	)
 
 	for p.hasNext() {
-		ast, err = p.parseSingleNode()
+		ast, err := p.buildLeafNode()
 		if err != nil {
 			return nil, err
 		}
@@ -705,7 +712,7 @@ func (p *parser) parseInfixExpression() (ast *astNode, err error) {
 		}
 	}
 
-	err = buildTopOperators(token{})
+	err := buildTopOperators(token{})
 	if err != nil {
 		return nil, err
 	}
@@ -760,6 +767,14 @@ func (p *parser) isKeyword(car token) bool {
 		}
 	}
 	return false
+}
+
+func (p *parser) buildParentNode(car token, children []*astNode) (*astNode, error) {
+	if p.isKeyword(car) {
+		return p.buildKeywordNode(car, children)
+	} else {
+		return p.buildOperatorNode(car, children)
+	}
 }
 
 func (p *parser) buildKeywordNode(car token, children []*astNode) (*astNode, error) {

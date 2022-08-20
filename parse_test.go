@@ -129,6 +129,91 @@ func TestLex(t *testing.T) {
 		},
 
 		{
+			expr: `!a != !b != !c`,
+			tokens: []token{
+				{typ: ident, val: "!"},
+				{typ: ident, val: "a"},
+				{typ: ident, val: "!="},
+				{typ: ident, val: "!"},
+				{typ: ident, val: "b"},
+				{typ: ident, val: "!="},
+				{typ: ident, val: "!"},
+				{typ: ident, val: "c"},
+			},
+			cc: NewCompileConfig(EnableInfixNotation),
+		},
+
+		{
+			expr: `!a`,
+			tokens: []token{
+				{typ: ident, val: "!"},
+				{typ: ident, val: "a"},
+			},
+			cc: NewCompileConfig(EnableInfixNotation),
+		},
+
+		{
+			expr: `!and(a, b, c)`,
+			tokens: []token{
+				{typ: ident, val: "!"},
+				{typ: ident, val: "and"},
+				{typ: lParen, val: "("},
+				{typ: ident, val: "a"},
+				{typ: comma, val: ","},
+				{typ: ident, val: "b"},
+				{typ: comma, val: ","},
+				{typ: ident, val: "c"},
+				{typ: rParen, val: ")"},
+			},
+			cc: NewCompileConfig(EnableInfixNotation),
+		},
+
+		{
+			expr: `!true`,
+			tokens: []token{
+				{typ: ident, val: "!"},
+				{typ: ident, val: "true"},
+			},
+			cc: NewCompileConfig(EnableInfixNotation),
+		},
+
+		{
+			expr: `!false`,
+			tokens: []token{
+				{typ: ident, val: "!"},
+				{typ: ident, val: "false"},
+			},
+			cc: NewCompileConfig(EnableInfixNotation),
+		},
+
+		{
+			expr:   `!!a`,
+			cc:     NewCompileConfig(EnableInfixNotation),
+			errMsg: "can not parse token",
+		},
+
+		{
+			expr: `!!`,
+			cc:   NewCompileConfig(EnableInfixNotation),
+			tokens: []token{
+				{typ: ident, val: "!"},
+				{typ: ident, val: "!"},
+			},
+		},
+
+		{
+			expr:   `!!!`,
+			cc:     NewCompileConfig(EnableInfixNotation),
+			errMsg: "can not parse token",
+		},
+
+		{
+			expr:   `a!`,
+			cc:     NewCompileConfig(EnableInfixNotation),
+			errMsg: "can not parse token",
+		},
+
+		{
 			expr: `(+ -1 1)`,
 			tokens: []token{
 				{typ: lParen, val: "("},
@@ -305,6 +390,11 @@ func TestLex(t *testing.T) {
 		{
 			expr:   `"`,
 			errMsg: "unclosed quotes",
+		},
+
+		{
+			expr:   `!3`,
+			errMsg: "can not parse token",
 		},
 
 		// complicated expression with a messy format
@@ -1291,6 +1381,33 @@ func TestParseInfixAstTree(t *testing.T) {
 		},
 
 		{
+			expr: `!in(a, [1 2 3])`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "!",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "in",
+						children: []verifyNode{
+							{tpy: selector, data: "a"},
+							{
+								tpy:  constant,
+								data: []int64{1, 2, 3},
+							},
+						},
+					},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation:         true,
+					AllowUnknownSelectors: true,
+				},
+			},
+		},
+
+		{
 			expr: `and(!c, e == !f)`,
 			ast: verifyNode{
 				tpy:  operator,
@@ -1317,6 +1434,163 @@ func TestParseInfixAstTree(t *testing.T) {
 							},
 						},
 					},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation:         true,
+					AllowUnknownSelectors: true,
+				},
+			},
+		},
+
+		{
+			expr: `and(a > 0, a, 0 - a)`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "and",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: ">",
+						children: []verifyNode{
+							{tpy: selector, data: "a"},
+							{tpy: constant, data: int64(0)},
+						},
+					},
+					{tpy: selector, data: "a"},
+					{
+						tpy:  operator,
+						data: "-",
+						children: []verifyNode{
+							{tpy: constant, data: int64(0)},
+							{tpy: selector, data: "a"},
+						},
+					},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation:         true,
+					AllowUnknownSelectors: true,
+				},
+			},
+		},
+
+		{
+			expr: `if(a > 0, a, 0 - a)`,
+			ast: verifyNode{
+				tpy:  cond,
+				data: keywordIf,
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: ">",
+						children: []verifyNode{
+							{tpy: selector, data: "a"},
+							{tpy: constant, data: int64(0)},
+						},
+					},
+					{tpy: selector, data: "a"},
+					{
+						tpy:  operator,
+						data: "-",
+						children: []verifyNode{
+							{tpy: constant, data: int64(0)},
+							{tpy: selector, data: "a"},
+						},
+					},
+					{tpy: cond, data: "fi"},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation:         true,
+					AllowUnknownSelectors: true,
+				},
+			},
+		},
+
+		{
+			expr: `if(a != 0, b / a, if(a > 0, a, 0 - a))`,
+			ast: verifyNode{
+				tpy:  cond,
+				data: keywordIf,
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "!=",
+						children: []verifyNode{
+							{tpy: selector, data: "a"},
+							{tpy: constant, data: int64(0)},
+						},
+					},
+					{
+						tpy:  operator,
+						data: "/",
+						children: []verifyNode{
+							{tpy: selector, data: "b"},
+							{tpy: selector, data: "a"},
+						},
+					},
+					{
+						tpy:  cond,
+						data: keywordIf,
+						children: []verifyNode{
+							{
+								tpy:  operator,
+								data: ">",
+								children: []verifyNode{
+									{tpy: selector, data: "a"},
+									{tpy: constant, data: int64(0)},
+								},
+							},
+							{tpy: selector, data: "a"},
+							{
+								tpy:  operator,
+								data: "-",
+								children: []verifyNode{
+									{tpy: constant, data: int64(0)},
+									{tpy: selector, data: "a"},
+								},
+							},
+							{tpy: cond, data: "fi"},
+						},
+					},
+					{tpy: cond, data: "fi"},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation:         true,
+					AllowUnknownSelectors: true,
+				},
+			},
+		},
+
+		{
+			expr: `if(if(a, b, c), d, e)`,
+			ast: verifyNode{
+				tpy:  cond,
+				data: keywordIf,
+				children: []verifyNode{
+					{
+						tpy:  cond,
+						data: keywordIf,
+						children: []verifyNode{
+							{
+								tpy:  selector,
+								data: "a",
+							},
+							{tpy: selector, data: "b"},
+							{tpy: selector, data: "c"},
+							{tpy: cond, data: "fi"},
+						},
+					},
+
+					{tpy: selector, data: "d"},
+					{tpy: selector, data: "e"},
+					{tpy: cond, data: "fi"},
 				},
 			},
 			cc: &CompileConfig{
