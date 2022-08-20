@@ -75,6 +75,57 @@ func TestLex(t *testing.T) {
 			},
 		},
 		{
+			expr: `1 + 2`,
+			tokens: []token{
+				{typ: integer, val: "1"},
+				{typ: ident, val: "+"},
+				{typ: integer, val: "2"},
+			},
+		},
+		{
+			expr: `1+2`,
+			tokens: []token{
+				{typ: integer, val: "1"},
+				{typ: ident, val: "+"},
+				{typ: integer, val: "2"},
+			},
+			cc: NewCompileConfig(EnableInfixNotation),
+		},
+		{
+			expr: `1+2 == (3)`,
+			tokens: []token{
+				{typ: integer, val: "1"},
+				{typ: ident, val: "+"},
+				{typ: integer, val: "2"},
+				{typ: ident, val: "=="},
+				{typ: lParen, val: "("},
+				{typ: integer, val: "3"},
+				{typ: rParen, val: ")"},
+			},
+			cc: NewCompileConfig(EnableInfixNotation),
+		},
+		{
+			expr: `1+2==3`,
+			tokens: []token{
+				{typ: integer, val: "1"},
+				{typ: ident, val: "+"},
+				{typ: integer, val: "2"},
+				{typ: ident, val: "=="},
+				{typ: integer, val: "3"},
+			},
+			cc: NewCompileConfig(EnableInfixNotation),
+		},
+		{
+			expr: `(+ -1 1)`,
+			tokens: []token{
+				{typ: lParen, val: "("},
+				{typ: ident, val: "+"},
+				{typ: integer, val: "-1"},
+				{typ: integer, val: "1"},
+				{typ: rParen, val: ")"},
+			},
+		},
+		{
 			expr: `
 ;; expr start
 (+ ;; add
@@ -240,7 +291,7 @@ func TestLex(t *testing.T) {
 
 		{
 			expr:   `"`,
-			errMsg: "can not parse token",
+			errMsg: "unclosed quotes",
 		},
 
 		// complicated expression with a messy format

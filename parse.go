@@ -72,71 +72,90 @@ func newParser(cc *CompileConfig, source string) *parser {
 }
 
 func (p *parser) lex() error {
+
+	A, i := []rune(p.source), 0
+
 	var (
-		nextToken = func(A []rune, i int) (string, int) {
-			j := i
-			for ; j < len(A); j++ {
-				if r := A[j]; unicode.IsSpace(r) || r == '(' || r == ')' || r == ',' || r == ';' {
+		lexComment = func() (string, error) {
+			start := i
+			for ; i < len(A); i++ {
+				if A[i] == '\n' {
 					break
 				}
 			}
-			return string(A[i:j]), j
+			return string(A[start:i]), nil
 		}
 
-		lexComma = func(A []rune, i int) (token, int) {
-			if A[i] == ',' {
-				return token{
-					typ: comma,
-					val: string(A[i]),
-				}, i + 1
-			}
-			return token{}, i
-		}
-
-		lexParen = func(A []rune, i int) (token, int) {
-			const parens = "()[]"
-			if idx := strings.IndexRune(parens, A[i]); idx != -1 {
-				t := token{val: string(A[i])}
-				if idx%2 == 0 {
-					t.typ = lParen
-				} else {
-					t.typ = rParen
-				}
-				return t, i + 1
-			}
-			return token{}, i
-		}
-
-		lexInteger = func(A []rune, i int) (token, int) {
-			s, j := nextToken(A, i)
-			if _, err := strconv.ParseInt(s, 10, 64); err == nil {
-				return token{
-					typ: integer,
-					val: s,
-				}, j
-			}
-			return token{}, i
-		}
-
-		lexStr = func(A []rune, i int) (token, int) {
-			const quote = '"'
-			if A[i] != quote {
-				return token{}, i
-			}
-			j := i + 1
-			for ; j < len(A); j++ {
-				if A[j] == quote {
-					return token{
-						typ: str,
-						val: string(A[i+1 : j]),
-					}, j + 1
+		lexString = func() (string, error) {
+			start := i
+			i += 1
+			for ; i < len(A); i++ {
+				if A[i] == '"' {
+					i++
+					return string(A[start:i]), nil
 				}
 			}
-			return token{}, i
+			return "", errors.New("unclosed quotes")
 		}
 
-		lexIdent = func(A []rune, i int) (token, int) {
-			s, j := nextToken(A, i)
+		nextToken = func() (string, error) {
+			if i == len(A) {
+				return "", nil
+			}
+			if A[i] == ';' {
+				return lexComment()
+			}
+
+			if A[i] == '"' {
+				return lexString()
+			}
+
+			start := i
+			var doubleRunes bool
+			for ; i < len(A); i++ {
+				r := A[i]
+				if unicode.IsSpace(r) || strings.ContainsRune("();", r) {
+					break
+				}
+				if p.isInfixNotation() {
+					if strings.ContainsRune("+-*/%!,", r) {
+						break
+					}
+					// ==, >=, <=
+					if strings.ContainsRune("=><", r) {
+						if i == start && i+1 < len(A) && A[i+1] == '=' {
+							doubleRunes = true
+							i += 1
+						}
+						break
+					}
+
+					// &&, ||
+					if strings.ContainsRune("&|", r) {
+						if i == start && i+1 < len(A) && A[i+1] == r {
+							doubleRunes = true
+							i += 1
+						}
+						break
+					}
+				}
+			}
+
+			if i == start || (doubleRunes && i == start+1) {
+				i += 1
+			}
+
+			return string(A[start:i]), nil
+		}
+
+		isValidInt = func(s string) bool {
+			_, err := strconv.ParseInt(s, 10, 64)
+			return err == nil
+		}
+		isValidIdent = func(s string) bool {
+			if _, exist := builtinOperators[s]; exist {
+				return true
+			}
 
 			for idx, r := range []rune(s) {
 				if unicode.IsNumber(r) {
@@ -153,76 +172,50 @@ func (p *parser) lex() error {
 
 				// if the code execute to here, it means
 				// the ident contains special character
-				// check if it's builtin operators
-				// only builtin operators can have special character
-				if _, exist := builtinOperators[s]; exist {
-					break
-				}
-
-				return token{}, i
+				return false
 			}
-
-			if i != j {
-				return token{
-					typ: ident,
-					val: s,
-				}, j
-			}
-			return token{}, i
-		}
-		lexComment = func(A []rune, i int) (token, int) {
-			if A[i] != ';' {
-				return token{}, i
-			}
-			j := i
-			for ; j < len(A); j++ {
-				if A[j] == '\n' {
-					break
-				}
-			}
-
-			return token{
-				typ: comment,
-				val: string(A[i:j]),
-			}, j + 1
-
-		}
-
-		lexers = []func([]rune, int) (token, int){
-			lexComma,
-			lexParen,
-			lexInteger,
-			lexStr,
-			lexIdent,
-			lexComment,
+			return true
 		}
 	)
 
-	var tokens []token
-	A := []rune(p.source)
-	for i := 0; i < len(A); {
-		r := A[i]
-		if unicode.IsSpace(r) {
-			i++
+	for {
+		t, err := nextToken()
+		if err != nil {
+			return p.errWithPos(err, i)
+		}
+
+		if t == "" {
+			break
+		}
+
+		if len(t) == 1 && unicode.IsSpace(rune(t[0])) {
 			continue
 		}
 
-		found := false
-		for _, lexer := range lexers {
-			t, j := lexer(A, i)
-			if i != j {
-				found = true
-				t.pos = i
-				tokens = append(tokens, t)
-				i = j
-				break
-			}
-		}
-		if !found {
+		tk := token{val: t}
+		switch {
+		case t == "(":
+			tk.typ = lParen
+		case t == ")":
+			tk.typ = rParen
+		case t == ",":
+			tk.typ = comma
+		case strings.HasPrefix(t, ";"):
+			tk.typ = comment
+		case strings.HasPrefix(t, `"`):
+			tk.val = t[1 : len(t)-1] // remove quotes
+			tk.typ = str
+		case isValidInt(t):
+			tk.typ = integer
+		case isValidIdent(t):
+			tk.typ = ident
+		default:
 			return p.errWithPos(errors.New("can not parse token"), i)
 		}
+
+		p.tokens = append(p.tokens, tk)
 	}
-	p.tokens = tokens
+
 	return nil
 }
 
@@ -402,6 +395,11 @@ func (p *parser) printPos(idx int) {
 
 func (p *parser) pos(i int) string {
 	A := []rune(p.source)
+
+	if i < 0 || i >= len(A) {
+		i = 0
+	}
+
 	length := 30
 	var left, right string
 	if l := i - length; l < 0 {
