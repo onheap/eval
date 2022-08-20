@@ -61,6 +61,7 @@ func TestLex(t *testing.T) {
 	testCases := []struct {
 		expr   string
 		tokens []token
+		cc     *CompileConfig
 		errMsg string
 	}{
 		{
@@ -218,6 +219,16 @@ func TestLex(t *testing.T) {
 				{typ: ident, val: "abc"},
 				{typ: ident, val: "abc_1"},
 			},
+		},
+
+		{
+			expr: `1 + 2`,
+			tokens: []token{
+				{typ: integer, val: "1"},
+				{typ: ident, val: "+"},
+				{typ: integer, val: "2"},
+			},
+			cc: NewCompileConfig(EnableInfixNotation),
 		},
 
 		{
@@ -441,7 +452,7 @@ func TestLex(t *testing.T) {
 	for _, c := range testCases {
 
 		t.Run(c.expr, func(t *testing.T) {
-			p := &parser{source: c.expr}
+			p := newParser(c.cc, c.expr)
 			err := p.lex()
 			if len(c.errMsg) != 0 {
 				assertErrStrContains(t, err, c.errMsg, c)

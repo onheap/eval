@@ -66,7 +66,7 @@ type parser struct {
 func newParser(cc *CompileConfig, source string) *parser {
 	return &parser{
 		source:    source,
-		conf:      cc,
+		conf:      CopyCompileConfig(cc),
 		direction: 1,
 	}
 }
@@ -616,36 +616,6 @@ func (p *parser) parseExpression() (ast *astNode, err error) {
 }
 
 func (p *parser) parseInfixExpression() (ast *astNode, err error) {
-	type infixOpInfo struct {
-		precedence int
-		childCount int
-	}
-
-	var getOpInfo = func(op token) infixOpInfo {
-		switch op.val {
-		case "*", "/":
-			return infixOpInfo{precedence: 8, childCount: 2}
-		case "+", "-":
-			return infixOpInfo{precedence: 7, childCount: 2}
-		case "!":
-			return infixOpInfo{precedence: 6, childCount: 1}
-		case "=", "==", "!=", "<", ">", "<=", ">=":
-			return infixOpInfo{precedence: 5, childCount: 2}
-		case "&", "&&":
-			return infixOpInfo{precedence: 4, childCount: 2}
-		case "|", "||":
-			return infixOpInfo{precedence: 3, childCount: 2}
-		case ",":
-			return infixOpInfo{precedence: 2, childCount: 0}
-		case "(", ")":
-			return infixOpInfo{precedence: 1, childCount: 0}
-		case "":
-			return infixOpInfo{precedence: 0, childCount: 0}
-		default:
-			return infixOpInfo{precedence: 10, childCount: -1}
-		}
-	}
-
 	type op struct {
 		t token // token
 		l int   // output stack size
@@ -666,10 +636,12 @@ func (p *parser) parseInfixExpression() (ast *astNode, err error) {
 			return res
 		}
 		comparePrecedence = func(car token, top token) int {
-			if getOpInfo(car).precedence == 1000 {
-				return 1000
+			p1 := p.getInfixOpInfo(car.val).precedence
+			p2 := p.getInfixOpInfo(top.val).precedence
+			if p1 == funcPrecedence {
+				return funcPrecedence
 			}
-			return getOpInfo(car).precedence - getOpInfo(top).precedence
+			return p1 - p2
 		}
 
 		buildTopOperators = func(car token) error {
@@ -686,7 +658,7 @@ func (p *parser) parseInfixExpression() (ast *astNode, err error) {
 
 				operatorStack = operatorStack[:l-1]
 
-				cnt := getOpInfo(top.t).childCount
+				cnt := p.getInfixOpInfo(top.t.val).childCount
 				if cnt == -1 {
 					cnt = len(outputStack) - top.l
 				}
@@ -754,6 +726,42 @@ func (p *parser) parseInfixExpression() (ast *astNode, err error) {
 	return pop(), nil
 }
 
+type infixOpInfo struct {
+	precedence int
+	childCount int
+}
+
+const funcPrecedence = 100
+
+func (p *parser) getInfixOpInfo(op string) infixOpInfo {
+	switch op {
+	case "*", "/", "%":
+		return infixOpInfo{precedence: 8, childCount: 2}
+	case "+", "-":
+		return infixOpInfo{precedence: 7, childCount: 2}
+	case "!":
+		return infixOpInfo{precedence: 6, childCount: 1}
+	case "=", "==", "!=", "<", ">", "<=", ">=":
+		return infixOpInfo{precedence: 5, childCount: 2}
+	case "&", "&&":
+		return infixOpInfo{precedence: 4, childCount: 2}
+	case "|", "||":
+		return infixOpInfo{precedence: 3, childCount: 2}
+	case ",":
+		return infixOpInfo{precedence: 2, childCount: 0}
+	case "(", ")":
+		return infixOpInfo{precedence: 1, childCount: 0}
+	case "":
+		return infixOpInfo{precedence: -1, childCount: 0}
+	default:
+		return infixOpInfo{precedence: funcPrecedence, childCount: -1}
+	}
+}
+
+func (p *parser) isInfixOp(op string) bool {
+	return p.getInfixOpInfo(op).precedence == funcPrecedence
+}
+
 func (p *parser) isKeyword(car token) bool {
 	for _, kw := range keywords {
 		if car.val == string(kw) {
@@ -819,8 +827,6 @@ func (p *parser) parseConfig() error {
 	const prefix = ";;;;" // prefix of compile config
 	const separator = "," // separator of compile config
 
-	confCopy := CopyCompileConfig(p.conf)
-
 	// parse config
 	for _, t := range p.tokens {
 		if t.typ != comment {
@@ -849,16 +855,15 @@ func (p *parser) parseConfig() error {
 			switch option := Option(pair[0]); option {
 			case Optimize: // switch all optimizations
 				for _, opt := range AllOptimizations {
-					confCopy.CompileOptions[opt] = enabled
+					p.conf.CompileOptions[opt] = enabled
 				}
 			case Reordering, FastEvaluation, ConstantFolding:
-				confCopy.CompileOptions[option] = enabled
+				p.conf.CompileOptions[option] = enabled
 			default:
 				return p.errWithToken(fmt.Errorf("unsupported compile config %s", s), t)
 			}
 		}
 	}
 
-	p.conf = confCopy
 	return nil
 }

@@ -71,6 +71,9 @@ var (
 			}
 		}
 	}
+	EnableInfixNotation CompileOption = func(c *CompileConfig) {
+		c.CompileOptions[InfixNotation] = true
+	}
 )
 
 func NewCompileConfig(opts ...CompileOption) *CompileConfig {
