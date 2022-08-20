@@ -822,6 +822,20 @@ func TestParseAstTree(t *testing.T) {
 				},
 			},
 		},
+
+		// return an error when expr use operator at selector position
+		{
+			cc:     NewCompileConfig(EnableStringSelectors),
+			expr:   `(and and and)`,
+			errMsg: "unknown token error",
+		},
+
+		{
+			cc:     NewCompileConfig(),
+			expr:   `(and and and)`,
+			errMsg: "unknown token error",
+		},
+
 		// return an error when expr use unregister operator
 		{
 			expr:   `(is_child 18)`,
@@ -1104,6 +1118,205 @@ func TestParseInfixAstTree(t *testing.T) {
 		},
 
 		{
+			expr: `! false`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "!",
+				children: []verifyNode{
+					{tpy: constant, data: false},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation: true,
+				},
+			},
+		},
+
+		{
+			expr: `! b`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "!",
+				children: []verifyNode{
+					{tpy: selector, data: "b"},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation:         true,
+					AllowUnknownSelectors: true,
+				},
+			},
+		},
+
+		{
+			expr: `! b && (a + 1 == c)`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "&&",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "!",
+						children: []verifyNode{
+							{tpy: selector, data: "b"},
+						},
+					},
+					{
+						tpy:  operator,
+						data: "==",
+						children: []verifyNode{
+							{
+								tpy:  operator,
+								data: "+",
+								children: []verifyNode{
+									{tpy: selector, data: "a"},
+									{tpy: constant, data: int64(1)},
+								},
+							},
+							{tpy: selector, data: "c"},
+						},
+					},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation:         true,
+					AllowUnknownSelectors: true,
+				},
+			},
+		},
+
+		{
+			expr: `and(! c, e == ! f)`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "and",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "!",
+						children: []verifyNode{
+							{tpy: selector, data: "c"},
+						},
+					},
+					{
+						tpy:  operator,
+						data: "==",
+						children: []verifyNode{
+							{tpy: selector, data: "e"},
+							{
+								tpy:  operator,
+								data: "!",
+								children: []verifyNode{
+									{tpy: selector, data: "f"},
+								},
+							},
+						},
+					},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation:         true,
+					AllowUnknownSelectors: true,
+				},
+			},
+		},
+
+		{
+			expr: `! b && (a + 1 == c) && (d == ! c) && and(! c, e == ! f)`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "&&",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "&&",
+						children: []verifyNode{
+							{
+								tpy:  operator,
+								data: "&&",
+								children: []verifyNode{
+									{
+										tpy:  operator,
+										data: "!",
+										children: []verifyNode{
+											{tpy: selector, data: "b"},
+										},
+									},
+									{
+										tpy:  operator,
+										data: "==",
+										children: []verifyNode{
+											{
+												tpy:  operator,
+												data: "+",
+												children: []verifyNode{
+													{tpy: selector, data: "a"},
+													{tpy: constant, data: int64(1)},
+												},
+											},
+											{tpy: selector, data: "c"},
+										},
+									},
+								},
+							},
+							{
+								tpy:  operator,
+								data: "==",
+								children: []verifyNode{
+									{tpy: selector, data: "d"},
+									{
+										tpy:  operator,
+										data: "!",
+										children: []verifyNode{
+											{tpy: selector, data: "c"},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						tpy:  operator,
+						data: "and",
+						children: []verifyNode{
+							{
+								tpy:  operator,
+								data: "!",
+								children: []verifyNode{
+									{tpy: selector, data: "c"},
+								},
+							},
+							{
+								tpy:  operator,
+								data: "==",
+								children: []verifyNode{
+									{tpy: selector, data: "e"},
+									{
+										tpy:  operator,
+										data: "!",
+										children: []verifyNode{
+											{tpy: selector, data: "f"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation:         true,
+					AllowUnknownSelectors: true,
+				},
+			},
+		},
+
+		{
 			expr: `((1 + 2) * 3) / 1`,
 			ast: verifyNode{
 				tpy:  operator,
@@ -1133,6 +1346,67 @@ func TestParseInfixAstTree(t *testing.T) {
 				},
 			},
 		},
+
+		{
+			expr: `(Origin == "MOW" || Country == "RU") && (Value >= 100 || Adults == 1)`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "&&",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "||",
+						children: []verifyNode{
+							{
+								tpy:  operator,
+								data: "==",
+								children: []verifyNode{
+									{tpy: selector, data: "Origin"},
+									{tpy: constant, data: "MOW"},
+								},
+							},
+							{
+								tpy:  operator,
+								data: "==",
+								children: []verifyNode{
+									{tpy: selector, data: "Country"},
+									{tpy: constant, data: "RU"},
+								},
+							},
+						},
+					},
+					{
+						tpy:  operator,
+						data: "||",
+						children: []verifyNode{
+							{
+								tpy:  operator,
+								data: ">=",
+								children: []verifyNode{
+									{tpy: selector, data: "Value"},
+									{tpy: constant, data: int64(100)},
+								},
+							},
+							{
+								tpy:  operator,
+								data: "==",
+								children: []verifyNode{
+									{tpy: selector, data: "Adults"},
+									{tpy: constant, data: int64(1)},
+								},
+							},
+						},
+					},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation:         true,
+					AllowUnknownSelectors: true,
+				},
+			},
+		},
+
 		{
 			expr: `1 + 2 * 3 - 4 / 5`,
 			ast: verifyNode{

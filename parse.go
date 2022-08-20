@@ -354,6 +354,14 @@ func (p *parser) traverseBackward() {
 	p.idx = len(p.tokens) - 1
 }
 
+func (p *parser) getOperator(opName string) (Operator, bool) {
+	op, exist := builtinOperators[opName]
+	if !exist {
+		op, exist = p.conf.OperatorMap[opName]
+	}
+	return op, exist
+}
+
 func (p *parser) invalidExprErr(pos int) error {
 	return p.errWithPos(errors.New("invalid expression error"), pos)
 }
@@ -524,15 +532,21 @@ func (p *parser) parseSelector() (*astNode, error) {
 	}, nil
 }
 
-func (p *parser) mustParseUnknownSelector() (*astNode, error) {
+func (p *parser) parseUnknownSelector() (*astNode, error) {
 	if !p.allowUnknownSelectors() {
-		return nil, p.unknownTokenError(p.peek())
+		return nil, nil
 	}
 
 	t := p.peek()
 	if t.typ != ident {
-		return nil, p.tokenTypeError(ident, t)
+		return nil, nil
 	}
+
+	_, exist := p.getOperator(t.val)
+	if exist {
+		return nil, nil
+	}
+
 	p.walk()
 	return &astNode{
 		node: &node{
@@ -545,7 +559,10 @@ func (p *parser) mustParseUnknownSelector() (*astNode, error) {
 
 func (p *parser) parseSingleNode() (ast *astNode, err error) {
 	fns := []func() (*astNode, error){
-		p.parseInt, p.parseStr, p.parseConst, p.parseSelector, p.parseList}
+		p.parseInt, p.parseStr, p.parseConst, p.parseSelector, p.parseUnknownSelector}
+	if !p.isInfixNotation() {
+		fns = append(fns, p.parseList)
+	}
 	for _, fn := range fns {
 		ast, err = fn()
 		if ast != nil || err != nil {
@@ -562,7 +579,7 @@ func (p *parser) parseExpression() (ast *astNode, err error) {
 	}
 
 	if t := p.peek(); t.typ == ident {
-		return p.mustParseUnknownSelector()
+		return nil, p.unknownTokenError(t)
 	}
 
 	err = p.eat(lParen)
@@ -599,9 +616,43 @@ func (p *parser) parseExpression() (ast *astNode, err error) {
 }
 
 func (p *parser) parseInfixExpression() (ast *astNode, err error) {
-	p.traverseBackward()
+	type infixOpInfo struct {
+		precedence int
+		childCount int
+	}
+
+	var getOpInfo = func(op token) infixOpInfo {
+		switch op.val {
+		case "*", "/":
+			return infixOpInfo{precedence: 8, childCount: 2}
+		case "+", "-":
+			return infixOpInfo{precedence: 7, childCount: 2}
+		case "!":
+			return infixOpInfo{precedence: 6, childCount: 1}
+		case "=", "==", "!=", "<", ">", "<=", ">=":
+			return infixOpInfo{precedence: 5, childCount: 2}
+		case "&", "&&":
+			return infixOpInfo{precedence: 4, childCount: 2}
+		case "|", "||":
+			return infixOpInfo{precedence: 3, childCount: 2}
+		case ",":
+			return infixOpInfo{precedence: 2, childCount: 0}
+		case "(", ")":
+			return infixOpInfo{precedence: 1, childCount: 0}
+		case "":
+			return infixOpInfo{precedence: 0, childCount: 0}
+		default:
+			return infixOpInfo{precedence: 10, childCount: -1}
+		}
+	}
+
+	type op struct {
+		t token // token
+		l int   // output stack size
+	}
+
 	var (
-		operatorStack []token
+		operatorStack []op
 		outputStack   []*astNode
 	)
 
@@ -614,48 +665,38 @@ func (p *parser) parseInfixExpression() (ast *astNode, err error) {
 			res, outputStack = outputStack[l-1], outputStack[:l-1]
 			return res
 		}
-
-		comparePrecedence = func(top token, car token) int {
-			precedence := map[string]int{
-				"add": 1000,
-				"mod": 1000,
-				"*":   100,
-				"/":   100,
-				"+":   50,
-				"-":   50,
-				"=":   40,
-				"&":   30,
-				"|":   20,
-				")":   1,
-				"(":   1,
-				",":   1,
+		comparePrecedence = func(car token, top token) int {
+			if getOpInfo(car).precedence == 1000 {
+				return 1000
 			}
-
-			return precedence[top.val] - precedence[car.val]
-		}
-
-		getChildCount = func(car token) int {
-			return 2
+			return getOpInfo(car).precedence - getOpInfo(top).precedence
 		}
 
 		buildTopOperators = func(car token) error {
 			for l := len(operatorStack); l != 0; l = len(operatorStack) {
 				top := operatorStack[l-1]
-				if car.typ == lParen && top.typ == rParen {
+				if car.typ == rParen && top.t.typ == lParen {
 					operatorStack = operatorStack[:l-1]
 					break
 				}
 
-				if comparePrecedence(top, car) <= 0 {
+				if comparePrecedence(car, top.t) > 0 {
 					break
 				}
 
 				operatorStack = operatorStack[:l-1]
-				var children []*astNode
-				for i := 0; i < getChildCount(top); i++ {
-					children = append(children, pop())
+
+				cnt := getOpInfo(top.t).childCount
+				if cnt == -1 {
+					cnt = len(outputStack) - top.l
 				}
-				opNode, err := p.buildOperatorNode(top, children)
+
+				children := make([]*astNode, cnt)
+				for i := cnt - 1; i >= 0; i-- {
+					children[i] = pop()
+				}
+
+				opNode, err := p.buildOperatorNode(top.t, children)
 				if err != nil {
 					return err
 				}
@@ -667,13 +708,7 @@ func (p *parser) parseInfixExpression() (ast *astNode, err error) {
 	)
 
 	for p.hasNext() {
-		fns := []func() (*astNode, error){p.parseInt, p.parseStr, p.parseConst, p.parseSelector}
-		for _, fn := range fns {
-			ast, err = fn()
-			if ast != nil || err != nil {
-				break
-			}
-		}
+		ast, err = p.parseSingleNode()
 		if err != nil {
 			return nil, err
 		}
@@ -689,10 +724,10 @@ func (p *parser) parseInfixExpression() (ast *astNode, err error) {
 			if err != nil {
 				return nil, err
 			}
-			operatorStack = append(operatorStack, car)
-		case rParen:
-			operatorStack = append(operatorStack, car)
+			operatorStack = append(operatorStack, op{t: car, l: len(outputStack)})
 		case lParen:
+			operatorStack = append(operatorStack, op{t: car, l: len(outputStack)})
+		case rParen:
 			err = buildTopOperators(car)
 			if err != nil {
 				return nil, err
@@ -710,6 +745,10 @@ func (p *parser) parseInfixExpression() (ast *astNode, err error) {
 	err = buildTopOperators(token{})
 	if err != nil {
 		return nil, err
+	}
+
+	if len(outputStack) != 1 {
+		return nil, p.invalidExprErr(0)
 	}
 
 	return pop(), nil
@@ -762,10 +801,7 @@ func (p *parser) buildKeywordNode(car token, children []*astNode) (*astNode, err
 
 func (p *parser) buildOperatorNode(car token, children []*astNode) (*astNode, error) {
 	// parse op node
-	op, exist := builtinOperators[car.val]
-	if !exist {
-		op, exist = p.conf.OperatorMap[car.val]
-	}
+	op, exist := p.getOperator(car.val)
 	if !exist {
 		return nil, p.unknownTokenError(car)
 	}

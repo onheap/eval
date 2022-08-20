@@ -75,6 +75,11 @@ var (
 		// version
 		"version":   versionConvert{mode: version, validLen: 3}.execute,
 		"t_version": versionConvert{mode: toVersion, validLen: 3}.execute,
+
+		// infix notation patch
+		"==": comparisonEquals,
+		"&&": logic{mode: and}.execute,
+		"||": logic{mode: or}.execute,
 	}
 )
 
