@@ -214,6 +214,37 @@ func TestLex(t *testing.T) {
 		},
 
 		{
+			expr: `a >= 8 && !(b && !e) && mod(c + 6 * f, 10) == 7`,
+			cc:   NewCompileConfig(EnableInfixNotation),
+			tokens: []token{
+				{typ: ident, val: "a"},
+				{typ: ident, val: ">="},
+				{typ: integer, val: "8"},
+				{typ: ident, val: "&&"},
+				{typ: ident, val: "!"},
+				{typ: lParen, val: "("},
+				{typ: ident, val: "b"},
+				{typ: ident, val: "&&"},
+				{typ: ident, val: "!"},
+				{typ: ident, val: "e"},
+				{typ: rParen, val: ")"},
+				{typ: ident, val: "&&"},
+				{typ: ident, val: "mod"},
+				{typ: lParen, val: "("},
+				{typ: ident, val: "c"},
+				{typ: ident, val: "+"},
+				{typ: integer, val: "6"},
+				{typ: ident, val: "*"},
+				{typ: ident, val: "f"},
+				{typ: comma, val: ","},
+				{typ: integer, val: "10"},
+				{typ: rParen, val: ")"},
+				{typ: ident, val: "=="},
+				{typ: integer, val: "7"},
+			},
+		},
+
+		{
 			expr: `(+ -1 1)`,
 			tokens: []token{
 				{typ: lParen, val: "("},
