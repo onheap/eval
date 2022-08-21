@@ -22,6 +22,16 @@ const (
 	comma    tokenType = "comma"
 )
 
+func (t tokenType) String() string {
+	return string(t)
+}
+
+type token struct {
+	typ tokenType
+	val string
+	pos int
+}
+
 type keyword string
 
 const (
@@ -38,16 +48,6 @@ const (
 var keywords = [...]keyword{keywordIf, keywordLet, keywordAny,
 	keywordAll, keywordMap, keywordFilter, keywordReduce, keywordCollect}
 
-func (t tokenType) String() string {
-	return string(t)
-}
-
-type token struct {
-	typ tokenType
-	val string
-	pos int
-}
-
 // ast
 type astNode struct {
 	node      *node
@@ -62,6 +62,8 @@ type parser struct {
 	conf   *CompileConfig
 	tokens []token
 	idx    int
+
+	leafNodeParser []func() (*astNode, error)
 }
 
 func newParser(cc *CompileConfig, source string) *parser {
@@ -72,7 +74,6 @@ func newParser(cc *CompileConfig, source string) *parser {
 }
 
 func (p *parser) lex() error {
-
 	A, i := []rune(p.source), 0
 
 	var (
@@ -128,7 +129,7 @@ func (p *parser) lex() error {
 			if i == start {
 				i += 1
 			}
-			//fmt.Printf("[%s], start:[%d], i:[%d], len:[%d]\n", string(A[start:i]), start, i, len(A))
+
 			return string(A[start:i]), nil
 		}
 
@@ -229,6 +230,8 @@ func (p *parser) parseAstTree() (root *astNode, err error) {
 		return nil, err
 	}
 
+	p.setLeafNodeParsers()
+
 	if p.isInfixNotation() {
 		root, err = p.parseInfixExpression()
 	} else {
@@ -243,6 +246,21 @@ func (p *parser) parseAstTree() (root *astNode, err error) {
 		return nil, p.invalidExprErr(p.idx)
 	}
 	return root, nil
+}
+
+func (p *parser) setLeafNodeParsers() {
+	fns := []func() (*astNode, error){
+		p.parseInt, p.parseStr, p.parseConst, p.parseSelector, p.parseUnknownSelector}
+
+	if p.isInfixNotation() {
+		// For infix expressions only lists with brackets are supported
+		fns = append(fns, p.parseList(lBracket, rBracket))
+	} else {
+		// For prefix expressions, lists with brackets or parentheses both are supported
+		fns = append(fns, p.parseList(lBracket, rBracket), p.parseList(lParen, rParen))
+	}
+
+	p.leafNodeParser = fns
 }
 
 func (p *parser) check() error {
@@ -549,18 +567,7 @@ func (p *parser) parseUnknownSelector() (*astNode, error) {
 }
 
 func (p *parser) buildLeafNode() (ast *astNode, err error) {
-	fns := []func() (*astNode, error){
-		p.parseInt, p.parseStr, p.parseConst, p.parseSelector, p.parseUnknownSelector}
-
-	if p.isInfixNotation() {
-		// For infix expressions only lists with brackets are supported
-		fns = append(fns, p.parseList(lBracket, rBracket))
-	} else {
-		// For prefix expressions, lists with brackets or parentheses both are supported
-		fns = append(fns, p.parseList(lBracket, rBracket), p.parseList(lParen, rParen))
-	}
-
-	for _, fn := range fns {
+	for _, fn := range p.leafNodeParser {
 		ast, err = fn()
 		if ast != nil || err != nil {
 			return ast, err
