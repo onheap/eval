@@ -58,18 +58,16 @@ type astNode struct {
 }
 
 type parser struct {
-	source    string
-	conf      *CompileConfig
-	tokens    []token
-	idx       int
-	direction int // walk direction
+	source string
+	conf   *CompileConfig
+	tokens []token
+	idx    int
 }
 
 func newParser(cc *CompileConfig, source string) *parser {
 	return &parser{
-		source:    source,
-		conf:      CopyCompileConfig(cc),
-		direction: 1,
+		source: source,
+		conf:   CopyCompileConfig(cc),
 	}
 }
 
@@ -101,27 +99,36 @@ func (p *parser) lex() error {
 		}
 
 		nextToken = func() (string, error) {
-			if i == len(A) {
-				return "", nil
-			}
-			if A[i] == ';' {
-				return lexComment()
-			}
-			if A[i] == '"' {
-				return lexString()
-			}
-
 			start := i
 			for ; i < len(A); i++ {
 				r := A[i]
-				if unicode.IsSpace(r) || strings.ContainsRune("()[];,", r) {
+				if i == start && r == ';' {
+					return lexComment()
+				}
+				if i == start && r == '"' {
+					return lexString()
+				}
+				if unicode.IsSpace(r) {
+					if i == start {
+						start = i + 1
+						continue
+					} else {
+						break
+					}
+				}
+				if strings.ContainsRune("()[];,", r) {
 					break
 				}
+			}
+
+			if start == len(A) {
+				return "", nil
 			}
 
 			if i == start {
 				i += 1
 			}
+			//fmt.Printf("[%s], start:[%d], i:[%d], len:[%d]\n", string(A[start:i]), start, i, len(A))
 			return string(A[start:i]), nil
 		}
 
@@ -130,10 +137,6 @@ func (p *parser) lex() error {
 			return err == nil
 		}
 		isValidIdent = func(s string) bool {
-			if _, exist := builtinOperators[s]; exist {
-				return true
-			}
-
 			for idx, r := range []rune(s) {
 				if unicode.IsNumber(r) {
 					if idx != 0 {
@@ -149,7 +152,10 @@ func (p *parser) lex() error {
 
 				// if the code execute to here, it means
 				// the ident contains special character
-				return false
+				// check if it's a builtin operator
+				// only builtin operators can have special character
+				_, exist := builtinOperators[s]
+				return exist
 			}
 			return true
 		}
@@ -158,15 +164,11 @@ func (p *parser) lex() error {
 	for {
 		t, err := nextToken()
 		if err != nil {
-			return p.errWithPos(err, i)
+			return p.errWithPos(err, i-len(t))
 		}
 
 		if t == "" {
 			break
-		}
-
-		if len(t) == 1 && unicode.IsSpace(rune(t[0])) {
-			continue
 		}
 
 		if p.isInfixNotation() && strings.HasPrefix(t, "!") {
@@ -204,7 +206,7 @@ func (p *parser) lex() error {
 		case isValidIdent(t):
 			tk.typ = ident
 		default:
-			return p.errWithPos(errors.New("can not parse token"), i)
+			return p.errWithPos(errors.New("can not parse token"), i-len(t))
 		}
 
 		p.tokens = append(p.tokens, tk)
@@ -305,11 +307,7 @@ func (p *parser) peek() token {
 }
 
 func (p *parser) hasNext() bool {
-	if p.direction > 0 {
-		return p.idx < len(p.tokens)
-	} else {
-		return p.idx >= 0
-	}
+	return p.idx < len(p.tokens)
 }
 
 func (p *parser) next() token {
@@ -333,12 +331,7 @@ func (p *parser) eat(expectTypes ...tokenType) error {
 }
 
 func (p *parser) walk() {
-	p.idx += p.direction
-}
-
-func (p *parser) traverseBackward() {
-	p.direction = -1
-	p.idx = len(p.tokens) - 1
+	p.idx++
 }
 
 func (p *parser) getOperator(opName string) (Operator, bool) {
