@@ -471,6 +471,109 @@ func TestExpr_Eval(t *testing.T) {
 	}
 }
 
+func TestEval_Infix(t *testing.T) {
+	testCases := []struct {
+		expr   string
+		want   Value
+		errMsg string
+		vals   map[string]interface{}
+	}{
+		{
+			expr: `1 + 1`,
+			want: int64(2),
+		},
+		{
+			expr: `a + b`,
+			want: int64(3),
+			vals: map[string]interface{}{
+				"a": 1,
+				"b": 2,
+			},
+		},
+		{
+			expr: `a + b + mod(7, 3)`,
+			want: int64(4),
+			vals: map[string]interface{}{
+				"a": 1,
+				"b": 2,
+			},
+		},
+		{
+			expr: `a && b && mod(c + 1, 10) == 0`,
+			want: true,
+			vals: map[string]interface{}{
+				"a": true,
+				"b": true,
+				"c": 99,
+			},
+		},
+		{
+			expr: `a >= 8 && !(b && !e) && mod(c + 6 * f, 10) == 7`,
+			want: true,
+			vals: map[string]interface{}{
+				"a": 8,
+				"b": true,
+				"e": true,
+				"c": 3,
+				"f": 9,
+			},
+		},
+		{
+			expr: `if(a > 0, a, 0 - a)`,
+			want: int64(32),
+			vals: map[string]interface{}{
+				"a": 32,
+			},
+		},
+		{
+			expr: `if(a > 0, a, 0 - a)`,
+			want: int64(232),
+			vals: map[string]interface{}{
+				"a": -232,
+			},
+		},
+		{
+			expr: `if(in(a, ["aa" "bb" "cc"]), add(b, c, d, e), mul(b, c, d, e))`,
+			want: int64(56),
+			vals: map[string]interface{}{
+				"a": "cc",
+				"b": 11,
+				"c": 17,
+				"d": 23,
+				"e": 5,
+			},
+		},
+		{
+			expr: `if(mod(c - d, 6) < 3, c * 2, d + 7) + 3 * if(if(a > 0, a, 0 - a) != 0, b / a, (b + 1) / (e + 1))`,
+			want: int64(40),
+			vals: map[string]interface{}{
+				"a": 0,
+				"b": 11,
+				"c": 17,
+				"d": 23,
+				"e": 5,
+			},
+		},
+	}
+	for _, c := range testCases {
+		t.Run(c.expr, func(t *testing.T) {
+			cc := NewCompileConfig(
+				Optimizations(false),
+				EnableInfixNotation,
+				RegisterSelKeys(c.vals))
+			got, err := Eval(c.expr, c.vals, cc)
+
+			if len(c.errMsg) != 0 {
+				assertErrStrContains(t, err, c.errMsg)
+				return
+			}
+
+			assertNil(t, err)
+			assertEquals(t, got, c.want)
+		})
+	}
+}
+
 func TestEval_AllowUnknownSelector(t *testing.T) {
 	testCases := []struct {
 		cc     *CompileConfig

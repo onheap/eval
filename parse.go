@@ -11,13 +11,26 @@ import (
 type tokenType string
 
 const (
-	integer tokenType = "integer"
-	str     tokenType = "str"
-	ident   tokenType = "ident"
-	lParen  tokenType = "lParen"
-	rParen  tokenType = "rParen"
-	comment tokenType = "comment"
+	integer  tokenType = "integer"
+	str      tokenType = "str"
+	ident    tokenType = "ident"
+	lParen   tokenType = "lParen"
+	rParen   tokenType = "rParen"
+	lBracket tokenType = "lBracket"
+	rBracket tokenType = "rBracket"
+	comment  tokenType = "comment"
+	comma    tokenType = "comma"
 )
+
+func (t tokenType) String() string {
+	return string(t)
+}
+
+type token struct {
+	typ tokenType
+	val string
+	pos int
+}
 
 type keyword string
 
@@ -35,16 +48,6 @@ const (
 var keywords = [...]keyword{keywordIf, keywordLet, keywordAny,
 	keywordAll, keywordMap, keywordFilter, keywordReduce, keywordCollect}
 
-func (t tokenType) String() string {
-	return string(t)
-}
-
-type token struct {
-	typ tokenType
-	val string
-	pos int
-}
-
 // ast
 type astNode struct {
 	node      *node
@@ -59,72 +62,82 @@ type parser struct {
 	conf   *CompileConfig
 	tokens []token
 	idx    int
+
+	leafNodeParser []func() (*astNode, error)
 }
 
 func newParser(cc *CompileConfig, source string) *parser {
 	return &parser{
 		source: source,
-		conf:   cc,
+		conf:   CopyCompileConfig(cc),
 	}
 }
 
 func (p *parser) lex() error {
+	A, i := []rune(p.source), 0
+
 	var (
-		nextToken = func(A []rune, i int) (string, int) {
-			j := i
-			for ; j < len(A); j++ {
-				if r := A[j]; unicode.IsSpace(r) || r == '(' || r == ')' || r == ';' {
+		lexComment = func() (string, error) {
+			start := i
+			for ; i < len(A); i++ {
+				if A[i] == '\n' {
 					break
 				}
 			}
-			return string(A[i:j]), j
+			return string(A[start:i]), nil
 		}
 
-		lexParen = func(A []rune, i int) (token, int) {
-			const parens = "()[]"
-			if idx := strings.IndexRune(parens, A[i]); idx != -1 {
-				t := token{val: string(A[i])}
-				if idx%2 == 0 {
-					t.typ = lParen
-				} else {
-					t.typ = rParen
-				}
-				return t, i + 1
-			}
-			return token{}, i
-		}
-
-		lexInteger = func(A []rune, i int) (token, int) {
-			s, j := nextToken(A, i)
-			if _, err := strconv.ParseInt(s, 10, 64); err == nil {
-				return token{
-					typ: integer,
-					val: s,
-				}, j
-			}
-			return token{}, i
-		}
-
-		lexStr = func(A []rune, i int) (token, int) {
-			const quote = '"'
-			if A[i] != quote {
-				return token{}, i
-			}
-			j := i + 1
-			for ; j < len(A); j++ {
-				if A[j] == quote {
-					return token{
-						typ: str,
-						val: string(A[i+1 : j]),
-					}, j + 1
+		lexString = func() (string, error) {
+			start := i
+			i += 1
+			for ; i < len(A); i++ {
+				if A[i] == '"' {
+					i++
+					return string(A[start:i]), nil
 				}
 			}
-			return token{}, i
+			return "", errors.New("unclosed quotes")
 		}
 
-		lexIdent = func(A []rune, i int) (token, int) {
-			s, j := nextToken(A, i)
+		nextToken = func() (string, error) {
+			start := i
+			for ; i < len(A); i++ {
+				r := A[i]
+				if i == start && r == ';' {
+					return lexComment()
+				}
+				if i == start && r == '"' {
+					return lexString()
+				}
+				if unicode.IsSpace(r) {
+					if i == start {
+						start = i + 1
+						continue
+					} else {
+						break
+					}
+				}
+				if strings.ContainsRune("()[];,", r) {
+					break
+				}
+			}
 
+			if start == len(A) {
+				return "", nil
+			}
+
+			if i == start {
+				i += 1
+			}
+
+			return string(A[start:i]), nil
+		}
+
+		isValidInt = func(s string) bool {
+			_, err := strconv.ParseInt(s, 10, 64)
+			return err == nil
+		}
+		isValidIdent = func(s string) bool {
 			for idx, r := range []rune(s) {
 				if unicode.IsNumber(r) {
 					if idx != 0 {
@@ -140,79 +153,70 @@ func (p *parser) lex() error {
 
 				// if the code execute to here, it means
 				// the ident contains special character
-				// check if it's builtin operators
+				// check if it's a builtin operator
 				// only builtin operators can have special character
-				if _, exist := builtinOperators[s]; exist {
-					break
-				}
-
-				return token{}, i
+				_, exist := builtinOperators[s]
+				return exist
 			}
-
-			if i != j {
-				return token{
-					typ: ident,
-					val: s,
-				}, j
-			}
-			return token{}, i
-		}
-		lexComment = func(A []rune, i int) (token, int) {
-			if A[i] != ';' {
-				return token{}, i
-			}
-			j := i
-			for ; j < len(A); j++ {
-				if A[j] == '\n' {
-					break
-				}
-			}
-
-			return token{
-				typ: comment,
-				val: string(A[i:j]),
-			}, j + 1
-
-		}
-
-		lexers = []func([]rune, int) (token, int){
-			lexParen,
-			lexInteger,
-			lexStr,
-			lexIdent,
-			lexComment,
+			return true
 		}
 	)
 
-	var tokens []token
-	A := []rune(p.source)
-	for i := 0; i < len(A); {
-		r := A[i]
-		if unicode.IsSpace(r) {
-			i++
-			continue
+	for {
+		t, err := nextToken()
+		if err != nil {
+			return p.errWithPos(err, i-len(t))
 		}
 
-		found := false
-		for _, lexer := range lexers {
-			t, j := lexer(A, i)
-			if i != j {
-				found = true
-				t.pos = i
-				tokens = append(tokens, t)
-				i = j
-				break
+		if t == "" {
+			break
+		}
+
+		if p.isInfixNotation() && strings.HasPrefix(t, "!") {
+			if isValidIdent(t) {
+				p.tokens = append(p.tokens, token{typ: ident, val: t})
+				continue
+			}
+
+			if next := t[1:]; isValidIdent(next) {
+				p.tokens = append(p.tokens, token{typ: ident, val: "!"})
+				p.tokens = append(p.tokens, token{typ: ident, val: next})
+				continue
 			}
 		}
-		if !found {
-			return p.errWithPos(errors.New("can not parse token"), i)
+
+		tk := token{val: t}
+		switch {
+		case t == "(":
+			tk.typ = lParen
+		case t == ")":
+			tk.typ = rParen
+		case t == "[":
+			tk.typ = lBracket
+		case t == "]":
+			tk.typ = rBracket
+		case t == ",":
+			tk.typ = comma
+		case strings.HasPrefix(t, ";"):
+			tk.typ = comment
+		case strings.HasPrefix(t, `"`):
+			tk.val = t[1 : len(t)-1] // remove quotes
+			tk.typ = str
+		case isValidInt(t):
+			tk.typ = integer
+		case isValidIdent(t):
+			tk.typ = ident
+		default:
+			return p.errWithPos(errors.New("can not parse token"), i-len(t))
 		}
+
+		p.tokens = append(p.tokens, tk)
 	}
-	p.tokens = tokens
+
 	return nil
 }
 
-func (p *parser) parseAstTree() (*astNode, error) {
+func (p *parser) parseAstTree() (root *astNode, err error) {
 	n := 0
 	for _, t := range p.tokens {
 		if t.typ != comment {
@@ -222,24 +226,49 @@ func (p *parser) parseAstTree() (*astNode, error) {
 	}
 	p.tokens = p.tokens[:n]
 
-	if err := p.checkParentheses(); err != nil {
+	if err = p.check(); err != nil {
 		return nil, err
 	}
 
-	root, err := p.parseExpression()
+	p.setLeafNodeParsers()
+
+	if p.isInfixNotation() {
+		root, err = p.parseInfixExpression()
+	} else {
+		root, err = p.parseExpression()
+	}
+
 	if err != nil {
 		return nil, err
 	}
 
-	if p.idx != n {
+	if p.hasNext() {
 		return nil, p.invalidExprErr(p.idx)
 	}
 	return root, nil
 }
 
-func (p *parser) checkParentheses() error {
+func (p *parser) setLeafNodeParsers() {
+	fns := []func() (*astNode, error){
+		p.parseInt, p.parseStr, p.parseConst, p.parseSelector, p.parseUnknownSelector}
+
+	if p.isInfixNotation() {
+		// For infix expressions only lists with brackets are supported
+		fns = append(fns, p.parseList(lBracket, rBracket))
+	} else {
+		// For prefix expressions, lists with brackets or parentheses both are supported
+		fns = append(fns, p.parseList(lBracket, rBracket), p.parseList(lParen, rParen))
+	}
+
+	p.leafNodeParser = fns
+}
+
+func (p *parser) check() error {
+	prefixNotation := !p.isInfixNotation()
+
 	last := len(p.tokens) - 1
-	if p.tokens[0].typ != lParen || p.tokens[last].typ != rParen {
+	if prefixNotation &&
+		(p.tokens[0].typ != lParen || p.tokens[last].typ != rParen) {
 		return p.parenUnmatchedErr(0)
 	}
 
@@ -250,8 +279,16 @@ func (p *parser) checkParentheses() error {
 			parenCnt++
 		case rParen:
 			parenCnt--
+		case comma:
+			if prefixNotation { // commas can be used in infix expressions only
+				return p.unknownTokenError(t)
+			}
 		}
-		if parenCnt < 0 || (parenCnt == 0 && i != last) {
+		if parenCnt < 0 {
+			return p.parenUnmatchedErr(t.pos)
+		}
+
+		if prefixNotation && parenCnt == 0 && i != last {
 			return p.parenUnmatchedErr(t.pos)
 		}
 	}
@@ -275,13 +312,25 @@ func (p *parser) parse() (*astNode, *CompileConfig, error) {
 	return ast, p.conf, nil
 }
 
+func (p *parser) allowUnknownSelectors() bool {
+	return p.conf.CompileOptions[AllowUnknownSelectors]
+}
+
+func (p *parser) isInfixNotation() bool {
+	return p.conf.CompileOptions[InfixNotation]
+}
+
 func (p *parser) peek() token {
 	return p.tokens[p.idx]
 }
 
+func (p *parser) hasNext() bool {
+	return p.idx < len(p.tokens)
+}
+
 func (p *parser) next() token {
 	t := p.tokens[p.idx]
-	p.idx++
+	p.walk()
 	return t
 }
 
@@ -301,6 +350,14 @@ func (p *parser) eat(expectTypes ...tokenType) error {
 
 func (p *parser) walk() {
 	p.idx++
+}
+
+func (p *parser) getOperator(opName string) (Operator, bool) {
+	op, exist := builtinOperators[opName]
+	if !exist {
+		op, exist = p.conf.OperatorMap[opName]
+	}
+	return op, exist
 }
 
 func (p *parser) invalidExprErr(pos int) error {
@@ -343,6 +400,11 @@ func (p *parser) printPos(idx int) {
 
 func (p *parser) pos(i int) string {
 	A := []rune(p.source)
+
+	if i < 0 || i >= len(A) {
+		i = 0
+	}
+
 	length := 30
 	var left, right string
 	if l := i - length; l < 0 {
@@ -371,48 +433,50 @@ func (p *parser) valNode(v Value) *astNode {
 	}
 }
 
-func (p *parser) parseList() (*astNode, error) {
-	i := p.idx
-	T := p.tokens
-	if T[i].typ != lParen {
-		return nil, nil
-	}
-	typ := T[i+1].typ
-	if typ != rParen && typ != integer && typ != str {
-		return nil, nil
-	}
-	strs := []string{}
-	for j := i + 1; j < len(T); j++ {
-		if T[j].typ == rParen {
-			i = j
-			break
+func (p *parser) parseList(leftType, rightType tokenType) func() (*astNode, error) {
+	return func() (*astNode, error) {
+		i := p.idx
+		T := p.tokens
+		if T[i].typ != leftType {
+			return nil, nil
 		}
-		if T[j].typ != typ {
-			return nil, p.tokenTypeError(typ, T[j])
+		typ := T[i+1].typ
+		if typ != rightType && typ != integer && typ != str {
+			return nil, nil
 		}
-		strs = append(strs, T[j].val)
-	}
-
-	// todo: return error when list is empty
-
-	n := &node{flag: constant}
-	if typ == integer {
-		ints := make([]int64, 0, len(strs))
-		for _, s := range strs {
-			v, err := strconv.ParseInt(s, 10, 64)
-			if err != nil {
-				return nil, err
+		strs := make([]string, 0)
+		for j := i + 1; j < len(T); j++ {
+			if T[j].typ == rightType {
+				i = j
+				break
 			}
-			ints = append(ints, v)
+			if T[j].typ != typ {
+				return nil, p.tokenTypeError(typ, T[j])
+			}
+			strs = append(strs, T[j].val)
 		}
-		n.value = ints
-	} else {
-		n.value = strs
+
+		// todo: return error when list is empty?
+
+		n := &node{flag: constant}
+		if typ == integer {
+			ints := make([]int64, 0, len(strs))
+			for _, s := range strs {
+				v, err := strconv.ParseInt(s, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				ints = append(ints, v)
+			}
+			n.value = ints
+		} else {
+			n.value = strs
+		}
+		p.idx = i + 1
+		return &astNode{
+			node: n,
+		}, nil
 	}
-	p.idx = i + 1
-	return &astNode{
-		node: n,
-	}, nil
 }
 
 func (p *parser) parseInt() (*astNode, error) {
@@ -458,44 +522,71 @@ func (p *parser) parseSelector() (*astNode, error) {
 	if t.typ != ident {
 		return nil, nil
 	}
-	if key, ok := p.conf.SelectorMap[t.val]; ok {
-		p.walk()
-		return &astNode{
-			node: &node{
-				flag:   selector,
-				value:  t.val,
-				selKey: key,
-			},
-		}, nil
+	key, ok := p.conf.SelectorMap[t.val]
+	if !ok {
+		return nil, nil
 	}
-	return nil, nil
+
+	p.walk()
+	return &astNode{
+		node: &node{
+			flag:   selector,
+			value:  t.val,
+			selKey: key,
+		},
+	}, nil
 }
 
-func (p *parser) parseExpression() (*astNode, error) {
-	fns := []func() (*astNode, error){
-		p.parseInt, p.parseStr, p.parseConst, p.parseSelector, p.parseList}
-	for _, fn := range fns {
-		n, err := fn()
-		if n != nil || err != nil {
-			return n, err
+func (p *parser) parseUnknownSelector() (*astNode, error) {
+	if !p.allowUnknownSelectors() {
+		return nil, nil
+	}
+
+	t := p.peek()
+	if t.typ != ident {
+		return nil, nil
+	}
+
+	if p.isKeyword(t) {
+		return nil, nil
+	}
+
+	_, exist := p.getOperator(t.val)
+	if exist {
+		return nil, nil
+	}
+
+	p.walk()
+	return &astNode{
+		node: &node{
+			flag:   selector,
+			value:  t.val,
+			selKey: UndefinedSelKey,
+		},
+	}, nil
+}
+
+func (p *parser) buildLeafNode() (ast *astNode, err error) {
+	for _, fn := range p.leafNodeParser {
+		ast, err = fn()
+		if ast != nil || err != nil {
+			return ast, err
 		}
+	}
+	return ast, err
+}
+
+func (p *parser) parseExpression() (ast *astNode, err error) {
+	ast, err = p.buildLeafNode()
+	if ast != nil || err != nil {
+		return ast, err
 	}
 
 	if t := p.peek(); t.typ == ident {
-		if p.conf.CompileOptions[AllowUnknownSelectors] {
-			p.walk()
-			return &astNode{
-				node: &node{
-					flag:   selector,
-					value:  t.val,
-					selKey: UndefinedSelKey,
-				},
-			}, nil
-		}
-		return nil, p.unknownTokenError(p.peek())
+		return nil, p.unknownTokenError(t)
 	}
 
-	err := p.eat(lParen)
+	err = p.eat(lParen)
 	if err != nil {
 		return nil, err
 	}
@@ -514,16 +605,159 @@ func (p *parser) parseExpression() (*astNode, error) {
 		children = append(children, child)
 	}
 
-	p.walk()
-
-	var n *astNode
-	if p.isKeyword(car) {
-		n, err = p.buildKeywordNode(car, children)
-	} else {
-		n, err = p.buildNode(car, children)
+	err = p.eat(rParen)
+	if err != nil {
+		return nil, err
 	}
 
-	return n, err
+	return p.buildParentNode(car, children)
+}
+
+func (p *parser) parseInfixExpression() (*astNode, error) {
+	type op struct {
+		t token // token
+		l int   // output stack size
+	}
+
+	var (
+		operatorStack []op
+		outputStack   []*astNode
+	)
+
+	var (
+		push = func(n *astNode) {
+			outputStack = append(outputStack, n)
+		}
+		pop = func() (res *astNode) {
+			l := len(outputStack)
+			res, outputStack = outputStack[l-1], outputStack[:l-1]
+			return res
+		}
+		comparePrecedence = func(car token, top token) int {
+			p1 := p.getInfixOpInfo(car.val).precedence
+			p2 := p.getInfixOpInfo(top.val).precedence
+			if p1 == funcPrecedence {
+				return funcPrecedence
+			}
+			return p1 - p2
+		}
+
+		buildTopOperators = func(car token) error {
+			for l := len(operatorStack); l != 0; l = len(operatorStack) {
+				top := operatorStack[l-1]
+				if car.typ == rParen && top.t.typ == lParen {
+					operatorStack = operatorStack[:l-1]
+					break
+				}
+
+				if comparePrecedence(car, top.t) > 0 {
+					break
+				}
+
+				operatorStack = operatorStack[:l-1]
+
+				cnt := p.getInfixOpInfo(top.t.val).childCount
+				if cnt == -1 {
+					cnt = len(outputStack) - top.l
+				}
+
+				children := make([]*astNode, cnt)
+				for i := cnt - 1; i >= 0; i-- {
+					children[i] = pop()
+				}
+
+				ast, err := p.buildParentNode(top.t, children)
+				if err != nil {
+					return err
+				}
+
+				push(ast)
+			}
+			return nil
+		}
+	)
+
+	for p.hasNext() {
+		ast, err := p.buildLeafNode()
+		if err != nil {
+			return nil, err
+		}
+		if ast != nil {
+			push(ast)
+			continue
+		}
+
+		car := p.next()
+		switch car.typ {
+		case ident:
+			err = buildTopOperators(car)
+			if err != nil {
+				return nil, err
+			}
+			operatorStack = append(operatorStack, op{t: car, l: len(outputStack)})
+		case lParen:
+			operatorStack = append(operatorStack, op{t: car, l: len(outputStack)})
+		case rParen:
+			err = buildTopOperators(car)
+			if err != nil {
+				return nil, err
+			}
+		case comma:
+			err = buildTopOperators(car)
+			if err != nil {
+				return nil, err
+			}
+		default:
+			return nil, p.tokenTypeError(ident, car)
+		}
+	}
+
+	err := buildTopOperators(token{})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(outputStack) != 1 {
+		return nil, p.invalidExprErr(0)
+	}
+
+	return pop(), nil
+}
+
+type infixOpInfo struct {
+	precedence int
+	childCount int
+}
+
+const funcPrecedence = 100
+
+func (p *parser) getInfixOpInfo(op string) infixOpInfo {
+	switch op {
+	case "*", "/", "%":
+		return infixOpInfo{precedence: 8, childCount: 2}
+	case "+", "-":
+		return infixOpInfo{precedence: 7, childCount: 2}
+	case "!":
+		return infixOpInfo{precedence: 6, childCount: 1}
+	case "=", "==", "!=", "<", ">", "<=", ">=":
+		return infixOpInfo{precedence: 5, childCount: 2}
+	case "&", "&&":
+		return infixOpInfo{precedence: 4, childCount: 2}
+	case "|", "||":
+		return infixOpInfo{precedence: 3, childCount: 2}
+	case ",":
+		return infixOpInfo{precedence: 2, childCount: 0}
+	case "(", ")":
+		return infixOpInfo{precedence: 1, childCount: 0}
+	case "":
+		return infixOpInfo{precedence: -1, childCount: 0}
+	default:
+		return infixOpInfo{precedence: funcPrecedence, childCount: -1}
+	}
+}
+
+func (p *parser) isInfixOp(op string) bool {
+	return p.getInfixOpInfo(op).precedence == funcPrecedence
 }
 
 func (p *parser) isKeyword(car token) bool {
@@ -533,6 +767,14 @@ func (p *parser) isKeyword(car token) bool {
 		}
 	}
 	return false
+}
+
+func (p *parser) buildParentNode(car token, children []*astNode) (*astNode, error) {
+	if p.isKeyword(car) {
+		return p.buildKeywordNode(car, children)
+	} else {
+		return p.buildOperatorNode(car, children)
+	}
 }
 
 func (p *parser) buildKeywordNode(car token, children []*astNode) (*astNode, error) {
@@ -571,12 +813,9 @@ func (p *parser) buildKeywordNode(car token, children []*astNode) (*astNode, err
 	}, nil
 }
 
-func (p *parser) buildNode(car token, children []*astNode) (*astNode, error) {
+func (p *parser) buildOperatorNode(car token, children []*astNode) (*astNode, error) {
 	// parse op node
-	op, exist := builtinOperators[car.val]
-	if !exist {
-		op, exist = p.conf.OperatorMap[car.val]
-	}
+	op, exist := p.getOperator(car.val)
 	if !exist {
 		return nil, p.unknownTokenError(car)
 	}
@@ -593,8 +832,6 @@ func (p *parser) buildNode(car token, children []*astNode) (*astNode, error) {
 func (p *parser) parseConfig() error {
 	const prefix = ";;;;" // prefix of compile config
 	const separator = "," // separator of compile config
-
-	confCopy := CopyCompileConfig(p.conf)
 
 	// parse config
 	for _, t := range p.tokens {
@@ -624,16 +861,15 @@ func (p *parser) parseConfig() error {
 			switch option := Option(pair[0]); option {
 			case Optimize: // switch all optimizations
 				for _, opt := range AllOptimizations {
-					confCopy.CompileOptions[opt] = enabled
+					p.conf.CompileOptions[opt] = enabled
 				}
 			case Reordering, FastEvaluation, ConstantFolding:
-				confCopy.CompileOptions[option] = enabled
+				p.conf.CompileOptions[option] = enabled
 			default:
 				return p.errWithToken(fmt.Errorf("unsupported compile config %s", s), t)
 			}
 		}
 	}
 
-	p.conf = confCopy
 	return nil
 }

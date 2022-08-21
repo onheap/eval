@@ -650,3 +650,22 @@ func DumpTable(expr *Expr, skipDebug ...bool) string {
 
 	return sb.String()
 }
+
+type SelectorKeys struct {
+	SelKey SelectorKey
+	StrKey string
+}
+
+func GetSelectorKeys(e *Expr) []SelectorKeys {
+	res := make([]SelectorKeys, len(e.nodes)/2)
+
+	for _, n := range e.nodes {
+		if n.getNodeType() == selector {
+			res = append(res, SelectorKeys{
+				SelKey: n.selKey,
+				StrKey: n.value.(string),
+			})
+		}
+	}
+	return res
+}

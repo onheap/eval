@@ -61,6 +61,7 @@ func TestLex(t *testing.T) {
 	testCases := []struct {
 		expr   string
 		tokens []token
+		cc     *CompileConfig
 		errMsg string
 	}{
 		{
@@ -69,6 +70,186 @@ func TestLex(t *testing.T) {
 				{typ: lParen, val: "("},
 				{typ: ident, val: "+"},
 				{typ: integer, val: "1"},
+				{typ: integer, val: "1"},
+				{typ: rParen, val: ")"},
+			},
+		},
+		{
+			expr: `1 + 2`,
+			tokens: []token{
+				{typ: integer, val: "1"},
+				{typ: ident, val: "+"},
+				{typ: integer, val: "2"},
+			},
+		},
+		{
+			expr: `!a`,
+			tokens: []token{
+				{typ: ident, val: "!"},
+				{typ: ident, val: "a"},
+			},
+			cc: NewCompileConfig(EnableInfixNotation),
+		},
+		{
+			expr: `1 + 2 == (3)`,
+			tokens: []token{
+				{typ: integer, val: "1"},
+				{typ: ident, val: "+"},
+				{typ: integer, val: "2"},
+				{typ: ident, val: "=="},
+				{typ: lParen, val: "("},
+				{typ: integer, val: "3"},
+				{typ: rParen, val: ")"},
+			},
+			cc: NewCompileConfig(EnableInfixNotation),
+		},
+		{
+			expr: `a & !b == c`,
+			tokens: []token{
+				{typ: ident, val: "a"},
+				{typ: ident, val: "&"},
+				{typ: ident, val: "!"},
+				{typ: ident, val: "b"},
+				{typ: ident, val: "=="},
+				{typ: ident, val: "c"},
+			},
+			cc: NewCompileConfig(EnableInfixNotation),
+		},
+
+		{
+			expr: `1 + 2 == -3`,
+			tokens: []token{
+				{typ: integer, val: "1"},
+				{typ: ident, val: "+"},
+				{typ: integer, val: "2"},
+				{typ: ident, val: "=="},
+				{typ: integer, val: "-3"},
+			},
+			cc: NewCompileConfig(EnableInfixNotation),
+		},
+
+		{
+			expr: `!a != !b != !c`,
+			tokens: []token{
+				{typ: ident, val: "!"},
+				{typ: ident, val: "a"},
+				{typ: ident, val: "!="},
+				{typ: ident, val: "!"},
+				{typ: ident, val: "b"},
+				{typ: ident, val: "!="},
+				{typ: ident, val: "!"},
+				{typ: ident, val: "c"},
+			},
+			cc: NewCompileConfig(EnableInfixNotation),
+		},
+
+		{
+			expr: `!a`,
+			tokens: []token{
+				{typ: ident, val: "!"},
+				{typ: ident, val: "a"},
+			},
+			cc: NewCompileConfig(EnableInfixNotation),
+		},
+
+		{
+			expr: `!and(a, b, c)`,
+			tokens: []token{
+				{typ: ident, val: "!"},
+				{typ: ident, val: "and"},
+				{typ: lParen, val: "("},
+				{typ: ident, val: "a"},
+				{typ: comma, val: ","},
+				{typ: ident, val: "b"},
+				{typ: comma, val: ","},
+				{typ: ident, val: "c"},
+				{typ: rParen, val: ")"},
+			},
+			cc: NewCompileConfig(EnableInfixNotation),
+		},
+
+		{
+			expr: `!true`,
+			tokens: []token{
+				{typ: ident, val: "!"},
+				{typ: ident, val: "true"},
+			},
+			cc: NewCompileConfig(EnableInfixNotation),
+		},
+
+		{
+			expr: `!false`,
+			tokens: []token{
+				{typ: ident, val: "!"},
+				{typ: ident, val: "false"},
+			},
+			cc: NewCompileConfig(EnableInfixNotation),
+		},
+
+		{
+			expr:   `!!a`,
+			cc:     NewCompileConfig(EnableInfixNotation),
+			errMsg: "can not parse token",
+		},
+
+		{
+			expr: `!!`,
+			cc:   NewCompileConfig(EnableInfixNotation),
+			tokens: []token{
+				{typ: ident, val: "!"},
+				{typ: ident, val: "!"},
+			},
+		},
+
+		{
+			expr:   `!!!`,
+			cc:     NewCompileConfig(EnableInfixNotation),
+			errMsg: "can not parse token",
+		},
+
+		{
+			expr:   `a!`,
+			cc:     NewCompileConfig(EnableInfixNotation),
+			errMsg: "can not parse token",
+		},
+
+		{
+			expr: `a >= 8 && !(b && !e) && mod(c + 6 * f, 10) == 7`,
+			cc:   NewCompileConfig(EnableInfixNotation),
+			tokens: []token{
+				{typ: ident, val: "a"},
+				{typ: ident, val: ">="},
+				{typ: integer, val: "8"},
+				{typ: ident, val: "&&"},
+				{typ: ident, val: "!"},
+				{typ: lParen, val: "("},
+				{typ: ident, val: "b"},
+				{typ: ident, val: "&&"},
+				{typ: ident, val: "!"},
+				{typ: ident, val: "e"},
+				{typ: rParen, val: ")"},
+				{typ: ident, val: "&&"},
+				{typ: ident, val: "mod"},
+				{typ: lParen, val: "("},
+				{typ: ident, val: "c"},
+				{typ: ident, val: "+"},
+				{typ: integer, val: "6"},
+				{typ: ident, val: "*"},
+				{typ: ident, val: "f"},
+				{typ: comma, val: ","},
+				{typ: integer, val: "10"},
+				{typ: rParen, val: ")"},
+				{typ: ident, val: "=="},
+				{typ: integer, val: "7"},
+			},
+		},
+
+		{
+			expr: `(+ -1 1)`,
+			tokens: []token{
+				{typ: lParen, val: "("},
+				{typ: ident, val: "+"},
+				{typ: integer, val: "-1"},
 				{typ: integer, val: "1"},
 				{typ: rParen, val: ")"},
 			},
@@ -195,11 +376,11 @@ func TestLex(t *testing.T) {
 		},
 
 		{
-			expr:   `(< age 18.0)`,
+			expr:   `(< age 18.0)`, // can not parse float
 			errMsg: "can not parse token",
 		},
 		{
-			expr:   `(+ 1 1.0)`,
+			expr:   `(+ 1 1.0)`, // can not parse float
 			errMsg: "can not parse token",
 		},
 		{
@@ -221,6 +402,16 @@ func TestLex(t *testing.T) {
 		},
 
 		{
+			expr: `1 + 2`,
+			tokens: []token{
+				{typ: integer, val: "1"},
+				{typ: ident, val: "+"},
+				{typ: integer, val: "2"},
+			},
+			cc: NewCompileConfig(EnableInfixNotation),
+		},
+
+		{
 			expr: `""`,
 			tokens: []token{
 				{typ: str, val: ""},
@@ -229,6 +420,11 @@ func TestLex(t *testing.T) {
 
 		{
 			expr:   `"`,
+			errMsg: "unclosed quotes",
+		},
+
+		{
+			expr:   `!3`,
 			errMsg: "can not parse token",
 		},
 
@@ -441,7 +637,7 @@ func TestLex(t *testing.T) {
 	for _, c := range testCases {
 
 		t.Run(c.expr, func(t *testing.T) {
-			p := &parser{source: c.expr}
+			p := newParser(c.cc, c.expr)
 			err := p.lex()
 			if len(c.errMsg) != 0 {
 				assertErrStrContains(t, err, c.errMsg, c)
@@ -822,6 +1018,20 @@ func TestParseAstTree(t *testing.T) {
 				},
 			},
 		},
+
+		// return an error when expr use operator at selector position
+		{
+			cc:     NewCompileConfig(EnableStringSelectors),
+			expr:   `(and and and)`,
+			errMsg: "unknown token error",
+		},
+
+		{
+			cc:     NewCompileConfig(),
+			expr:   `(and and and)`,
+			errMsg: "unknown token error",
+		},
+
 		// return an error when expr use unregister operator
 		{
 			expr:   `(is_child 18)`,
@@ -862,6 +1072,828 @@ func TestParseAstTree(t *testing.T) {
 		{
 			expr:   `(+ 1 1) (+ 1 1)`,
 			errMsg: "parentheses unmatched error",
+		},
+	}
+
+	for _, c := range testCases {
+		t.Run(c.expr, func(t *testing.T) {
+			ast, _, err := newParser(c.cc, c.expr).parse()
+			if len(c.errMsg) != 0 {
+				assertErrStrContains(t, err, c.errMsg, c)
+				return
+			}
+
+			assertNil(t, err)
+			assertAstTreeIdentical(t, ast, c.ast, c)
+		})
+	}
+}
+
+func TestParseInfixAstTree(t *testing.T) {
+	testCases := []struct {
+		cc     *CompileConfig
+		expr   string
+		ast    verifyNode
+		errMsg string
+	}{
+		{
+			expr: `1 + 2`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "+",
+				children: []verifyNode{
+					{tpy: constant, data: int64(1)},
+					{tpy: constant, data: int64(2)},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation: true,
+				},
+			},
+		},
+
+		{
+			expr: `1 + 2 + 3 + 4`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "+",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "+",
+						children: []verifyNode{
+							{
+								tpy:  operator,
+								data: "+",
+								children: []verifyNode{
+									{tpy: constant, data: int64(1)},
+									{tpy: constant, data: int64(2)},
+								},
+							},
+							{tpy: constant, data: int64(3)},
+						},
+					},
+					{tpy: constant, data: int64(4)},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation: true,
+				},
+			},
+		},
+
+		{
+			expr: `1 + 2 * 3`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "+",
+				children: []verifyNode{
+					{tpy: constant, data: int64(1)},
+					{
+						tpy:  operator,
+						data: "*",
+						children: []verifyNode{
+							{tpy: constant, data: int64(2)},
+							{tpy: constant, data: int64(3)},
+						},
+					},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation: true,
+				},
+			},
+		},
+
+		{
+			expr: `(1 + 2) * 3`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "*",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "+",
+						children: []verifyNode{
+							{tpy: constant, data: int64(1)},
+							{tpy: constant, data: int64(2)},
+						},
+					},
+					{tpy: constant, data: int64(3)},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation: true,
+				},
+			},
+		},
+
+		{
+			expr: `mod(4, 2) * 3`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "*",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "mod",
+						children: []verifyNode{
+							{tpy: constant, data: int64(4)},
+							{tpy: constant, data: int64(2)},
+						},
+					},
+					{tpy: constant, data: int64(3)},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation: true,
+				},
+			},
+		},
+
+		{
+			expr: `mod(16 + 2, add(3 + 1, 8)) * 5`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "*",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "mod",
+						children: []verifyNode{
+							{
+								tpy:  operator,
+								data: "+",
+								children: []verifyNode{
+									{tpy: constant, data: int64(16)},
+									{tpy: constant, data: int64(2)},
+								},
+							},
+							{
+								tpy:  operator,
+								data: "add",
+								children: []verifyNode{
+									{
+										tpy:  operator,
+										data: "+",
+										children: []verifyNode{
+											{tpy: constant, data: int64(3)},
+											{tpy: constant, data: int64(1)},
+										},
+									},
+									{tpy: constant, data: int64(8)},
+								},
+							},
+						},
+					},
+					{tpy: constant, data: int64(5)},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation: true,
+				},
+			},
+		},
+
+		{
+			expr: `1 + 1 = 2 | 4 = 2 + 2 & true`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "|",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "=",
+						children: []verifyNode{
+							{
+								tpy:  operator,
+								data: "+",
+								children: []verifyNode{
+									{tpy: constant, data: int64(1)},
+									{tpy: constant, data: int64(1)},
+								},
+							},
+							{tpy: constant, data: int64(2)},
+						},
+					},
+					{
+						tpy:  operator,
+						data: "&",
+						children: []verifyNode{
+							{
+								tpy:  operator,
+								data: "=",
+								children: []verifyNode{
+									{tpy: constant, data: int64(4)},
+									{
+										tpy:  operator,
+										data: "+",
+										children: []verifyNode{
+											{tpy: constant, data: int64(2)},
+											{tpy: constant, data: int64(2)},
+										},
+									},
+								},
+							},
+							{tpy: constant, data: true},
+						},
+					},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation: true,
+				},
+			},
+		},
+
+		{
+			expr: `! false`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "!",
+				children: []verifyNode{
+					{tpy: constant, data: false},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation: true,
+				},
+			},
+		},
+
+		{
+			expr: `!b`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "!",
+				children: []verifyNode{
+					{tpy: selector, data: "b"},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation:         true,
+					AllowUnknownSelectors: true,
+				},
+			},
+		},
+
+		{
+			expr: `!b && (a + 1 == c)`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "&&",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "!",
+						children: []verifyNode{
+							{tpy: selector, data: "b"},
+						},
+					},
+					{
+						tpy:  operator,
+						data: "==",
+						children: []verifyNode{
+							{
+								tpy:  operator,
+								data: "+",
+								children: []verifyNode{
+									{tpy: selector, data: "a"},
+									{tpy: constant, data: int64(1)},
+								},
+							},
+							{tpy: selector, data: "c"},
+						},
+					},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation:         true,
+					AllowUnknownSelectors: true,
+				},
+			},
+		},
+
+		{
+			expr: `in(!a, ["b" "c" "d"])`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "in",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "!",
+						children: []verifyNode{
+							{tpy: selector, data: "a"},
+						},
+					},
+					{
+						tpy:  constant,
+						data: []string{"b", "c", "d"},
+					},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation:         true,
+					AllowUnknownSelectors: true,
+				},
+			},
+		},
+
+		{
+			expr: `!in(a, [1 2 3])`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "!",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "in",
+						children: []verifyNode{
+							{tpy: selector, data: "a"},
+							{
+								tpy:  constant,
+								data: []int64{1, 2, 3},
+							},
+						},
+					},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation:         true,
+					AllowUnknownSelectors: true,
+				},
+			},
+		},
+
+		{
+			expr: `and(!c, e == !f)`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "and",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "!",
+						children: []verifyNode{
+							{tpy: selector, data: "c"},
+						},
+					},
+					{
+						tpy:  operator,
+						data: "==",
+						children: []verifyNode{
+							{tpy: selector, data: "e"},
+							{
+								tpy:  operator,
+								data: "!",
+								children: []verifyNode{
+									{tpy: selector, data: "f"},
+								},
+							},
+						},
+					},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation:         true,
+					AllowUnknownSelectors: true,
+				},
+			},
+		},
+
+		{
+			expr: `and(a > 0, a, 0 - a)`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "and",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: ">",
+						children: []verifyNode{
+							{tpy: selector, data: "a"},
+							{tpy: constant, data: int64(0)},
+						},
+					},
+					{tpy: selector, data: "a"},
+					{
+						tpy:  operator,
+						data: "-",
+						children: []verifyNode{
+							{tpy: constant, data: int64(0)},
+							{tpy: selector, data: "a"},
+						},
+					},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation:         true,
+					AllowUnknownSelectors: true,
+				},
+			},
+		},
+
+		{
+			expr: `if(a > 0, a, 0 - a)`,
+			ast: verifyNode{
+				tpy:  cond,
+				data: keywordIf,
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: ">",
+						children: []verifyNode{
+							{tpy: selector, data: "a"},
+							{tpy: constant, data: int64(0)},
+						},
+					},
+					{tpy: selector, data: "a"},
+					{
+						tpy:  operator,
+						data: "-",
+						children: []verifyNode{
+							{tpy: constant, data: int64(0)},
+							{tpy: selector, data: "a"},
+						},
+					},
+					{tpy: cond, data: "fi"},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation:         true,
+					AllowUnknownSelectors: true,
+				},
+			},
+		},
+
+		{
+			expr: `if(a != 0, b / a, if(a > 0, a, 0 - a))`,
+			ast: verifyNode{
+				tpy:  cond,
+				data: keywordIf,
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "!=",
+						children: []verifyNode{
+							{tpy: selector, data: "a"},
+							{tpy: constant, data: int64(0)},
+						},
+					},
+					{
+						tpy:  operator,
+						data: "/",
+						children: []verifyNode{
+							{tpy: selector, data: "b"},
+							{tpy: selector, data: "a"},
+						},
+					},
+					{
+						tpy:  cond,
+						data: keywordIf,
+						children: []verifyNode{
+							{
+								tpy:  operator,
+								data: ">",
+								children: []verifyNode{
+									{tpy: selector, data: "a"},
+									{tpy: constant, data: int64(0)},
+								},
+							},
+							{tpy: selector, data: "a"},
+							{
+								tpy:  operator,
+								data: "-",
+								children: []verifyNode{
+									{tpy: constant, data: int64(0)},
+									{tpy: selector, data: "a"},
+								},
+							},
+							{tpy: cond, data: "fi"},
+						},
+					},
+					{tpy: cond, data: "fi"},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation:         true,
+					AllowUnknownSelectors: true,
+				},
+			},
+		},
+
+		{
+			expr: `if(if(a, b, c), d, e)`,
+			ast: verifyNode{
+				tpy:  cond,
+				data: keywordIf,
+				children: []verifyNode{
+					{
+						tpy:  cond,
+						data: keywordIf,
+						children: []verifyNode{
+							{
+								tpy:  selector,
+								data: "a",
+							},
+							{tpy: selector, data: "b"},
+							{tpy: selector, data: "c"},
+							{tpy: cond, data: "fi"},
+						},
+					},
+
+					{tpy: selector, data: "d"},
+					{tpy: selector, data: "e"},
+					{tpy: cond, data: "fi"},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation:         true,
+					AllowUnknownSelectors: true,
+				},
+			},
+		},
+
+		{
+			expr: `!b && (a + 1 == c) && (d == !c) && and(!c, e == !f)`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "&&",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "&&",
+						children: []verifyNode{
+							{
+								tpy:  operator,
+								data: "&&",
+								children: []verifyNode{
+									{
+										tpy:  operator,
+										data: "!",
+										children: []verifyNode{
+											{tpy: selector, data: "b"},
+										},
+									},
+									{
+										tpy:  operator,
+										data: "==",
+										children: []verifyNode{
+											{
+												tpy:  operator,
+												data: "+",
+												children: []verifyNode{
+													{tpy: selector, data: "a"},
+													{tpy: constant, data: int64(1)},
+												},
+											},
+											{tpy: selector, data: "c"},
+										},
+									},
+								},
+							},
+							{
+								tpy:  operator,
+								data: "==",
+								children: []verifyNode{
+									{tpy: selector, data: "d"},
+									{
+										tpy:  operator,
+										data: "!",
+										children: []verifyNode{
+											{tpy: selector, data: "c"},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						tpy:  operator,
+						data: "and",
+						children: []verifyNode{
+							{
+								tpy:  operator,
+								data: "!",
+								children: []verifyNode{
+									{tpy: selector, data: "c"},
+								},
+							},
+							{
+								tpy:  operator,
+								data: "==",
+								children: []verifyNode{
+									{tpy: selector, data: "e"},
+									{
+										tpy:  operator,
+										data: "!",
+										children: []verifyNode{
+											{tpy: selector, data: "f"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation:         true,
+					AllowUnknownSelectors: true,
+				},
+			},
+		},
+
+		{
+			expr: `((1 + 2) * 3) / 1`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "/",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "*",
+						children: []verifyNode{
+							{
+								tpy:  operator,
+								data: "+",
+								children: []verifyNode{
+									{tpy: constant, data: int64(1)},
+									{tpy: constant, data: int64(2)},
+								},
+							},
+							{tpy: constant, data: int64(3)},
+						},
+					},
+					{tpy: constant, data: int64(1)},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation: true,
+				},
+			},
+		},
+
+		{
+			expr: `(Origin == "MOW" || Country == "RU") && (Value >= 100 || Adults == 1)`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "&&",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "||",
+						children: []verifyNode{
+							{
+								tpy:  operator,
+								data: "==",
+								children: []verifyNode{
+									{tpy: selector, data: "Origin"},
+									{tpy: constant, data: "MOW"},
+								},
+							},
+							{
+								tpy:  operator,
+								data: "==",
+								children: []verifyNode{
+									{tpy: selector, data: "Country"},
+									{tpy: constant, data: "RU"},
+								},
+							},
+						},
+					},
+					{
+						tpy:  operator,
+						data: "||",
+						children: []verifyNode{
+							{
+								tpy:  operator,
+								data: ">=",
+								children: []verifyNode{
+									{tpy: selector, data: "Value"},
+									{tpy: constant, data: int64(100)},
+								},
+							},
+							{
+								tpy:  operator,
+								data: "==",
+								children: []verifyNode{
+									{tpy: selector, data: "Adults"},
+									{tpy: constant, data: int64(1)},
+								},
+							},
+						},
+					},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation:         true,
+					AllowUnknownSelectors: true,
+				},
+			},
+		},
+
+		{
+			expr: `1 + 2 * 3 - 4 / 5`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "-",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "+",
+						children: []verifyNode{
+							{tpy: constant, data: int64(1)},
+							{
+								tpy:  operator,
+								data: "*",
+								children: []verifyNode{
+									{tpy: constant, data: int64(2)},
+									{tpy: constant, data: int64(3)},
+								},
+							},
+						},
+					},
+					{
+						tpy:  operator,
+						data: "/",
+						children: []verifyNode{
+							{tpy: constant, data: int64(4)},
+							{tpy: constant, data: int64(5)},
+						},
+					},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation: true,
+				},
+			},
+		},
+		{
+			expr: `3 + 4 * 2 / ( 1 - 5 ) - 6`,
+			ast: verifyNode{
+				tpy:  operator,
+				data: "-",
+				children: []verifyNode{
+					{
+						tpy:  operator,
+						data: "+",
+						children: []verifyNode{
+							{tpy: constant, data: int64(3)},
+							{
+								tpy:  operator,
+								data: "/",
+								children: []verifyNode{
+									{
+										tpy:  operator,
+										data: "*",
+										children: []verifyNode{
+											{tpy: constant, data: int64(4)},
+											{tpy: constant, data: int64(2)},
+										},
+									},
+									{
+										tpy:  operator,
+										data: "-",
+										children: []verifyNode{
+											{tpy: constant, data: int64(1)},
+											{tpy: constant, data: int64(5)},
+										},
+									},
+								},
+							},
+						},
+					},
+					{tpy: constant, data: int64(6)},
+				},
+			},
+			cc: &CompileConfig{
+				CompileOptions: map[Option]bool{
+					InfixNotation: true,
+				},
+			},
 		},
 	}
 

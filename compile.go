@@ -15,6 +15,7 @@ const (
 	ConstantFolding Option = "constant_folding"
 
 	Debug                 Option = "debug"
+	InfixNotation         Option = "infix_notation"
 	AllowUnknownSelectors Option = "allow_unknown_selectors"
 )
 
@@ -69,6 +70,9 @@ var (
 				GetOrRegisterKey(c, s)
 			}
 		}
+	}
+	EnableInfixNotation CompileOption = func(c *CompileConfig) {
+		c.CompileOptions[InfixNotation] = true
 	}
 )
 
