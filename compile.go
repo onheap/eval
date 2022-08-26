@@ -63,16 +63,23 @@ var (
 			}
 		}
 	}
-
-	RegisterSelKeys = func(vals map[string]interface{}) CompileOption {
-		return func(c *CompileConfig) {
-			for s := range vals {
-				GetOrRegisterKey(c, s)
-			}
-		}
-	}
 	EnableInfixNotation CompileOption = func(c *CompileConfig) {
 		c.CompileOptions[InfixNotation] = true
+	}
+
+	RegisterVals = func(vals map[string]interface{}) CompileOption {
+		return func(c *CompileConfig) {
+			for k, v := range vals {
+				switch a := v.(type) {
+				case Operator:
+					c.OperatorMap[k] = a
+				case func(*Ctx, []Value) (Value, error):
+					c.OperatorMap[k] = a
+				default:
+					GetOrRegisterKey(c, k)
+				}
+			}
+		}
 	}
 )
 
@@ -167,35 +174,25 @@ func optimize(cc *CompileConfig, root *astNode) {
 }
 
 func isBoolOpNode(n *node) bool {
+	return isAndOpNode(n) || isOrOpNode(n)
+}
+
+func isAndOpNode(n *node) bool {
 	nodeType := n.getNodeType()
 	if nodeType != operator && nodeType != fastOperator {
 		return false
 	}
-
-	switch n.value.(string) {
-	case "and", "&":
-		return true
-	case "or", "|":
-		return true
-	default:
-		return false
-	}
-}
-
-func isAndOpNode(n *node) bool {
-	if !isBoolOpNode(n) {
-		return false
-	}
 	v := n.value.(string)
-	return v == "and" || v == "&"
+	return v == "and" || v == "&" || v == "&&"
 }
 
 func isOrOpNode(n *node) bool {
-	if !isBoolOpNode(n) {
+	nodeType := n.getNodeType()
+	if nodeType != operator && nodeType != fastOperator {
 		return false
 	}
 	v := n.value.(string)
-	return v == "or" || v == "|"
+	return v == "or" || v == "|" || v == "||"
 }
 
 func parentNode(e *Expr, idx int16) (*node, int16) {

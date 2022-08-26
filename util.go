@@ -170,12 +170,6 @@ func GenerateRandomExpr(level int, random *rand.Rand, opts ...GenExprOption) Gen
 			falseBranch := helper(genType, random.Intn(n))
 
 			var res Value
-			if condExpr.Res == true {
-				res = trueBranch.Res
-			} else {
-				res = falseBranch.Res
-			}
-
 			switch condExpr.Res {
 			case true:
 				res = trueBranch.Res
