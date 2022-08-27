@@ -560,7 +560,7 @@ func TestEval_Infix(t *testing.T) {
 			cc := NewCompileConfig(
 				Optimizations(false),
 				EnableInfixNotation,
-				RegisterSelKeys(c.vals))
+				RegisterVals(c.vals))
 			got, err := Eval(c.expr, c.vals, cc)
 
 			if len(c.errMsg) != 0 {

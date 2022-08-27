@@ -68,7 +68,7 @@ func Eval(expr string, vals map[string]interface{}, confs ...*CompileConfig) (Va
 	if len(confs) == 1 {
 		conf = confs[0]
 	} else {
-		conf = NewCompileConfig(RegisterSelKeys(vals))
+		conf = NewCompileConfig(RegisterVals(vals))
 	}
 
 	tree, err := Compile(conf, expr)
