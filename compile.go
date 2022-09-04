@@ -12,6 +12,7 @@ const (
 	Optimize        Option = "optimize" // switch all optimizations
 	Reordering      Option = "reordering"
 	FastEvaluation  Option = "fast_evaluation"
+	ReduceNesting   Option = "reduce_nesting"
 	ConstantFolding Option = "constant_folding"
 
 	Debug                 Option = "debug"
@@ -19,7 +20,17 @@ const (
 	AllowUnknownSelectors Option = "allow_unknown_selectors"
 )
 
-var AllOptimizations = []Option{Reordering, FastEvaluation, ConstantFolding}
+type optimizer func(config *CompileConfig, root *astNode)
+
+var (
+	optimizations = []Option{ConstantFolding, ReduceNesting, FastEvaluation, Reordering}
+	optimizerMap  = map[Option]optimizer{
+		ConstantFolding: optimizeConstantFolding,
+		ReduceNesting:   optimizeReduceNesting,
+		FastEvaluation:  optimizeFastEvaluation,
+		Reordering:      optimizeReordering,
+	}
+)
 
 func CopyCompileConfig(origin *CompileConfig) *CompileConfig {
 	conf := NewCompileConfig()
@@ -55,11 +66,14 @@ var (
 	}
 	Optimizations = func(enable bool, opts ...Option) CompileOption {
 		return func(c *CompileConfig) {
-			if len(opts) == 0 || opts[0] == Optimize {
-				opts = AllOptimizations
+			if len(opts) == 0 || (len(opts) == 1 && opts[0] == Optimize) {
+				opts = optimizations
 			}
+
 			for _, opt := range opts {
-				c.CompileOptions[opt] = enable
+				if optimizerMap[opt] != nil {
+					c.CompileOptions[opt] = enable
+				}
 			}
 		}
 	}
@@ -160,17 +174,44 @@ func Compile(originConf *CompileConfig, exprStr string) (*Expr, error) {
 }
 
 func optimize(cc *CompileConfig, root *astNode) {
-	if enabled, exist := cc.CompileOptions[ConstantFolding]; enabled || !exist {
-		_ = optimizeConstantFolding(cc, root)
+	for _, opt := range optimizations {
+		enabled, exist := cc.CompileOptions[opt]
+		if enabled || !exist {
+			optimizerMap[opt](cc, root)
+		}
+	}
+}
+
+func optimizeReduceNesting(cc *CompileConfig, root *astNode) {
+	for _, child := range root.children {
+		optimizeReduceNesting(cc, child)
 	}
 
-	if enabled, exist := cc.CompileOptions[FastEvaluation]; enabled || !exist {
-		optimizeFastEvaluation(cc, root)
+	n := root.node
+	// todo expand to operators with associative property
+	if !isBoolOpNode(n) {
+		return
 	}
 
-	if enabled, exist := cc.CompileOptions[Reordering]; enabled || !exist {
-		optimizeReordering(cc, root)
+	var children []*astNode
+	rootOpType := isAndOpNode(n)
+	for _, child := range root.children {
+		cn := child.node
+		if typ := cn.getNodeType(); typ == constant || typ == selector {
+			children = append(children, child)
+			continue
+		}
+		if !isBoolOpNode(cn) {
+			return
+		}
+		if isAndOpNode(cn) == rootOpType {
+			children = append(children, child.children...)
+			continue
+		}
+		return
 	}
+
+	root.children = children
 }
 
 func isBoolOpNode(n *node) bool {
@@ -282,18 +323,15 @@ func calculateNodeCosts(conf *CompileConfig, root *astNode) {
 	root.cost = int(cost)
 }
 
-func optimizeConstantFolding(cc *CompileConfig, root *astNode) error {
+func optimizeConstantFolding(cc *CompileConfig, root *astNode) {
 	for _, child := range root.children {
-		err := optimizeConstantFolding(cc, child)
-		if err != nil {
-			return err
-		}
+		optimizeConstantFolding(cc, child)
 	}
 
 	n := root.node
 	stateless, fn := isStatelessOp(cc, n)
 	if !stateless {
-		return nil
+		return
 	}
 
 	if isBoolOpNode(n) {
@@ -304,7 +342,7 @@ func optimizeConstantFolding(cc *CompileConfig, root *astNode) error {
 
 			b, ok := child.node.value.(bool)
 			if !ok {
-				return ParamTypeError(n.value.(string), "bool", child.node.value)
+				return
 			}
 
 			if (b && isOrOpNode(n)) || (!b && isAndOpNode(n)) {
@@ -313,7 +351,7 @@ func optimizeConstantFolding(cc *CompileConfig, root *astNode) error {
 					value: b,
 				}
 				root.children = nil
-				return nil
+				return
 			}
 		}
 	}
@@ -321,21 +359,21 @@ func optimizeConstantFolding(cc *CompileConfig, root *astNode) error {
 	params := make([]Value, len(root.children))
 	for i, child := range root.children {
 		if child.node.getNodeType() != constant {
-			return nil
+			return
 		}
 		params[i] = child.node.value
 	}
 
 	res, err := fn(nil, params)
 	if err != nil {
-		return err
+		return
 	}
 	root.children = nil
 	root.node = &node{
 		flag:  constant,
 		value: res,
 	}
-	return nil
+	return
 }
 
 func isStatelessOp(c *CompileConfig, n *node) (bool, Operator) {
