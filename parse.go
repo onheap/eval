@@ -854,16 +854,17 @@ func (p *parser) parseConfig() error {
 				pair[i] = strings.TrimSpace(pair[i])
 			}
 
+			option := Option(pair[0])
 			enabled, err := strconv.ParseBool(pair[1])
 			if err != nil {
 				return p.errWithToken(fmt.Errorf("invalid config value %s, err %w", s, err), t)
 			}
-			switch option := Option(pair[0]); option {
-			case Optimize: // switch all optimizations
-				for _, opt := range AllOptimizations {
+			switch {
+			case option == Optimize: // switch all optimizations
+				for _, opt := range optimizations {
 					p.conf.CompileOptions[opt] = enabled
 				}
-			case Reordering, FastEvaluation, ConstantFolding:
+			case optimizerMap[option] != nil:
 				p.conf.CompileOptions[option] = enabled
 			default:
 				return p.errWithToken(fmt.Errorf("unsupported compile config %s", s), t)

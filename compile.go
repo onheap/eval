@@ -20,17 +20,17 @@ const (
 	AllowUnknownSelectors Option = "allow_unknown_selectors"
 )
 
-type optimizer struct {
-	name     Option
-	optimize func(config *CompileConfig, root *astNode)
-}
+type optimizer func(config *CompileConfig, root *astNode)
 
-var optimizers = []optimizer{
-	{name: ConstantFolding, optimize: optimizeConstantFolding},
-	{name: ReduceNesting, optimize: optimizeReduceNesting},
-	{name: FastEvaluation, optimize: optimizeFastEvaluation},
-	{name: Reordering, optimize: optimizeReordering},
-}
+var (
+	optimizations = []Option{ConstantFolding, ReduceNesting, FastEvaluation, Reordering}
+	optimizerMap  = map[Option]optimizer{
+		ConstantFolding: optimizeConstantFolding,
+		ReduceNesting:   optimizeReduceNesting,
+		FastEvaluation:  optimizeFastEvaluation,
+		Reordering:      optimizeReordering,
+	}
+)
 
 func CopyCompileConfig(origin *CompileConfig) *CompileConfig {
 	conf := NewCompileConfig()
@@ -67,15 +67,13 @@ var (
 	Optimizations = func(enable bool, opts ...Option) CompileOption {
 		return func(c *CompileConfig) {
 			if len(opts) == 0 || (len(opts) == 1 && opts[0] == Optimize) {
-				for _, o := range optimizers {
-					c.CompileOptions[o.name] = enable
-				}
-				return
+				opts = optimizations
 			}
 
 			for _, opt := range opts {
-				// todo check opt
-				c.CompileOptions[opt] = enable
+				if optimizerMap[opt] != nil {
+					c.CompileOptions[opt] = enable
+				}
 			}
 		}
 	}
@@ -176,18 +174,11 @@ func Compile(originConf *CompileConfig, exprStr string) (*Expr, error) {
 }
 
 func optimize(cc *CompileConfig, root *astNode) {
-	if enabled, exist := cc.CompileOptions[ConstantFolding]; enabled || !exist {
-		optimizeConstantFolding(cc, root)
-	}
-
-	optimizeReduceNesting(cc, root)
-
-	if enabled, exist := cc.CompileOptions[FastEvaluation]; enabled || !exist {
-		optimizeFastEvaluation(cc, root)
-	}
-
-	if enabled, exist := cc.CompileOptions[Reordering]; enabled || !exist {
-		optimizeReordering(cc, root)
+	for _, opt := range optimizations {
+		enabled, exist := cc.CompileOptions[opt]
+		if enabled || !exist {
+			optimizerMap[opt](cc, root)
+		}
 	}
 }
 

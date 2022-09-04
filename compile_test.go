@@ -132,10 +132,9 @@ func TestGetCosts(t *testing.T) {
 
 func TestOptimizeConstantFolding(t *testing.T) {
 	testCases := []struct {
-		cc     *CompileConfig
-		expr   string
-		ast    verifyNode
-		errMsg string
+		cc   *CompileConfig
+		expr string
+		ast  verifyNode
 	}{
 		{
 			expr: `(+ 1 1)`,
@@ -353,12 +352,7 @@ func TestOptimizeConstantFolding(t *testing.T) {
 	for _, c := range testCases {
 		ast, cc, err := newParser(c.cc, c.expr).parse()
 		assertNil(t, err, c)
-		err = optimizeConstantFolding(cc, ast)
-		if len(c.errMsg) != 0 {
-			assertErrStrContains(t, err, c.errMsg, c)
-			continue
-		}
-
+		optimizeConstantFolding(cc, ast)
 		assertAstTreeIdentical(t, ast, c.ast, c)
 	}
 }
