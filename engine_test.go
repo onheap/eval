@@ -461,7 +461,7 @@ func TestExpr_Eval(t *testing.T) {
 			}
 
 			// eval with remote call optimization
-			rcoRes, err := expr.EvalRCO(ctx)
+			rcoRes, err := expr.TryEval(ctx)
 			assertNil(t, err)
 
 			if c.want != nil {
@@ -1062,7 +1062,7 @@ func TestExpr_EvalRCO(t *testing.T) {
 				fmt.Println(DumpTable(expr))
 			}
 
-			res, err := expr.EvalRCO(ctx)
+			res, err := expr.TryEval(ctx)
 			assertNil(t, err)
 
 			if debugMode {
@@ -1078,11 +1078,11 @@ func TestExpr_EvalRCO(t *testing.T) {
 
 func TestRandomExpressions(t *testing.T) {
 	const (
-		size          = 10000
+		size          = 3000000
 		level         = 53
 		step          = size / 100
 		showSample    = false
-		printProgress = false
+		printProgress = true
 	)
 
 	const (
@@ -1201,7 +1201,7 @@ func TestRandomExpressions(t *testing.T) {
 
 				ctx := NewCtxWithMap(cc, valMap)
 				if c.rco {
-					c.got, c.err = expr.EvalRCO(ctx)
+					c.got, c.err = expr.TryEval(ctx)
 				} else {
 					c.got, c.err = expr.Eval(ctx)
 				}

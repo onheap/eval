@@ -147,7 +147,7 @@ func (p *parser) lex() error {
 				if unicode.IsLetter(r) {
 					continue
 				}
-				if r == '_' {
+				if r == '_' || r == '.' {
 					continue
 				}
 

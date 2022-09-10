@@ -315,7 +315,7 @@ func TestGenerateRandomExpr_RCO(t *testing.T) {
 
 		assertNil(t, err)
 
-		got, err := expr.EvalRCO(ctx)
+		got, err := expr.TryEval(ctx)
 		if err != nil {
 			fmt.Println(GenerateTestCase(genRes.Expr, genRes.Res, valMap))
 			t.Fatalf("assertNil failed, got: %+v\n", err)
