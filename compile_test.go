@@ -350,10 +350,12 @@ func TestOptimizeConstantFolding(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		ast, cc, err := newParser(c.cc, c.expr).parse()
-		assertNil(t, err, c)
-		optimizeConstantFolding(cc, ast)
-		assertAstTreeIdentical(t, ast, c.ast, c)
+		t.Run(c.expr, func(t *testing.T) {
+			ast, cc, err := newParser(c.cc, c.expr).parse()
+			assertNil(t, err, c)
+			optimizeConstantFolding(cc, ast)
+			assertAstTreeIdentical(t, ast, c.ast, c)
+		})
 	}
 }
 
@@ -541,16 +543,19 @@ func TestOptimizeFastEvaluation(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		ast, cc, err := newParser(c.cc, c.expr).parse()
-		assertNil(t, err)
 
-		optimizeFastEvaluation(cc, ast)
-		if len(c.errMsg) != 0 {
-			assertErrStrContains(t, err, c.errMsg, c)
-			continue
-		}
+		t.Run(c.expr, func(t *testing.T) {
+			ast, cc, err := newParser(c.cc, c.expr).parse()
+			assertNil(t, err)
 
-		assertAstTreeIdentical(t, ast, c.ast, c)
+			optimizeFastEvaluation(cc, ast)
+			if len(c.errMsg) != 0 {
+				assertErrStrContains(t, err, c.errMsg, c)
+				return
+			}
+
+			assertAstTreeIdentical(t, ast, c.ast, c)
+		})
 	}
 }
 
@@ -769,21 +774,23 @@ func TestReordering(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		ast, cc, err := newParser(c.cc, c.expr).parse()
-		assertNil(t, err)
+		t.Run(c.expr, func(t *testing.T) {
+			ast, cc, err := newParser(c.cc, c.expr).parse()
+			assertNil(t, err)
 
-		if c.fastEval {
-			optimizeFastEvaluation(cc, ast)
-		}
+			if c.fastEval {
+				optimizeFastEvaluation(cc, ast)
+			}
 
-		calculateNodeCosts(cc, ast)
-		optimizeReordering(cc, ast)
-		if len(c.errMsg) != 0 {
-			assertErrStrContains(t, err, c.errMsg, c)
-			continue
-		}
+			calculateNodeCosts(cc, ast)
+			optimizeReordering(cc, ast)
+			if len(c.errMsg) != 0 {
+				assertErrStrContains(t, err, c.errMsg, c)
+				return
+			}
 
-		assertAstTreeIdentical(t, ast, c.ast, c)
+			assertAstTreeIdentical(t, ast, c.ast, c)
+		})
 	}
 
 }
@@ -938,16 +945,17 @@ func TestOptimize(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		ast, cc, err := newParser(c.cc, c.expr).parse()
-		assertNil(t, err)
+		t.Run(c.expr, func(t *testing.T) {
+			ast, cc, err := newParser(c.cc, c.expr).parse()
+			assertNil(t, err)
 
-		optimize(cc, ast)
-		if len(c.errMsg) != 0 {
-			assertErrStrContains(t, err, c.errMsg, c)
-			continue
-		}
+			optimize(cc, ast)
+			if len(c.errMsg) != 0 {
+				assertErrStrContains(t, err, c.errMsg, c)
+			}
 
-		assertAstTreeIdentical(t, ast, c.ast, c)
+			assertAstTreeIdentical(t, ast, c.ast, c)
+		})
 	}
 }
 
@@ -1026,22 +1034,24 @@ func TestCheck(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		ast, cc, err := newParser(c.cc, c.expr).parse()
-		assertNil(t, err)
+		t.Run(c.expr, func(t *testing.T) {
+			ast, cc, err := newParser(c.cc, c.expr).parse()
+			assertNil(t, err)
 
-		if c.optimize {
-			optimize(cc, ast)
-		}
+			if c.optimize {
+				optimize(cc, ast)
+			}
 
-		res := check(ast)
+			res := check(ast)
 
-		if len(c.errMsg) != 0 {
-			assertErrStrContains(t, res.err, c.errMsg, c)
-			continue
-		}
+			if len(c.errMsg) != 0 {
+				assertErrStrContains(t, res.err, c.errMsg, c)
+				return
+			}
 
-		assertNil(t, res.err, c)
-		assertEquals(t, res.size, c.size, c)
+			assertNil(t, res.err, c)
+			assertEquals(t, res.size, c.size, c)
+		})
 	}
 }
 
