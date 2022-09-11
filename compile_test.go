@@ -2,6 +2,7 @@ package eval
 
 import (
 	"fmt"
+	"math"
 	"reflect"
 	"strings"
 	"testing"
@@ -350,10 +351,12 @@ func TestOptimizeConstantFolding(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		ast, cc, err := newParser(c.cc, c.expr).parse()
-		assertNil(t, err, c)
-		optimizeConstantFolding(cc, ast)
-		assertAstTreeIdentical(t, ast, c.ast, c)
+		t.Run(c.expr, func(t *testing.T) {
+			ast, cc, err := newParser(c.cc, c.expr).parse()
+			assertNil(t, err, c)
+			optimizeConstantFolding(cc, ast)
+			assertAstTreeIdentical(t, ast, c.ast, c)
+		})
 	}
 }
 
@@ -541,16 +544,19 @@ func TestOptimizeFastEvaluation(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		ast, cc, err := newParser(c.cc, c.expr).parse()
-		assertNil(t, err)
 
-		optimizeFastEvaluation(cc, ast)
-		if len(c.errMsg) != 0 {
-			assertErrStrContains(t, err, c.errMsg, c)
-			continue
-		}
+		t.Run(c.expr, func(t *testing.T) {
+			ast, cc, err := newParser(c.cc, c.expr).parse()
+			assertNil(t, err)
 
-		assertAstTreeIdentical(t, ast, c.ast, c)
+			optimizeFastEvaluation(cc, ast)
+			if len(c.errMsg) != 0 {
+				assertErrStrContains(t, err, c.errMsg, c)
+				return
+			}
+
+			assertAstTreeIdentical(t, ast, c.ast, c)
+		})
 	}
 }
 
@@ -769,21 +775,23 @@ func TestReordering(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		ast, cc, err := newParser(c.cc, c.expr).parse()
-		assertNil(t, err)
+		t.Run(c.expr, func(t *testing.T) {
+			ast, cc, err := newParser(c.cc, c.expr).parse()
+			assertNil(t, err)
 
-		if c.fastEval {
-			optimizeFastEvaluation(cc, ast)
-		}
+			if c.fastEval {
+				optimizeFastEvaluation(cc, ast)
+			}
 
-		calculateNodeCosts(cc, ast)
-		optimizeReordering(cc, ast)
-		if len(c.errMsg) != 0 {
-			assertErrStrContains(t, err, c.errMsg, c)
-			continue
-		}
+			calculateNodeCosts(cc, ast)
+			optimizeReordering(cc, ast)
+			if len(c.errMsg) != 0 {
+				assertErrStrContains(t, err, c.errMsg, c)
+				return
+			}
 
-		assertAstTreeIdentical(t, ast, c.ast, c)
+			assertAstTreeIdentical(t, ast, c.ast, c)
+		})
 	}
 
 }
@@ -938,16 +946,17 @@ func TestOptimize(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		ast, cc, err := newParser(c.cc, c.expr).parse()
-		assertNil(t, err)
+		t.Run(c.expr, func(t *testing.T) {
+			ast, cc, err := newParser(c.cc, c.expr).parse()
+			assertNil(t, err)
 
-		optimize(cc, ast)
-		if len(c.errMsg) != 0 {
-			assertErrStrContains(t, err, c.errMsg, c)
-			continue
-		}
+			optimize(cc, ast)
+			if len(c.errMsg) != 0 {
+				assertErrStrContains(t, err, c.errMsg, c)
+			}
 
-		assertAstTreeIdentical(t, ast, c.ast, c)
+			assertAstTreeIdentical(t, ast, c.ast, c)
+		})
 	}
 }
 
@@ -1026,33 +1035,306 @@ func TestCheck(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		ast, cc, err := newParser(c.cc, c.expr).parse()
-		assertNil(t, err)
+		t.Run(c.expr, func(t *testing.T) {
+			ast, cc, err := newParser(c.cc, c.expr).parse()
+			assertNil(t, err)
 
-		if c.optimize {
-			optimize(cc, ast)
-		}
+			if c.optimize {
+				optimize(cc, ast)
+			}
 
-		res := check(ast)
+			res := check(ast)
 
-		if len(c.errMsg) != 0 {
-			assertErrStrContains(t, res.err, c.errMsg, c)
-			continue
-		}
+			if len(c.errMsg) != 0 {
+				assertErrStrContains(t, res.err, c.errMsg, c)
+				return
+			}
 
-		assertNil(t, res.err, c)
-		assertEquals(t, res.size, c.size, c)
+			assertNil(t, res.err, c)
+			assertEquals(t, res.size, c.size, c)
+		})
 	}
 }
 
-func TestCompress(t *testing.T) {
-
-}
-
-func TestCalculateStackSize(t *testing.T) {
-
-}
-
 func TestCompile(t *testing.T) {
+	testCases := []struct {
+		cc     *CompileConfig
+		expr   string
+		nodes  []*node
+		errMsg string
+	}{
+		{
+			expr: `(+ 1 2)`,
+			cc:   NewCompileConfig(Optimizations(false)),
+			nodes: []*node{
+				{
+					flag:  constant,
+					osTop: 0,
+					scIdx: 0,
+					value: int64(1),
+				},
+				{
+					flag:  constant,
+					osTop: 1,
+					scIdx: 1,
+					value: int64(2),
+				},
+				{
+					flag:     operator,
+					childCnt: 2,
+					osTop:    0,
+					scIdx:    -1,
+					value:    "+",
+				},
+			},
+		},
+		{
+			expr: `(+ 1 2)`,
+			nodes: []*node{
+				{
+					flag:  constant,
+					osTop: 0,
+					scIdx: -1,
+					value: int64(3),
+				},
+			},
+		},
+		{
+			expr: `(+ 1 v1)`,
+			cc: &CompileConfig{
+				SelectorMap: map[string]SelectorKey{
+					"v1": SelectorKey(168),
+				},
+				CompileOptions: map[Option]bool{
+					FastEvaluation: false,
+				},
+			},
+			nodes: []*node{
+				{
+					flag:  constant,
+					osTop: 0,
+					scIdx: 0,
+					value: int64(1),
+				},
+				{
+					flag:   selector,
+					osTop:  1,
+					scIdx:  1,
+					selKey: SelectorKey(168),
+					value:  "v1",
+				},
+				{
+					flag:     operator,
+					childCnt: 2,
+					osTop:    0,
+					scIdx:    -1,
+					value:    "+",
+				},
+			},
+		},
+		{
+			expr: `(+ 1 v1)`,
+			cc: &CompileConfig{
+				SelectorMap: map[string]SelectorKey{
+					"v1": SelectorKey(168),
+				},
+			},
+			nodes: []*node{
+				{
+					flag:     fastOperator,
+					childCnt: 2,
+					scIdx:    0,
+					osTop:    0,
+					value:    "+",
+				},
+				{
+					flag:  constant,
+					osTop: 0,
+					scIdx: 1,
+					value: int64(1),
+				},
+				{
+					flag:   selector,
+					osTop:  0,
+					scIdx:  -1,
+					selKey: SelectorKey(168),
+					value:  "v1",
+				},
+			},
+		},
 
+		{
+			expr: `(and T1 T2 F)`,
+			cc: &CompileConfig{
+				SelectorMap: map[string]SelectorKey{
+					"T1": SelectorKey(168),
+					"T2": SelectorKey(169),
+					"F":  SelectorKey(170),
+				},
+				CostsMap: map[string]int{
+					"T1": 3,
+					"T2": 1,
+					"F":  5,
+				},
+			},
+			nodes: []*node{
+				{
+					flag:   selector | scIfFalse | andOp,
+					osTop:  0,
+					scIdx:  -1,
+					selKey: SelectorKey(169),
+					value:  "T2",
+				},
+				{
+					flag:   selector | scIfFalse | andOp,
+					osTop:  1,
+					scIdx:  -1,
+					selKey: SelectorKey(168),
+					value:  "T1",
+				},
+				{
+					flag:   selector | (scIfFalse | scIfTrue) | andOp,
+					osTop:  2,
+					scIdx:  -1,
+					selKey: SelectorKey(170),
+					value:  "F",
+				},
+				{
+					flag:     operator,
+					childCnt: 3,
+					scIdx:    -1,
+					osTop:    0,
+					value:    "and",
+				},
+			},
+		},
+
+		{
+			expr: `(and A (or B C (= D E)) F)`,
+			cc: &CompileConfig{
+				SelectorMap: map[string]SelectorKey{
+					"A": SelectorKey(168),
+					"B": SelectorKey(169),
+					"C": SelectorKey(170),
+					"D": SelectorKey(171),
+					"E": SelectorKey(172),
+					"F": SelectorKey(173),
+				},
+				CompileOptions: map[Option]bool{
+					Reordering: false,
+				},
+			},
+			nodes: []*node{
+				{
+					flag:   selector | scIfFalse | andOp,
+					osTop:  0,
+					scIdx:  -1,
+					selKey: SelectorKey(168),
+					value:  "A",
+				},
+				{
+					flag:   selector | scIfTrue | orOp,
+					osTop:  1,
+					scIdx:  6,
+					selKey: SelectorKey(169),
+					value:  "B",
+				},
+				{
+					flag:   selector | scIfTrue | orOp,
+					osTop:  2,
+					scIdx:  6,
+					selKey: SelectorKey(170),
+					value:  "C",
+				},
+				{
+					flag:     fastOperator | (scIfTrue | scIfFalse) | orOp,
+					childCnt: 2,
+					scIdx:    6,
+					osTop:    3,
+					value:    "=",
+				},
+				{
+					flag:   selector,
+					osTop:  3,
+					scIdx:  4,
+					selKey: SelectorKey(171),
+					value:  "D",
+				},
+				{
+					flag:   selector,
+					osTop:  3,
+					scIdx:  5,
+					selKey: SelectorKey(172),
+					value:  "E",
+				},
+				{
+					flag:     operator | scIfFalse | andOp,
+					childCnt: 3,
+					osTop:    1,
+					scIdx:    -1,
+					value:    "or",
+				},
+				{
+					flag:   selector | (scIfTrue | scIfFalse) | andOp,
+					osTop:  2,
+					scIdx:  -1,
+					selKey: SelectorKey(173),
+					value:  "F",
+				},
+				{
+					flag:     operator,
+					childCnt: 3,
+					osTop:    0,
+					scIdx:    -1,
+					value:    "and",
+				},
+			},
+		},
+		{
+			expr:   `(and ()`,
+			errMsg: "parentheses unmatched error",
+		},
+		{
+			expr:   fmt.Sprintf(`(+ %s)`, strings.Repeat(`1 `, 128)),
+			cc:     NewCompileConfig(Optimizations(false)),
+			errMsg: "operators cannot exceed a maximum of 127 parameters",
+		},
+		{
+			expr: fmt.Sprintf(
+				`(and %s)`, strings.Repeat(
+					fmt.Sprintf(`(= %s)`, strings.Repeat(`(= 1 1) `, 127)), 127)),
+			cc:     NewCompileConfig(Optimizations(false)),
+			errMsg: "expression cannot exceed a maximum of 32767 nodes",
+		},
+	}
+
+	for _, c := range testCases {
+		t.Run(c.expr, func(t *testing.T) {
+			e, err := Compile(c.cc, c.expr)
+
+			if len(c.errMsg) != 0 {
+				assertErrStrContains(t, err, c.errMsg)
+				return
+			}
+
+			assertNil(t, err)
+
+			assertEquals(t, len(e.nodes), len(c.nodes))
+
+			maxOsTop := int16(math.MinInt16)
+			for i, want := range c.nodes {
+				got := e.nodes[i]
+				assertEquals(t, got.value, want.value, "value")
+				assertEquals(t, got.flag, want.flag, "flag", got.value)
+				assertEquals(t, got.childCnt, want.childCnt, "childCnt", got.value)
+				assertEquals(t, got.scIdx, want.scIdx, "scIdx", got.value)
+				assertEquals(t, got.osTop, want.osTop, "osTop", got.value)
+				assertEquals(t, got.selKey, want.selKey, "selKey", got.value)
+
+				maxOsTop = maxInt16(maxOsTop, want.osTop)
+			}
+
+			assertEquals(t, e.maxStackSize, maxOsTop+1)
+		})
+	}
 }

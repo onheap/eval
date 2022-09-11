@@ -190,7 +190,7 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 	return os[0], nil
 }
 
-func (e *Expr) EvalRCO(ctx *Ctx) (res Value, err error) {
+func (e *Expr) TryEval(ctx *Ctx) (res Value, err error) {
 	var (
 		nodes = e.nodes
 		size  = int16(len(nodes))

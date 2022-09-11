@@ -245,12 +245,33 @@ func TestLex(t *testing.T) {
 		},
 
 		{
+			expr: `(and ()`,
+			tokens: []token{
+				{typ: lParen, val: "("},
+				{typ: ident, val: "and"},
+				{typ: lParen, val: "("},
+				{typ: rParen, val: ")"},
+			},
+		},
+
+		{
 			expr: `(+ -1 1)`,
 			tokens: []token{
 				{typ: lParen, val: "("},
 				{typ: ident, val: "+"},
 				{typ: integer, val: "-1"},
 				{typ: integer, val: "1"},
+				{typ: rParen, val: ")"},
+			},
+		},
+
+		{
+			expr: `(math.Sub startDate.Year user.Birthdate.Year)`,
+			tokens: []token{
+				{typ: lParen, val: "("},
+				{typ: ident, val: "math.Sub"},
+				{typ: ident, val: "startDate.Year"},
+				{typ: ident, val: "user.Birthdate.Year"},
 				{typ: rParen, val: ")"},
 			},
 		},
@@ -425,6 +446,26 @@ func TestLex(t *testing.T) {
 
 		{
 			expr:   `!3`,
+			errMsg: "can not parse token",
+		},
+
+		{
+			expr:   `(math.Sub. 1 2)`,
+			errMsg: "can not parse token",
+		},
+
+		{
+			expr:   `(- .def 2)`,
+			errMsg: "can not parse token",
+		},
+
+		{
+			expr:   `(- def. 2)`,
+			errMsg: "can not parse token",
+		},
+
+		{
+			expr:   `(- d..f 2)`,
 			errMsg: "can not parse token",
 		},
 
@@ -781,6 +822,23 @@ func TestParseAstTree(t *testing.T) {
 				},
 			},
 		},
+
+		{
+			expr: `(math.Abs 1 abc.def.ijk)`,
+			cc: NewCompileConfig(RegisterVals(map[string]interface{}{
+				"math.Abs":    Operator(nil), // just a placeholder
+				"abc.def.ijk": -1,
+			})),
+			ast: verifyNode{
+				tpy:  operator,
+				data: "math.Abs",
+				children: []verifyNode{
+					{tpy: constant, data: int64(1)},
+					{tpy: selector, data: "abc.def.ijk"},
+				},
+			},
+		},
+
 		{
 			expr: `
 (<
