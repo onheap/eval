@@ -138,16 +138,26 @@ func (p *parser) lex() error {
 			return err == nil
 		}
 		isValidIdent = func(s string) bool {
-			for idx, r := range []rune(s) {
+			prevDotIdx := -1
+			runes := []rune(s)
+			lastIdx := len(runes) - 1
+			for idx, r := range runes {
+				if unicode.IsLetter(r) {
+					continue
+				}
+				if r == '_' {
+					continue
+				}
 				if unicode.IsNumber(r) {
 					if idx != 0 {
 						continue
 					}
 				}
-				if unicode.IsLetter(r) {
-					continue
-				}
-				if r == '_' || r == '.' {
+				if r == '.' {
+					if idx == prevDotIdx+1 || idx == 0 || idx == lastIdx {
+						return false
+					}
+					prevDotIdx = idx
 					continue
 				}
 
