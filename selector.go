@@ -202,6 +202,12 @@ func unifyType(val Value) Value {
 			temp[i] = int64(iv)
 		}
 		return temp
+	case []int32:
+		temp := make([]int64, len(v))
+		for i, iv := range v {
+			temp[i] = int64(iv)
+		}
+		return temp
 	case int32:
 		return int64(v)
 	case int16:

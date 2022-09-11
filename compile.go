@@ -128,31 +128,29 @@ func (cc *CompileConfig) getCosts(nodeType uint8, nodeName string) int {
 		defaultCost  = 5
 		selectorCost = 7
 		operatorCost = 10
+
+		selectorNode = "selector"
+		operatorNode = "operator"
 	)
 
-	fallback := defaultCost
-	var prefix string
+	if v, exist := cc.CostsMap[nodeName]; exist {
+		return v
+	}
+
 	switch nodeType {
 	case selector:
-		prefix = "selector"
-		fallback = selectorCost
-	case operator, fastOperator:
-		prefix = "operator"
-		fallback = operatorCost
-	}
-
-	keys := []string{
-		fmt.Sprintf("%s.%s", prefix, nodeName), // operator.abs
-		nodeName,                               // abs
-		fmt.Sprintf("%ss", prefix),             // operators
-	}
-
-	for _, key := range keys {
-		if v, exist := cc.CostsMap[key]; exist {
+		if v, exist := cc.CostsMap[selectorNode]; exist {
 			return v
 		}
+		return selectorCost
+	case operator, fastOperator:
+		if v, exist := cc.CostsMap[operatorNode]; exist {
+			return v
+		}
+		return operatorCost
+	default:
+		return defaultCost
 	}
-	return fallback
 }
 
 func Compile(originConf *CompileConfig, exprStr string) (*Expr, error) {
