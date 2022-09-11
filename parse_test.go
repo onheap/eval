@@ -245,6 +245,16 @@ func TestLex(t *testing.T) {
 		},
 
 		{
+			expr: `(and ()`,
+			tokens: []token{
+				{typ: lParen, val: "("},
+				{typ: ident, val: "and"},
+				{typ: lParen, val: "("},
+				{typ: rParen, val: ")"},
+			},
+		},
+
+		{
 			expr: `(+ -1 1)`,
 			tokens: []token{
 				{typ: lParen, val: "("},

@@ -293,6 +293,10 @@ func (p *parser) check() error {
 		}
 	}
 
+	if parenCnt != 0 {
+		return p.parenUnmatchedErr(0)
+	}
+
 	return nil
 }
 
