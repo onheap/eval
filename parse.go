@@ -324,22 +324,32 @@ func (p *parser) isInfixNotation() bool {
 	return p.conf.CompileOptions[InfixNotation]
 }
 
-func (p *parser) peek() token {
-	return p.tokens[p.idx]
+func (p *parser) peek() (token, error) {
+	if !p.hasNext() {
+		return token{}, p.errNoNextToken()
+	}
+
+	return p.tokens[p.idx], nil
 }
 
 func (p *parser) hasNext() bool {
 	return p.idx < len(p.tokens)
 }
 
-func (p *parser) next() token {
+func (p *parser) next() (token, error) {
+	if !p.hasNext() {
+		return token{}, p.errNoNextToken()
+	}
 	t := p.tokens[p.idx]
 	p.walk()
-	return t
+	return t, nil
 }
 
 func (p *parser) eat(expectTypes ...tokenType) error {
-	t := p.next()
+	t, err := p.next()
+	if err != nil {
+		return err
+	}
 	if len(expectTypes) == 0 {
 		return nil
 	}
@@ -390,16 +400,12 @@ func (p *parser) errWithToken(err error, t token) error {
 	return p.errWithPos(err, t.pos)
 }
 
+func (p *parser) errNoNextToken() error {
+	return p.errWithPos(errors.New("does not have next token error"), len(p.source)-1)
+}
+
 func (p *parser) errWithPos(err error, idx int) error {
 	return fmt.Errorf("%w occurs at %s", err, p.pos(idx))
-}
-
-func (p *parser) printPosMsg(msg string, idx int) {
-	fmt.Println(msg, p.pos(idx))
-}
-
-func (p *parser) printPos(idx int) {
-	fmt.Println(p.pos(idx))
 }
 
 func (p *parser) pos(i int) string {
@@ -484,7 +490,10 @@ func (p *parser) parseList(leftType, rightType tokenType) func() (*astNode, erro
 }
 
 func (p *parser) parseInt() (*astNode, error) {
-	t := p.peek()
+	t, err := p.peek()
+	if err != nil {
+		return nil, err
+	}
 	if t.typ != integer {
 		return nil, nil
 	}
@@ -496,7 +505,10 @@ func (p *parser) parseInt() (*astNode, error) {
 	return p.valNode(v), nil
 }
 func (p *parser) parseStr() (*astNode, error) {
-	t := p.peek()
+	t, err := p.peek()
+	if err != nil {
+		return nil, err
+	}
 	if t.typ != str {
 		return nil, nil
 	}
@@ -504,7 +516,10 @@ func (p *parser) parseStr() (*astNode, error) {
 	return p.valNode(t.val), nil
 }
 func (p *parser) parseConst() (*astNode, error) {
-	t := p.peek()
+	t, err := p.peek()
+	if err != nil {
+		return nil, err
+	}
 	if t.typ != ident {
 		return nil, nil
 	}
@@ -522,7 +537,10 @@ func (p *parser) parseConst() (*astNode, error) {
 }
 
 func (p *parser) parseSelector() (*astNode, error) {
-	t := p.peek()
+	t, err := p.peek()
+	if err != nil {
+		return nil, err
+	}
 	if t.typ != ident {
 		return nil, nil
 	}
@@ -546,7 +564,10 @@ func (p *parser) parseUnknownSelector() (*astNode, error) {
 		return nil, nil
 	}
 
-	t := p.peek()
+	t, err := p.peek()
+	if err != nil {
+		return nil, err
+	}
 	if t.typ != ident {
 		return nil, nil
 	}
@@ -586,7 +607,11 @@ func (p *parser) parseExpression() (ast *astNode, err error) {
 		return ast, err
 	}
 
-	if t := p.peek(); t.typ == ident {
+	t, err := p.peek()
+	if err != nil {
+		return nil, err
+	}
+	if t.typ == ident {
 		return nil, p.unknownTokenError(t)
 	}
 
@@ -595,13 +620,25 @@ func (p *parser) parseExpression() (ast *astNode, err error) {
 		return nil, err
 	}
 
-	car := p.next()
+	car, err := p.next()
+	if err != nil {
+		return nil, err
+	}
 	if car.typ != ident {
 		return nil, p.tokenTypeError(ident, car)
 	}
 
 	var children []*astNode
-	for p.peek().typ != rParen {
+	for {
+		peek, err := p.peek()
+		if err != nil {
+			return nil, err
+		}
+
+		if peek.typ == rParen {
+			break
+		}
+
 		child, err := p.parseExpression()
 		if err != nil {
 			return nil, err
@@ -691,7 +728,10 @@ func (p *parser) parseInfixExpression() (*astNode, error) {
 			continue
 		}
 
-		car := p.next()
+		car, err := p.next()
+		if err != nil {
+			return nil, err
+		}
 		switch car.typ {
 		case ident:
 			err = buildTopOperators(car)
