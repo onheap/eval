@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -21,6 +22,8 @@ const UndefinedSelKey SelectorKey = math.MinInt16
 // When executing an expression with RCO, if the value of a SelectorKey is not cached,
 // the selector proxy will return DNE as its value
 var DNE = struct{ DoesNotExist string }{DoesNotExist: "DNE"}
+
+var ErrDNE = errors.New("DNE")
 
 // Selector is used to get values of the expression variables.
 // Note that there are two types of keys in each method parameters,

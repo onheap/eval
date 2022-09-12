@@ -79,6 +79,35 @@ func Eval(expr string, vals map[string]interface{}, confs ...*CompileConfig) (Va
 	return tree.Eval(NewCtxWithMap(conf, vals))
 }
 
+func (e *Expr) EvalBool(ctx *Ctx) (bool, error) {
+	res, err := e.Eval(ctx)
+	if err != nil {
+		return false, err
+	}
+	b, ok := res.(bool)
+	if !ok {
+		return false, errors.New("invalid result type error")
+	}
+	return b, nil
+}
+
+func (e *Expr) TryEvalBool(ctx *Ctx) (bool, error) {
+	res, err := e.Eval(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	if res == DNE {
+		return false, ErrDNE
+	}
+
+	b, ok := res.(bool)
+	if !ok {
+		return false, errors.New("invalid result type error")
+	}
+	return b, nil
+}
+
 func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 	var (
 		nodes = e.nodes
