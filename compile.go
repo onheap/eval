@@ -133,6 +133,16 @@ func (cc *CompileConfig) getCosts(nodeType uint8, nodeName string) int {
 		operatorNode = "operator"
 	)
 
+	// want positive value to short-circuit (use subexpression in OR)
+	if v, exist := cc.CostsMap["+"+nodeName]; exist {
+		return v
+	}
+
+	// want negative result to short-circuit (use subexpression in AND)
+	if v, exist := cc.CostsMap["-"+nodeName]; exist {
+		return v
+	}
+
 	if v, exist := cc.CostsMap[nodeName]; exist {
 		return v
 	}
