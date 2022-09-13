@@ -3,8 +3,6 @@ package eval
 import (
 	"context"
 	"errors"
-	"fmt"
-	"strings"
 )
 
 type (
@@ -26,7 +24,7 @@ const (
 	operator     = uint8(0b00000011)
 	fastOperator = uint8(0b00000100)
 	cond         = uint8(0b00000101)
-	debug        = uint8(0b00000110)
+	event        = uint8(0b00000111)
 
 	// short circuit flag
 	scMask    = uint8(0b00011000)
@@ -53,10 +51,18 @@ func (n *node) getNodeType() uint8 {
 	return n.flag & nodeTypeMask
 }
 
+type Event struct {
+	CurtIdx int16
+	Stack   []Value
+	Data    interface{}
+}
+
 type Expr struct {
 	maxStackSize int16
 	nodes        []*node
 	parentIdx    []int16
+
+	eventChan chan<- Event
 }
 
 func Eval(expr string, vals map[string]interface{}, confs ...*CompileConfig) (Value, error) {
@@ -131,7 +137,6 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 		params []Value
 		param2 [2]Value
 		curt   *node
-		prev   int16
 	)
 
 	for i := int16(0); i < size; i++ {
@@ -197,7 +202,7 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 			}
 			continue
 		default:
-			printDebugExpr(e, prev, i, os, osTop)
+			reportEvent(e, i, os, osTop)
 			continue
 		}
 		if b, ok := res.(bool); ok {
@@ -214,7 +219,6 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 		}
 
 		os[osTop+1], osTop = res, osTop+1
-		prev = i
 	}
 	return os[0], nil
 }
@@ -242,7 +246,6 @@ func (e *Expr) TryEval(ctx *Ctx) (res Value, err error) {
 		param  []Value
 		param2 [2]Value
 		curt   *node
-		prev   int16
 	)
 
 	for i := int16(0); i < size; i++ {
@@ -296,7 +299,7 @@ func (e *Expr) TryEval(ctx *Ctx) (res Value, err error) {
 			}
 			continue
 		default:
-			printDebugExpr(e, prev, i, os, osTop)
+			reportEvent(e, i, os, osTop)
 			continue
 		}
 
@@ -317,7 +320,6 @@ func (e *Expr) TryEval(ctx *Ctx) (res Value, err error) {
 		}
 
 		os[osTop+1], osTop = res, osTop+1
-		prev = i
 	}
 	return os[0], nil
 }
@@ -367,24 +369,14 @@ func getSelectorValueProxy(ctx *Ctx, n *node) (Value, error) {
 	return ctx.Get(selKey, strKey)
 }
 
-func printDebugExpr(e *Expr, prevIdx, curtIdx int16, os []Value, osTop int16) {
-	var (
-		sb   strings.Builder
-		curt = e.nodes[curtIdx].value
-	)
-
-	if curtIdx-prevIdx > 2 {
-		sb.WriteString(fmt.Sprintf("%13s: [%v] jump to [%v]\n\n", "Short Circuit", e.nodes[prevIdx].value, curt))
-	} else {
-		sb.WriteString(fmt.Sprintf("\n"))
-	}
-
-	sb.WriteString(fmt.Sprintf("%13s: [%v], idx:[%d]\n", "Current Node", curt, curtIdx))
-
-	sb.WriteString(fmt.Sprintf("%13s: ", "Operand Stack"))
+func reportEvent(e *Expr, curtIdx int16, os []Value, osTop int16) {
+	stack := make([]Value, osTop+1)
 	for i := osTop; i >= 0; i-- {
-		sb.WriteString(fmt.Sprintf("|%4v", os[i]))
+		stack[i] = os[i]
 	}
-	sb.WriteString("|")
-	fmt.Println(sb.String())
+
+	e.eventChan <- Event{
+		CurtIdx: curtIdx,
+		Stack:   stack,
+	}
 }

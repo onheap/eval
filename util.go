@@ -398,7 +398,7 @@ func IndentByParentheses(s string) string {
 func Dump(e *Expr) string {
 	var getChildIdxes = func(idx int16) (res []int16) {
 		for i, p := range e.parentIdx {
-			if p == idx && e.nodes[i].getNodeType() != debug {
+			if p == idx && e.nodes[i].getNodeType() != event {
 				res = append(res, int16(i))
 			}
 		}
@@ -454,8 +454,8 @@ func Dump(e *Expr) string {
 
 func dumpLeafNode(node *node) (string, bool) {
 	switch node.getNodeType() {
-	case debug:
-		return "debug", false
+	case event:
+		return "eventNode", false
 	case selector:
 		return fmt.Sprint(node.value), true
 	case operator, fastOperator:
@@ -519,10 +519,7 @@ func contains(params []Value, target Value) bool {
 	return false
 }
 
-func DumpTable(expr *Expr, skipDebug ...bool) string {
-	if len(skipDebug) == 0 {
-		skipDebug = []bool{true}
-	}
+func DumpTable(expr *Expr, skipEventNode bool) string {
 
 	type fetcher struct {
 		name string
@@ -555,8 +552,8 @@ func DumpTable(expr *Expr, skipDebug ...bool) string {
 			res = "C"
 		case cond:
 			res = "COND"
-		case debug:
-			res = "D"
+		case event:
+			res = "EVNT"
 		}
 
 		if f&scIfTrue == scIfTrue {
@@ -633,7 +630,7 @@ func DumpTable(expr *Expr, skipDebug ...bool) string {
 	for f, n := range fetchers {
 		sb.WriteString(fmt.Sprintf("%5s: ", n.name))
 		for j := 0; j < size; j++ {
-			if expr.nodes[j].flag&nodeTypeMask == debug && skipDebug[0] {
+			if expr.nodes[j].flag&nodeTypeMask == event && skipEventNode {
 				continue
 			}
 

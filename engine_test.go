@@ -446,7 +446,7 @@ func TestExpr_Eval(t *testing.T) {
 			if debugMode {
 				fmt.Println(Dump(expr))
 				fmt.Println()
-				fmt.Println(DumpTable(expr))
+				fmt.Println(DumpTable(expr, true))
 			}
 
 			res, err := expr.Eval(ctx)
@@ -1059,7 +1059,7 @@ func TestExpr_TryEval(t *testing.T) {
 			if debugMode {
 				fmt.Println(Dump(expr))
 				fmt.Println()
-				fmt.Println(DumpTable(expr))
+				fmt.Println(DumpTable(expr, true))
 			}
 
 			res, err := expr.TryEval(ctx)

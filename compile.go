@@ -475,7 +475,7 @@ func buildExpr(cc *CompileConfig, ast *astNode, size int) *Expr {
 	calAndSetShortCircuit(e)
 	calAndSetShortCircuitForRCO(e)
 	if cc.CompileOptions[Debug] {
-		calAndSetDebugInfo(e)
+		calAndSetEventNode(e)
 	}
 
 	return e
@@ -694,7 +694,7 @@ func calAndSetShortCircuitForRCO(e *Expr) {
 	}
 }
 
-func calAndSetDebugInfo(e *Expr) {
+func calAndSetEventNode(e *Expr) {
 	var wrapDebugInfo = func(name Value, op Operator) Operator {
 		return func(ctx *Ctx, params []Value) (res Value, err error) {
 			res, err = op(ctx, params)
@@ -715,7 +715,7 @@ func calAndSetDebugInfo(e *Expr) {
 	for i := int16(0); i < size; i++ {
 		realNode := nodes[i]
 		debugNode := &node{
-			flag:     debug,
+			flag:     event,
 			childCnt: realNode.childCnt,
 			osTop:    realNode.osTop,
 			scIdx:    realNode.scIdx,
@@ -751,7 +751,7 @@ func calAndSetDebugInfo(e *Expr) {
 			continue
 		}
 
-		if n.getNodeType() == debug {
+		if n.getNodeType() == event {
 			parents[i] = debugIdxes[p]
 		} else {
 			parents[i] = realIdxes[p]
