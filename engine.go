@@ -380,7 +380,7 @@ func getSelectorValueProxy(ctx *Ctx, n *node) (Value, error) {
 
 func reportEvent(e *Expr, curtIdx int16, os []Value, osTop int16) {
 	stack := make([]Value, osTop+1)
-	for i := osTop; i >= 0; i-- {
+	for i := int16(0); i <= osTop; i++ {
 		stack[i] = os[i]
 	}
 
