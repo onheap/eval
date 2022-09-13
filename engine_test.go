@@ -1261,6 +1261,37 @@ func TestRandomExpressions(t *testing.T) {
 	}
 }
 
+func TestReportEvent(t *testing.T) {
+	cc := NewCompileConfig(Optimizations(false), EnableReportEvent)
+
+	s := `(+ 1 2)`
+
+	e, err := Compile(cc, s)
+	assertNil(t, err)
+
+	var events []Value
+
+	wg := sync.WaitGroup{}
+
+	wg.Add(1)
+	go func() {
+		for ev := range e.EventChan {
+			if ev.EventType == LoopEvent {
+				events = append(events, ev.NodeValue)
+			}
+		}
+		wg.Done()
+	}()
+
+	res, err := e.Eval(nil)
+	close(e.EventChan)
+
+	wg.Wait()
+	assertNil(t, err)
+	assertEquals(t, res, int64(3))
+	assertEquals(t, events, []Value{int64(1), int64(2), "+"})
+}
+
 func assertEquals(t *testing.T, got, want any, msg ...any) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("assertEquals failed, got: %+v, want: %+v, msg: %+v", got, want, msg)

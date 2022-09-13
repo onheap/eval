@@ -16,6 +16,7 @@ const (
 	ConstantFolding Option = "constant_folding"
 
 	Debug                 Option = "debug"
+	ReportEvent           Option = "report_event"
 	InfixNotation         Option = "infix_notation"
 	AllowUnknownSelectors Option = "allow_unknown_selectors"
 )
@@ -63,6 +64,9 @@ var (
 	}
 	EnableDebug CompileOption = func(c *CompileConfig) {
 		c.CompileOptions[Debug] = true
+	}
+	EnableReportEvent CompileOption = func(c *CompileConfig) {
+		c.CompileOptions[ReportEvent] = true
 	}
 	Optimizations = func(enable bool, opts ...Option) CompileOption {
 		return func(c *CompileConfig) {
@@ -474,7 +478,8 @@ func buildExpr(cc *CompileConfig, ast *astNode, size int) *Expr {
 	calAndSetStackSize(e)
 	calAndSetShortCircuit(e)
 	calAndSetShortCircuitForRCO(e)
-	if cc.CompileOptions[Debug] {
+
+	if cc.CompileOptions[ReportEvent] || cc.CompileOptions[Debug] {
 		calAndSetEventNode(e)
 	}
 
@@ -774,5 +779,5 @@ func calAndSetEventNode(e *Expr) {
 
 	e.nodes = res
 	e.parentIdx = parents
-	e.EventChan = make(chan Event)
+	e.EventChan = make(chan Event, 64)
 }
