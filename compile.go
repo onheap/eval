@@ -16,6 +16,7 @@ const (
 	ConstantFolding Option = "constant_folding"
 
 	Debug                 Option = "debug"
+	ReportEvent           Option = "report_event"
 	InfixNotation         Option = "infix_notation"
 	AllowUnknownSelectors Option = "allow_unknown_selectors"
 )
@@ -63,6 +64,9 @@ var (
 	}
 	EnableDebug CompileOption = func(c *CompileConfig) {
 		c.CompileOptions[Debug] = true
+	}
+	EnableReportEvent CompileOption = func(c *CompileConfig) {
+		c.CompileOptions[ReportEvent] = true
 	}
 	Optimizations = func(enable bool, opts ...Option) CompileOption {
 		return func(c *CompileConfig) {
@@ -128,31 +132,29 @@ func (cc *CompileConfig) getCosts(nodeType uint8, nodeName string) int {
 		defaultCost  = 5
 		selectorCost = 7
 		operatorCost = 10
+
+		selectorNode = "selector"
+		operatorNode = "operator"
 	)
 
-	fallback := defaultCost
-	var prefix string
+	if v, exist := cc.CostsMap[nodeName]; exist {
+		return v
+	}
+
 	switch nodeType {
 	case selector:
-		prefix = "selector"
-		fallback = selectorCost
-	case operator, fastOperator:
-		prefix = "operator"
-		fallback = operatorCost
-	}
-
-	keys := []string{
-		fmt.Sprintf("%s.%s", prefix, nodeName), // operator.abs
-		nodeName,                               // abs
-		fmt.Sprintf("%ss", prefix),             // operators
-	}
-
-	for _, key := range keys {
-		if v, exist := cc.CostsMap[key]; exist {
+		if v, exist := cc.CostsMap[selectorNode]; exist {
 			return v
 		}
+		return selectorCost
+	case operator, fastOperator:
+		if v, exist := cc.CostsMap[operatorNode]; exist {
+			return v
+		}
+		return operatorCost
+	default:
+		return defaultCost
 	}
-	return fallback
 }
 
 func Compile(originConf *CompileConfig, exprStr string) (*Expr, error) {
@@ -466,8 +468,9 @@ func buildExpr(cc *CompileConfig, ast *astNode, size int) *Expr {
 	calAndSetStackSize(e)
 	calAndSetShortCircuit(e)
 	calAndSetShortCircuitForRCO(e)
-	if cc.CompileOptions[Debug] {
-		calAndSetDebugInfo(e)
+
+	if cc.CompileOptions[ReportEvent] || cc.CompileOptions[Debug] {
+		calAndSetEventNode(e)
 	}
 
 	return e
@@ -686,28 +689,42 @@ func calAndSetShortCircuitForRCO(e *Expr) {
 	}
 }
 
-func calAndSetDebugInfo(e *Expr) {
-	var wrapDebugInfo = func(name Value, op Operator) Operator {
+type OpEventData struct {
+	Params []Value
+	Res    Value
+	Err    error
+}
+
+func calAndSetEventNode(e *Expr) {
+	var wrapOpEvent = func(name Value, op Operator) Operator {
 		return func(ctx *Ctx, params []Value) (res Value, err error) {
 			res, err = op(ctx, params)
-			fmt.Printf("%13s: op: %v, params: %v, res: %v, err: %v\n", "Exec Operator", name, params, res, err)
+			e.EventChan <- Event{
+				EventType: OpExecEvent,
+				NodeValue: name,
+				Data: OpEventData{
+					Params: params,
+					Res:    res,
+					Err:    err,
+				},
+			}
 			return
 		}
 	}
 
 	var (
-		nodes      = e.nodes
-		size       = int16(len(nodes))
-		res        = make([]*node, 0, size*2)
-		parents    = make([]int16, 0, size*2)
-		debugIdxes = make([]int16, size)
-		realIdxes  = make([]int16, size)
+		nodes          = e.nodes
+		size           = int16(len(nodes))
+		res            = make([]*node, 0, size*2)
+		parents        = make([]int16, 0, size*2)
+		eventNodeIdxes = make([]int16, size)
+		realIdxes      = make([]int16, size)
 	)
 
 	for i := int16(0); i < size; i++ {
 		realNode := nodes[i]
 		debugNode := &node{
-			flag:     debug,
+			flag:     event,
 			childCnt: realNode.childCnt,
 			osTop:    realNode.osTop,
 			scIdx:    realNode.scIdx,
@@ -715,7 +732,7 @@ func calAndSetDebugInfo(e *Expr) {
 			value:    realNode.value,
 		}
 		res = append(res, debugNode)
-		debugIdxes[i] = int16(len(res) - 1)
+		eventNodeIdxes[i] = int16(len(res) - 1)
 		res = append(res, realNode)
 		realIdxes[i] = int16(len(res) - 1)
 
@@ -723,9 +740,9 @@ func calAndSetDebugInfo(e *Expr) {
 
 		switch realNode.flag & nodeTypeMask {
 		case operator:
-			realNode.operator = wrapDebugInfo(realNode.value, realNode.operator)
+			realNode.operator = wrapOpEvent(realNode.value, realNode.operator)
 		case fastOperator:
-			realNode.operator = wrapDebugInfo(realNode.value, realNode.operator)
+			realNode.operator = wrapOpEvent(realNode.value, realNode.operator)
 			// append child nodes of fast operator
 			res = append(res, nodes[i+1], nodes[i+2])
 			parents = append(parents, e.parentIdx[i+1], e.parentIdx[i+2])
@@ -743,8 +760,8 @@ func calAndSetDebugInfo(e *Expr) {
 			continue
 		}
 
-		if n.getNodeType() == debug {
-			parents[i] = debugIdxes[p]
+		if n.getNodeType() == event {
+			parents[i] = eventNodeIdxes[p]
 		} else {
 			parents[i] = realIdxes[p]
 		}
@@ -752,4 +769,5 @@ func calAndSetDebugInfo(e *Expr) {
 
 	e.nodes = res
 	e.parentIdx = parents
+	e.EventChan = make(chan Event, 64)
 }
