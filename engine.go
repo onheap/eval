@@ -51,10 +51,19 @@ func (n *node) getNodeType() uint8 {
 	return n.flag & nodeTypeMask
 }
 
+type EventType string
+
+const (
+	OpExecEvent EventType = "OP_EXEC"
+	LoopEvent   EventType = "LOOP"
+)
+
 type Event struct {
-	CurtIdx int16
-	Stack   []Value
-	Data    interface{}
+	CurtIdx   int16
+	EventType EventType
+	NodeValue interface{}
+	Stack     []Value
+	Data      interface{}
 }
 
 type Expr struct {
@@ -62,7 +71,7 @@ type Expr struct {
 	nodes        []*node
 	parentIdx    []int16
 
-	eventChan chan<- Event
+	EventChan chan Event
 }
 
 func Eval(expr string, vals map[string]interface{}, confs ...*CompileConfig) (Value, error) {
@@ -375,8 +384,10 @@ func reportEvent(e *Expr, curtIdx int16, os []Value, osTop int16) {
 		stack[i] = os[i]
 	}
 
-	e.eventChan <- Event{
-		CurtIdx: curtIdx,
-		Stack:   stack,
+	e.EventChan <- Event{
+		EventType: LoopEvent,
+		NodeValue: e.nodes[curtIdx].value,
+		CurtIdx:   curtIdx,
+		Stack:     stack,
 	}
 }

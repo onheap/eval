@@ -62,8 +62,8 @@ func TestCopyCompileConfig(t *testing.T) {
 			},
 		},
 		CostsMap: map[string]int{
-			"selectors": 10,
-			"operators": 20,
+			"selector": 10,
+			"operator": 20,
 		},
 		CompileOptions: map[Option]bool{
 			Reordering:      true,
@@ -96,8 +96,8 @@ func TestGetCosts(t *testing.T) {
 			"not_null": func(_ *Ctx, _ []Value) (Value, error) { return false, nil },
 		},
 		CostsMap: map[string]int{
-			"selectors": 10, // generally costs for all selectors
-			"operators": 20, // generally costs for all operators
+			"selector": 10, // generally costs for all selectors
+			"operator": 20, // generally costs for all operators
 
 			"is_child": 13, // specified costs for operator `is_child`
 			"birthday": 11, // specified costs for selector `birthday`
@@ -716,9 +716,9 @@ func TestReordering(t *testing.T) {
 					"v6": SelectorKey(6),
 				},
 				CostsMap: map[string]int{
-					"selectors": 2,
-					"operators": 3,
-					"v3":        50,
+					"selector": 2,
+					"operator": 3,
+					"v3":       50,
 				},
 			},
 			ast: verifyNode{
@@ -845,9 +845,9 @@ func TestOptimize(t *testing.T) {
 					"v6": SelectorKey(6),
 				},
 				CostsMap: map[string]int{
-					"selectors": 2,
-					"operators": 3,
-					"v3":        50,
+					"selector": 2,
+					"operator": 3,
+					"v3":       50,
 				},
 			},
 			ast: verifyNode{

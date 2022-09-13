@@ -444,12 +444,14 @@ func TestExpr_Eval(t *testing.T) {
 			expr, err := Compile(cc, c.s)
 			assertNil(t, err)
 			if debugMode {
+				HandleDebugEvent(expr)
 				fmt.Println(Dump(expr))
 				fmt.Println()
 				fmt.Println(DumpTable(expr, true))
 			}
 
 			res, err := expr.Eval(ctx)
+
 			assertNil(t, err)
 
 			if debugMode {
@@ -466,6 +468,10 @@ func TestExpr_Eval(t *testing.T) {
 
 			if c.want != nil {
 				assertEquals(t, rcoRes, c.want)
+			}
+
+			if debugMode {
+				close(expr.EventChan)
 			}
 		})
 	}
@@ -1057,12 +1063,16 @@ func TestExpr_TryEval(t *testing.T) {
 			expr, err := Compile(cc, c.s)
 			assertNil(t, err)
 			if debugMode {
+				HandleDebugEvent(expr)
 				fmt.Println(Dump(expr))
 				fmt.Println()
 				fmt.Println(DumpTable(expr, true))
 			}
 
 			res, err := expr.TryEval(ctx)
+			if debugMode {
+				close(expr.EventChan)
+			}
 			assertNil(t, err)
 
 			if debugMode {

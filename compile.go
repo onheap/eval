@@ -694,22 +694,36 @@ func calAndSetShortCircuitForRCO(e *Expr) {
 	}
 }
 
+type OpEventData struct {
+	Params []Value
+	Res    Value
+	Err    error
+}
+
 func calAndSetEventNode(e *Expr) {
-	var wrapDebugInfo = func(name Value, op Operator) Operator {
+	var wrapOpEvent = func(name Value, op Operator) Operator {
 		return func(ctx *Ctx, params []Value) (res Value, err error) {
 			res, err = op(ctx, params)
-			fmt.Printf("%13s: op: %v, params: %v, res: %v, err: %v\n", "Exec Operator", name, params, res, err)
+			e.EventChan <- Event{
+				EventType: OpExecEvent,
+				NodeValue: name,
+				Data: OpEventData{
+					Params: params,
+					Res:    res,
+					Err:    err,
+				},
+			}
 			return
 		}
 	}
 
 	var (
-		nodes      = e.nodes
-		size       = int16(len(nodes))
-		res        = make([]*node, 0, size*2)
-		parents    = make([]int16, 0, size*2)
-		debugIdxes = make([]int16, size)
-		realIdxes  = make([]int16, size)
+		nodes          = e.nodes
+		size           = int16(len(nodes))
+		res            = make([]*node, 0, size*2)
+		parents        = make([]int16, 0, size*2)
+		eventNodeIdxes = make([]int16, size)
+		realIdxes      = make([]int16, size)
 	)
 
 	for i := int16(0); i < size; i++ {
@@ -723,7 +737,7 @@ func calAndSetEventNode(e *Expr) {
 			value:    realNode.value,
 		}
 		res = append(res, debugNode)
-		debugIdxes[i] = int16(len(res) - 1)
+		eventNodeIdxes[i] = int16(len(res) - 1)
 		res = append(res, realNode)
 		realIdxes[i] = int16(len(res) - 1)
 
@@ -731,9 +745,9 @@ func calAndSetEventNode(e *Expr) {
 
 		switch realNode.flag & nodeTypeMask {
 		case operator:
-			realNode.operator = wrapDebugInfo(realNode.value, realNode.operator)
+			realNode.operator = wrapOpEvent(realNode.value, realNode.operator)
 		case fastOperator:
-			realNode.operator = wrapDebugInfo(realNode.value, realNode.operator)
+			realNode.operator = wrapOpEvent(realNode.value, realNode.operator)
 			// append child nodes of fast operator
 			res = append(res, nodes[i+1], nodes[i+2])
 			parents = append(parents, e.parentIdx[i+1], e.parentIdx[i+2])
@@ -752,7 +766,7 @@ func calAndSetEventNode(e *Expr) {
 		}
 
 		if n.getNodeType() == event {
-			parents[i] = debugIdxes[p]
+			parents[i] = eventNodeIdxes[p]
 		} else {
 			parents[i] = realIdxes[p]
 		}
@@ -760,4 +774,5 @@ func calAndSetEventNode(e *Expr) {
 
 	e.nodes = res
 	e.parentIdx = parents
+	e.EventChan = make(chan Event)
 }
