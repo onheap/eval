@@ -17,6 +17,7 @@ func TestCopyCompileConfig(t *testing.T) {
 	assertNotNil(t, res.ConstantMap)
 	assertNotNil(t, res.SelectorMap)
 	assertNotNil(t, res.CompileOptions)
+	assertNotNil(t, res.StatelessOperators)
 
 	res = CopyCompileConfig(&CompileConfig{})
 	assertNotNil(t, res)
@@ -24,6 +25,7 @@ func TestCopyCompileConfig(t *testing.T) {
 	assertNotNil(t, res.ConstantMap)
 	assertNotNil(t, res.SelectorMap)
 	assertNotNil(t, res.CompileOptions)
+	assertNotNil(t, res.StatelessOperators)
 
 	cc := &CompileConfig{
 		ConstantMap: map[string]Value{
@@ -60,6 +62,28 @@ func TestCopyCompileConfig(t *testing.T) {
 				age := int64(time.Now().Sub(birthTime) / timeYear)
 				return age < 18, nil
 			},
+			"max": func(_ *Ctx, param []Value) (Value, error) {
+				const op = "max"
+				if len(param) < 2 {
+					return nil, ParamsCountError(op, 2, len(param))
+				}
+
+				var res int64
+				for i, p := range param {
+					v, ok := p.(int64)
+					if !ok {
+						return nil, ParamTypeError(op, typeInt, p)
+					}
+					if i == 0 {
+						res = v
+					} else {
+						if v > res {
+							res = v
+						}
+					}
+				}
+				return res, nil
+			},
 		},
 		CostsMap: map[string]int{
 			"selector": 10,
@@ -69,6 +93,7 @@ func TestCopyCompileConfig(t *testing.T) {
 			Reordering:      true,
 			ConstantFolding: false,
 		},
+		StatelessOperators: []string{"max"},
 	}
 
 	res = CopyCompileConfig(cc)
@@ -76,6 +101,7 @@ func TestCopyCompileConfig(t *testing.T) {
 	assertEquals(t, res.SelectorMap, cc.SelectorMap)
 	assertEquals(t, res.CompileOptions, cc.CompileOptions)
 	assertEquals(t, res.CostsMap, cc.CostsMap)
+	assertEquals(t, res.StatelessOperators, cc.StatelessOperators)
 
 	assertEquals(t, len(res.OperatorMap), len(cc.OperatorMap))
 	for s := range cc.OperatorMap {
