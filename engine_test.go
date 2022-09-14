@@ -781,6 +781,18 @@ func TestExpr_TryEval(t *testing.T) {
 			},
 		},
 		{
+			want:          false,
+			optimizeLevel: disable,
+			s: `
+(and F
+  (= 0 0)
+  (!= 0 0))`,
+			valMap: map[string]interface{}{
+				"F": false,
+				"T": true,
+			},
+		},
+		{
 			want:          true,
 			optimizeLevel: disable,
 			s: `

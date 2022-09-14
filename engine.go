@@ -61,7 +61,7 @@ const (
 type Event struct {
 	CurtIdx   int16
 	EventType EventType
-	NodeValue interface{}
+	NodeValue Value
 	Stack     []Value
 	Data      interface{}
 }
