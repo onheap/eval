@@ -53,6 +53,9 @@ func CopyCompileConfig(origin *CompileConfig) *CompileConfig {
 	for k, v := range origin.CostsMap {
 		conf.CostsMap[k] = v
 	}
+	for _, op := range origin.StatelessOperators {
+		conf.StatelessOperators = append(conf.StatelessOperators, op)
+	}
 	return conf
 }
 
@@ -103,11 +106,12 @@ var (
 
 func NewCompileConfig(opts ...CompileOption) *CompileConfig {
 	conf := &CompileConfig{
-		ConstantMap:    make(map[string]Value),
-		SelectorMap:    make(map[string]SelectorKey),
-		OperatorMap:    make(map[string]Operator),
-		CompileOptions: make(map[Option]bool),
-		CostsMap:       make(map[string]int),
+		ConstantMap:        make(map[string]Value),
+		SelectorMap:        make(map[string]SelectorKey),
+		OperatorMap:        make(map[string]Operator),
+		CompileOptions:     make(map[Option]bool),
+		CostsMap:           make(map[string]int),
+		StatelessOperators: []string{},
 	}
 	for _, opt := range opts {
 		opt(conf)
