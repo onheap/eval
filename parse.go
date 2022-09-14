@@ -266,8 +266,7 @@ func (p *parser) setLeafNodeParsers() {
 		// For infix expressions only lists with brackets are supported
 		fns = append(fns, p.parseList(lBracket, rBracket))
 	} else {
-		// For prefix expressions, lists with brackets or parentheses both are supported
-		fns = append(fns, p.parseList(lBracket, rBracket), p.parseList(lParen, rParen))
+		fns = append(fns, p.parseList(lParen, rParen))
 	}
 
 	p.leafNodeParser = fns
@@ -281,25 +280,40 @@ func (p *parser) check() error {
 		(p.tokens[0].typ != lParen || p.tokens[last].typ != rParen) {
 		return p.parenUnmatchedErr(0)
 	}
+	// check parentheses
+	var parenCnt int
+	var inBracket bool
 
-	var parenCnt int // check parentheses
 	for i, t := range p.tokens {
 		switch t.typ {
 		case lParen:
 			parenCnt++
 		case rParen:
 			parenCnt--
-		case comma:
-			if prefixNotation { // commas can be used in infix expressions only
+		case comma, lBracket, rBracket:
+			if prefixNotation { // commas, brackets can be used in infix expressions only
 				return p.unknownTokenError(t)
 			}
+		default:
+			continue
 		}
+
 		if parenCnt < 0 {
 			return p.parenUnmatchedErr(t.pos)
 		}
 
 		if prefixNotation && parenCnt == 0 && i != last {
 			return p.parenUnmatchedErr(t.pos)
+		}
+
+		if inBracket && t.typ != rBracket {
+			return p.invalidExprErr(t.pos)
+		}
+
+		if t.typ == lBracket {
+			inBracket = true
+		} else if t.typ == rBracket {
+			inBracket = false
 		}
 	}
 

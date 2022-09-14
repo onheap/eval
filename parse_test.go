@@ -1076,6 +1076,13 @@ func TestParseAstTree(t *testing.T) {
 				},
 			},
 		},
+		{
+			expr: `(1 2)`,
+			ast: verifyNode{
+				tpy:  constant,
+				data: []int64{1, 2},
+			},
+		},
 
 		// return an error when expr use operator at selector position
 		{
