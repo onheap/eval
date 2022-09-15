@@ -17,6 +17,7 @@ func TestCopyCompileConfig(t *testing.T) {
 	assertNotNil(t, res.ConstantMap)
 	assertNotNil(t, res.SelectorMap)
 	assertNotNil(t, res.CompileOptions)
+	assertNotNil(t, res.StatelessOperators)
 
 	res = CopyCompileConfig(&CompileConfig{})
 	assertNotNil(t, res)
@@ -24,6 +25,7 @@ func TestCopyCompileConfig(t *testing.T) {
 	assertNotNil(t, res.ConstantMap)
 	assertNotNil(t, res.SelectorMap)
 	assertNotNil(t, res.CompileOptions)
+	assertNotNil(t, res.StatelessOperators)
 
 	cc := &CompileConfig{
 		ConstantMap: map[string]Value{
@@ -60,6 +62,49 @@ func TestCopyCompileConfig(t *testing.T) {
 				age := int64(time.Now().Sub(birthTime) / timeYear)
 				return age < 18, nil
 			},
+			"max": func(_ *Ctx, param []Value) (Value, error) {
+				const op = "max"
+				if len(param) < 2 {
+					return nil, ParamsCountError(op, 2, len(param))
+				}
+
+				var m int64
+				for i, p := range param {
+					v, ok := p.(int64)
+					if !ok {
+						return nil, ParamTypeError(op, typeInt, p)
+					}
+					if i == 0 {
+						m = v
+					} else {
+						if v > m {
+							m = v
+						}
+					}
+				}
+				return m, nil
+			},
+			"to_set": func(_ *Ctx, params []Value) (Value, error) {
+				if len(params) != 1 {
+					return nil, ParamsCountError("to_set", 1, len(params))
+				}
+				switch list := params[0].(type) {
+				case []int64:
+					set := make(map[int64]struct{}, len(list))
+					for _, i := range list {
+						set[i] = empty
+					}
+					return set, nil
+				case []string:
+					set := make(map[string]struct{}, len(list))
+					for _, s := range list {
+						set[s] = empty
+					}
+					return set, nil
+				default:
+					return nil, ParamTypeError("to_set", "slice", list)
+				}
+			},
 		},
 		CostsMap: map[string]int{
 			"selector": 10,
@@ -69,6 +114,9 @@ func TestCopyCompileConfig(t *testing.T) {
 			Reordering:      true,
 			ConstantFolding: false,
 		},
+		// max & to_set are both stateless operators
+		// but is_child is not, because it varies with time
+		StatelessOperators: []string{"max", "to_set"},
 	}
 
 	res = CopyCompileConfig(cc)
@@ -76,6 +124,7 @@ func TestCopyCompileConfig(t *testing.T) {
 	assertEquals(t, res.SelectorMap, cc.SelectorMap)
 	assertEquals(t, res.CompileOptions, cc.CompileOptions)
 	assertEquals(t, res.CostsMap, cc.CostsMap)
+	assertEquals(t, res.StatelessOperators, cc.StatelessOperators)
 
 	assertEquals(t, len(res.OperatorMap), len(cc.OperatorMap))
 	for s := range cc.OperatorMap {

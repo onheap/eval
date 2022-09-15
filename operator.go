@@ -348,29 +348,36 @@ func listIn(_ *Ctx, params []Value) (Value, error) {
 	}
 	switch v := params[0].(type) {
 	case string:
-		list, ok := params[1].([]string)
-		if !ok {
+		switch coll := params[1].(type) {
+		case []string:
+			for _, i := range coll {
+				if i == v {
+					return true, nil
+				}
+			}
+			return false, nil
+		case map[string]struct{}:
+			_, exist := coll[v]
+			return exist, nil
+		default:
 			return nil, ParamTypeError(op, typeStrList, params[1])
 		}
-		for _, s := range list {
-			if s == v {
-				return true, nil
-			}
-		}
-		return false, nil
 	case int64:
-		switch list := params[1].(type) {
+		switch coll := params[1].(type) {
 		case []int64:
-			for _, i := range list {
+			for _, i := range coll {
 				if i == v {
 					return true, nil
 				}
 			}
 			return false, nil
 		case []string: // the empty list is parsed to a string list
-			if len(list) == 0 {
+			if len(coll) == 0 {
 				return false, nil
 			}
+		case map[int64]struct{}:
+			_, exist := coll[v]
+			return exist, nil
 		}
 		return nil, ParamTypeError(op, typeIntList, params[1])
 	}

@@ -781,6 +781,18 @@ func TestExpr_TryEval(t *testing.T) {
 			},
 		},
 		{
+			want:          false,
+			optimizeLevel: disable,
+			s: `
+(and F
+  (= 0 0)
+  (!= 0 0))`,
+			valMap: map[string]interface{}{
+				"F": false,
+				"T": true,
+			},
+		},
+		{
 			want:          true,
 			optimizeLevel: disable,
 			s: `
@@ -1290,6 +1302,72 @@ func TestReportEvent(t *testing.T) {
 	assertNil(t, err)
 	assertEquals(t, res, int64(3))
 	assertEquals(t, events, []Value{int64(1), int64(2), "+"})
+}
+
+func TestStatelessOperators(t *testing.T) {
+	cc := &CompileConfig{
+		OperatorMap: map[string]Operator{
+			"to_set": func(_ *Ctx, params []Value) (Value, error) {
+				if len(params) != 1 {
+					return nil, ParamsCountError("to_set", 1, len(params))
+				}
+				switch list := params[0].(type) {
+				case []int64:
+					set := make(map[int64]struct{}, len(list))
+					for _, i := range list {
+						set[i] = empty
+					}
+					return set, nil
+				case []string:
+					set := make(map[string]struct{}, len(list))
+					for _, s := range list {
+						set[s] = empty
+					}
+					return set, nil
+				default:
+					return nil, ParamTypeError("to_set", "list", list)
+				}
+			},
+		},
+		SelectorMap: map[string]SelectorKey{
+			"num": SelectorKey(1),
+		},
+		StatelessOperators: []string{"to_set"},
+	}
+
+	s := `
+  (in 
+    num
+    (to_set 
+      (2 3 5 7 11 13 17 19 23 29 31 37 41
+       43 47 53 59 61 67 71 73 79 83 89 97 
+       101 103 107 109 113 127 131 137 139 
+       149 151 157 163 167 173 179 181 191 
+       193 197 199 211 223 227 229 233 239 
+       241 251 257 263 269 271 277 281 283 
+       293 307 311 313 317 331 337 347 349 
+       353 359 367 373 379 383 389 397 401 
+       409 419 421 431 433 439 443 449 457 
+       461 463 467 479 487 491 499 503 509 
+       521 523 541 547 557 563 569 571 577 
+       587 593 599 601 607 613 617 619 631 
+       641 643 647 653 659 661 673 677 683 
+       691 701 709 719 727 733 739 743 751 
+       757 761 769 773 787 797 809 811 821 
+       823 827 829 839 853 857 859 863 877 
+       881 883 887 907 911 919 929 937 941 
+       947 953 967 971 977 983 991 997)))
+`
+
+	expr, err := Compile(cc, s)
+	assertNil(t, err)
+	res, err := expr.EvalBool(NewCtxWithMap(cc, map[string]interface{}{
+		"num": 499,
+	}))
+
+	assertNil(t, err)
+	assertEquals(t, res, true)
+	assertEquals(t, len(expr.nodes), 3)
 }
 
 func assertEquals(t *testing.T, got, want any, msg ...any) {

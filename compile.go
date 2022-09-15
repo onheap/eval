@@ -53,6 +53,9 @@ func CopyCompileConfig(origin *CompileConfig) *CompileConfig {
 	for k, v := range origin.CostsMap {
 		conf.CostsMap[k] = v
 	}
+	for _, op := range origin.StatelessOperators {
+		conf.StatelessOperators = append(conf.StatelessOperators, op)
+	}
 	return conf
 }
 
@@ -103,11 +106,12 @@ var (
 
 func NewCompileConfig(opts ...CompileOption) *CompileConfig {
 	conf := &CompileConfig{
-		ConstantMap:    make(map[string]Value),
-		SelectorMap:    make(map[string]SelectorKey),
-		OperatorMap:    make(map[string]Operator),
-		CompileOptions: make(map[Option]bool),
-		CostsMap:       make(map[string]int),
+		ConstantMap:        make(map[string]Value),
+		SelectorMap:        make(map[string]SelectorKey),
+		OperatorMap:        make(map[string]Operator),
+		CompileOptions:     make(map[Option]bool),
+		CostsMap:           make(map[string]int),
+		StatelessOperators: []string{},
 	}
 	for _, opt := range opts {
 		opt(conf)
@@ -125,6 +129,8 @@ type CompileConfig struct {
 
 	// compile options
 	CompileOptions map[Option]bool
+
+	StatelessOperators []string
 }
 
 func (cc *CompileConfig) getCosts(nodeType uint8, nodeName string) int {
@@ -383,21 +389,27 @@ func isStatelessOp(c *CompileConfig, n *node) (bool, Operator) {
 		return false, nil
 	}
 
-	s, ok := n.value.(string)
+	op, ok := n.value.(string)
 	if !ok {
 		return false, nil
 	}
 
-	// by default, we only do constant folding on builtin operators
-	if _, exist := c.OperatorMap[s]; exist {
-		return false, nil
+	// builtinOperators are all stateless functions
+	fn, exist := builtinOperators[op]
+	if exist {
+		return true, fn
 	}
 
-	fn, exist := builtinOperators[s] // should be stateless function
-	if !exist {
-		return false, nil
+	for _, so := range c.StatelessOperators {
+		if so == op {
+			if fn = c.OperatorMap[op]; fn != nil {
+				return true, fn
+			}
+			break
+		}
 	}
-	return true, fn
+
+	return false, fn
 }
 
 func optimizeFastEvaluation(cc *CompileConfig, root *astNode) {
