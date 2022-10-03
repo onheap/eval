@@ -52,7 +52,7 @@ var keywords = [...]keyword{keywordIf, keywordLet, keywordAny,
 type astNode struct {
 	node      *node
 	children  []*astNode
-	cost      int
+	cost      float64
 	idx       int
 	parentIdx int
 }

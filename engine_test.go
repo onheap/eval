@@ -2,6 +2,7 @@ package eval
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"reflect"
 	"strconv"
@@ -1104,7 +1105,7 @@ func TestRandomExpressions(t *testing.T) {
 		level         = 53
 		step          = size / 100
 		showSample    = false
-		printProgress = false
+		printProgress = true
 	)
 
 	const (
@@ -1373,6 +1374,12 @@ func TestStatelessOperators(t *testing.T) {
 func assertEquals(t *testing.T, got, want any, msg ...any) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("assertEquals failed, got: %+v, want: %+v, msg: %+v", got, want, msg)
+	}
+}
+
+func assertFloatEquals(t *testing.T, got, want float64, msg ...any) {
+	if math.Abs(got-want) > 0.00001 {
+		t.Fatalf("assertFloatEquals failed, got: %+v, want: %+v, msg: %+v", got, want, msg)
 	}
 }
 
