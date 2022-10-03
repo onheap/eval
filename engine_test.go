@@ -445,6 +445,7 @@ func TestExpr_Eval(t *testing.T) {
 			expr, err := Compile(cc, c.s)
 			assertNil(t, err)
 			if debugMode {
+				expr.EventChan = make(chan Event)
 				HandleDebugEvent(expr)
 				fmt.Println(Dump(expr))
 				fmt.Println()
@@ -1076,6 +1077,7 @@ func TestExpr_TryEval(t *testing.T) {
 			expr, err := Compile(cc, c.s)
 			assertNil(t, err)
 			if debugMode {
+				expr.EventChan = make(chan Event)
 				HandleDebugEvent(expr)
 				fmt.Println(Dump(expr))
 				fmt.Println()
@@ -1281,12 +1283,12 @@ func TestReportEvent(t *testing.T) {
 
 	e, err := Compile(cc, s)
 	assertNil(t, err)
+	e.EventChan = make(chan Event)
 
 	var events []Value
-
 	wg := sync.WaitGroup{}
-
 	wg.Add(1)
+
 	go func() {
 		for ev := range e.EventChan {
 			if ev.EventType == LoopEvent {

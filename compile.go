@@ -772,5 +772,4 @@ func calAndSetEventNode(e *Expr) {
 
 	e.nodes = res
 	e.parentIdx = parents
-	e.EventChan = make(chan Event, 64)
 }
