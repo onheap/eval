@@ -683,7 +683,7 @@ func HandleDebugEvent(e *Expr) {
 					sb.WriteString(fmt.Sprintf("\n"))
 				}
 
-				sb.WriteString(fmt.Sprintf("%13s: [%v], idx:[%d]\n", "Current Node", curt, ev.CurtIdx))
+				sb.WriteString(fmt.Sprintf("%13s: [%v], type:[%s], idx:[%d]\n", "Current Node", curt, ev.NodeType.String(), ev.CurtIdx))
 
 				sb.WriteString(fmt.Sprintf("%13s: ", "Operand Stack"))
 				for i := len(ev.Stack) - 1; i >= 0; i-- {

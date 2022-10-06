@@ -51,33 +51,6 @@ func (n *node) getNodeType() uint8 {
 	return n.flag & nodeTypeMask
 }
 
-type EventType string
-
-const (
-	LoopEvent       EventType = "LOOP"
-	OpExecEvent     EventType = "OP_EXEC"
-	FastOpExecEvent EventType = "FAST_OP_EXEC"
-)
-
-type NodeType uint8
-
-const (
-	ConstantNode     NodeType = 0b00000111
-	SelectorNode     NodeType = 0b00000010
-	OperatorNode     NodeType = 0b00000011
-	FastOperatorNode NodeType = 0b00000100
-	CondNode         NodeType = 0b00000101
-	EventNode        NodeType = 0b00000111
-)
-
-type Event struct {
-	CurtIdx   int16
-	EventType EventType
-	NodeType  NodeType
-	Stack     []Value
-	Data      interface{}
-}
-
 type Expr struct {
 	maxStackSize int16
 	nodes        []*node
@@ -388,6 +361,51 @@ func getSelectorValueProxy(ctx *Ctx, n *node) (Value, error) {
 	}
 
 	return ctx.Get(selKey, strKey)
+}
+
+type EventType string
+
+const (
+	LoopEvent       EventType = "LOOP"
+	OpExecEvent     EventType = "OP_EXEC"
+	FastOpExecEvent EventType = "FAST_OP_EXEC"
+)
+
+type NodeType uint8
+
+const (
+	ConstantNode     NodeType = 0b001
+	SelectorNode     NodeType = 0b010
+	OperatorNode     NodeType = 0b011
+	FastOperatorNode NodeType = 0b100
+	CondNode         NodeType = 0b101
+	EventNode        NodeType = 0b111
+)
+
+func (t NodeType) String() string {
+	switch t {
+	case ConstantNode:
+		return "constant"
+	case SelectorNode:
+		return "selector"
+	case OperatorNode:
+		return "operator"
+	case FastOperatorNode:
+		return "fast_operator"
+	case CondNode:
+		return "cond"
+	case EventNode:
+		return "event"
+	}
+	return "unknown"
+}
+
+type Event struct {
+	CurtIdx   int16
+	EventType EventType
+	NodeType  NodeType
+	Stack     []Value
+	Data      interface{}
 }
 
 func reportEvent(e *Expr, curtIdx int16, os []Value, osTop int16) {
