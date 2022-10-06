@@ -693,19 +693,21 @@ func calAndSetShortCircuitForRCO(e *Expr) {
 }
 
 type OpEventData struct {
+	OpName string
 	Params []Value
 	Res    Value
 	Err    error
 }
 
 func calAndSetEventNode(e *Expr) {
-	var wrapOpEvent = func(name Value, op Operator) Operator {
+	var wrapOpEvent = func(n *node, eventType EventType) Operator {
 		return func(ctx *Ctx, params []Value) (res Value, err error) {
-			res, err = op(ctx, params)
+			res, err = n.operator(ctx, params)
 			e.EventChan <- Event{
-				EventType: OpExecEvent,
-				NodeValue: name,
+				EventType: eventType,
+				NodeType:  NodeType(n.flag & nodeTypeMask),
 				Data: OpEventData{
+					OpName: n.value.(string),
 					Params: params,
 					Res:    res,
 					Err:    err,
@@ -743,9 +745,9 @@ func calAndSetEventNode(e *Expr) {
 
 		switch realNode.flag & nodeTypeMask {
 		case operator:
-			realNode.operator = wrapOpEvent(realNode.value, realNode.operator)
+			realNode.operator = wrapOpEvent(realNode, OpExecEvent)
 		case fastOperator:
-			realNode.operator = wrapOpEvent(realNode.value, realNode.operator)
+			realNode.operator = wrapOpEvent(realNode, FastOpExecEvent)
 			// append child nodes of fast operator
 			res = append(res, nodes[i+1], nodes[i+2])
 			parents = append(parents, e.parentIdx[i+1], e.parentIdx[i+2])

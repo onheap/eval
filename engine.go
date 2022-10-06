@@ -54,14 +54,26 @@ func (n *node) getNodeType() uint8 {
 type EventType string
 
 const (
-	OpExecEvent EventType = "OP_EXEC"
-	LoopEvent   EventType = "LOOP"
+	LoopEvent       EventType = "LOOP"
+	OpExecEvent     EventType = "OP_EXEC"
+	FastOpExecEvent EventType = "FAST_OP_EXEC"
+)
+
+type NodeType uint8
+
+const (
+	ConstantNode     NodeType = 0b00000111
+	SelectorNode     NodeType = 0b00000010
+	OperatorNode     NodeType = 0b00000011
+	FastOperatorNode NodeType = 0b00000100
+	CondNode         NodeType = 0b00000101
+	EventNode        NodeType = 0b00000111
 )
 
 type Event struct {
 	CurtIdx   int16
 	EventType EventType
-	NodeValue Value
+	NodeType  NodeType
 	Stack     []Value
 	Data      interface{}
 }
@@ -386,8 +398,9 @@ func reportEvent(e *Expr, curtIdx int16, os []Value, osTop int16) {
 
 	e.EventChan <- Event{
 		EventType: LoopEvent,
-		NodeValue: e.nodes[curtIdx].value,
-		CurtIdx:   curtIdx,
 		Stack:     stack,
+		CurtIdx:   curtIdx,
+		Data:      e.nodes[curtIdx].value,
+		NodeType:  NodeType(e.nodes[curtIdx].flag & nodeTypeMask),
 	}
 }
