@@ -40,7 +40,7 @@ func TestCopyCompileConfig(t *testing.T) {
 					op       = "is_child"
 					timeYear = time.Hour * 24 * 365
 				)
-				if len(params) != 1 {
+				if len(params) != 2 {
 					return nil, ParamsCountError(op, 1, len(params))
 				}
 
@@ -365,8 +365,8 @@ func TestOptimizeConstantFolding(t *testing.T) {
 							op       = "is_child"
 							timeYear = time.Hour * 24 * 365
 						)
-						if len(params) != 1 {
-							return nil, ParamsCountError(op, 1, len(params))
+						if len(params) != 2 {
+							return nil, ParamsCountError(op, 2, len(params))
 						}
 
 						birthday, ok := params[0].(string)
@@ -559,7 +559,7 @@ func TestOptimizeFastEvaluation(t *testing.T) {
 							op       = "is_child"
 							timeYear = time.Hour * 24 * 365
 						)
-						if len(params) != 1 {
+						if len(params) != 2 {
 							return nil, ParamsCountError(op, 1, len(params))
 						}
 
@@ -961,7 +961,7 @@ func TestOptimize(t *testing.T) {
 							op       = "is_child"
 							timeYear = time.Hour * 24 * 365
 						)
-						if len(params) != 1 {
+						if len(params) != 2 {
 							return nil, ParamsCountError(op, 1, len(params))
 						}
 
