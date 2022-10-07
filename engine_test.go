@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -14,7 +15,7 @@ import (
 )
 
 func TestExpr_Eval(t *testing.T) {
-	const debugMode bool = false
+	const debugMode bool = true
 
 	type optimizeLevel int
 	const (
@@ -417,6 +418,28 @@ func TestExpr_Eval(t *testing.T) {
 			valMap: map[string]interface{}{
 				"T": true,
 				"F": false,
+			},
+		},
+		{
+			want:          int64(42),
+			optimizeLevel: onlyFast,
+			s: `
+(%
+  (* s_79 14 1 29)
+  (* s_12 s_n56)
+  (if
+    (eq
+      (= 0 0) T T T) s_56
+    (* s_n56 -9))
+  (-
+    (* 10 47 s_78) -14 13))`,
+			valMap: map[string]interface{}{
+				"T":     true,
+				"s_n56": int64(-56),
+				"s_12":  int64(12),
+				"s_56":  int64(56),
+				"s_79":  int64(79),
+				"s_78":  int64(78),
 			},
 		},
 	}
@@ -1103,11 +1126,11 @@ func TestExpr_TryEval(t *testing.T) {
 
 func TestRandomExpressions(t *testing.T) {
 	const (
-		size          = 10000
+		size          = 3000000
 		level         = 53
 		step          = size / 100
 		showSample    = false
-		printProgress = false
+		printProgress = true
 	)
 
 	const (
@@ -1147,16 +1170,25 @@ func TestRandomExpressions(t *testing.T) {
 	}
 
 	type testCase struct {
-		rco  bool
-		expr string
-		want Value
+		level int
+		rco   bool
+		expr  string
+		want  Value
 
+		cc  *CompileConfig
 		got Value
 		err error
 	}
 
 	exprChan := make(chan testCase, bufferSize)
 	verifyChan := make(chan testCase, bufferSize)
+	eventChan := make(chan Event, bufferSize)
+
+	go func() {
+		for e := range eventChan {
+			_ = e // do nothing
+		}
+	}()
 
 	var pwg sync.WaitGroup
 
@@ -1188,11 +1220,13 @@ func TestRandomExpressions(t *testing.T) {
 					options = append(options, EnableRCO, GenSelectors(dneMap))
 				}
 
-				expr := GenerateRandomExpr((i%level)+1, r, options...)
+				l := (i % level) + 1
+				expr := GenerateRandomExpr(l, r, options...)
 				exprChan <- testCase{
-					rco:  v&0b1100 == 0b1100,
-					expr: expr.Expr,
-					want: expr.Res,
+					level: l,
+					rco:   v&0b1100 == 0b1100,
+					expr:  expr.Expr,
+					want:  expr.Res,
 				}
 			}
 		}(rand.New(rand.NewSource(random.Int63())))
@@ -1209,13 +1243,14 @@ func TestRandomExpressions(t *testing.T) {
 		go func(r *rand.Rand) {
 			defer cwg.Done()
 			for c := range exprChan {
-				v := r.Intn(0b1000)
+				v := r.Intn(0b10000)
 				// combination of optimizations
 				cc := CopyCompileConfig(conf)
 				cc.CompileOptions[Reordering] = v&0b1 != 0
 				cc.CompileOptions[FastEvaluation] = v&0b10 != 0
 				cc.CompileOptions[ConstantFolding] = v&0b100 != 0
 				cc.CompileOptions[AllowUnknownSelectors] = c.rco
+				cc.CompileOptions[ReportEvent] = v&0b1000 != 0 && c.level <= level/2
 
 				expr, err := Compile(cc, c.expr)
 				if err != nil {
@@ -1224,11 +1259,16 @@ func TestRandomExpressions(t *testing.T) {
 					continue
 				}
 
+				if cc.CompileOptions[ReportEvent] {
+					expr.EventChan = eventChan
+				}
+
+				c.cc = cc
 				ctx := NewCtxWithMap(cc, valMap)
 				if c.rco {
-					c.got, c.err = expr.TryEval(ctx)
+					c.got, c.err = safeExec(expr.TryEval, ctx)
 				} else {
-					c.got, c.err = expr.Eval(ctx)
+					c.got, c.err = safeExec(expr.Eval, ctx)
 				}
 				verifyChan <- c
 
@@ -1446,4 +1486,13 @@ func assertErrStrContains(t *testing.T, err error, errMsg string, msg ...any) {
 	if !strings.Contains(err.Error(), errMsg) {
 		t.Fatalf("assertErrStrContains failed, err: %v, want: %s, msg: %+v", err, errMsg, msg)
 	}
+}
+
+func safeExec(fn func(*Ctx) (Value, error), ctx *Ctx) (res Value, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.New(fmt.Sprintf("%+v", r))
+		}
+	}()
+	return fn(ctx)
 }

@@ -756,6 +756,8 @@ func calAndSetEventNode(e *Expr) {
 			// append child nodes of fast operator
 			res = append(res, nodes[i+1], nodes[i+2])
 			parents = append(parents, e.parentIdx[i+1], e.parentIdx[i+2])
+			realIdxes[i+1] = int16(len(res) - 2)
+			realIdxes[i+2] = int16(len(res) - 1)
 			i += 2
 		}
 	}
