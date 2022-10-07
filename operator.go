@@ -557,6 +557,48 @@ func (c versionConvert) execute(_ *Ctx, params []Value) (Value, error) {
 	return res, nil
 }
 
+func DestructParamsStr2(opName string, params []Value) (a, b string, e error) {
+	if len(params) != 2 {
+		e = ParamsCountError(opName, 2, len(params))
+		return
+	}
+
+	var ok bool
+	a, ok = params[0].(string)
+	if !ok {
+		e = ParamTypeError(opName, typeStr, params[0])
+		return
+	}
+
+	b, ok = params[1].(string)
+	if !ok {
+		e = ParamTypeError(opName, typeStr, params[1])
+		return
+	}
+	return
+}
+
+func DestructParamsInt2(opName string, params []Value) (a, b int64, e error) {
+	if len(params) != 2 {
+		e = ParamsCountError(opName, 2, len(params))
+		return
+	}
+
+	var ok bool
+	a, ok = params[0].(int64)
+	if !ok {
+		e = ParamTypeError(opName, typeInt, params[0])
+		return
+	}
+
+	b, ok = params[1].(int64)
+	if !ok {
+		e = ParamTypeError(opName, typeInt, params[1])
+		return
+	}
+	return
+}
+
 func OpExecError(opName string, err error) error {
 	return fmt.Errorf("operator execuation error, operator: %s, error: %w", opName, err)
 }

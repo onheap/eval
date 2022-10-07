@@ -110,7 +110,7 @@ func NewCompileConfig(opts ...CompileOption) *CompileConfig {
 		SelectorMap:        make(map[string]SelectorKey),
 		OperatorMap:        make(map[string]Operator),
 		CompileOptions:     make(map[Option]bool),
-		CostsMap:           make(map[string]int),
+		CostsMap:           make(map[string]float64),
 		StatelessOperators: []string{},
 	}
 	for _, opt := range opts {
@@ -125,7 +125,7 @@ type CompileConfig struct {
 	OperatorMap map[string]Operator
 
 	// cost of performance
-	CostsMap map[string]int
+	CostsMap map[string]float64
 
 	// compile options
 	CompileOptions map[Option]bool
@@ -133,11 +133,11 @@ type CompileConfig struct {
 	StatelessOperators []string
 }
 
-func (cc *CompileConfig) getCosts(nodeType uint8, nodeName string) int {
+func (cc *CompileConfig) getCosts(nodeType uint8, nodeName string) float64 {
 	const (
-		defaultCost  = 5
-		selectorCost = 7
-		operatorCost = 10
+		defaultCost  float64 = 5
+		selectorCost float64 = 7
+		operatorCost float64 = 10
 
 		selectorNode = "selector"
 		operatorNode = "operator"
@@ -272,15 +272,15 @@ func optimizeReordering(cc *CompileConfig, root *astNode) {
 func calculateNodeCosts(conf *CompileConfig, root *astNode) {
 	children := root.children
 	const (
-		loops       int64 = 1
-		inlinedCall int64 = 1
-		funcCall    int64 = 5
+		loops       float64 = 1
+		inlinedCall float64 = 1
+		funcCall    float64 = 5
 	)
 
 	var (
-		baseCost      int64
-		operationCost int64
-		childrenCost  int64
+		baseCost      float64
+		operationCost float64
+		childrenCost  float64
 	)
 
 	n := root.node
@@ -297,7 +297,7 @@ func calculateNodeCosts(conf *CompileConfig, root *astNode) {
 	case operator:
 		// The operator needs to add all its children to the stack frame
 		// So it will result in more loops
-		baseCost = loops*(int64(len(children))+1) + funcCall
+		baseCost = loops*float64(len(children)+1) + funcCall
 	case cond:
 		baseCost = loops * 4
 	default:
@@ -308,27 +308,18 @@ func calculateNodeCosts(conf *CompileConfig, root *astNode) {
 	if nodeType == selector ||
 		nodeType == operator ||
 		nodeType == fastOperator {
-		operationCost = int64(conf.getCosts(nodeType, n.value.(string)))
+		operationCost = conf.getCosts(nodeType, n.value.(string))
 	}
 
 	if nodeType == cond && n.value == keywordIf {
-		childrenCost = int64(children[0].cost) + int64(max(children[1].cost, children[2].cost))
+		childrenCost = children[0].cost + math.Max(children[1].cost, children[2].cost)
 	} else {
 		for _, child := range children {
-			childrenCost += int64(child.cost)
-			if childrenCost >= math.MaxInt {
-				childrenCost = math.MaxInt
-				break
-			}
+			childrenCost += child.cost
 		}
 	}
 
-	cost := baseCost + operationCost + childrenCost
-	if cost >= math.MaxInt {
-		cost = math.MaxInt
-	}
-
-	root.cost = int(cost)
+	root.cost = baseCost + operationCost + childrenCost
 }
 
 func optimizeConstantFolding(cc *CompileConfig, root *astNode) {
@@ -702,19 +693,26 @@ func calAndSetShortCircuitForRCO(e *Expr) {
 }
 
 type OpEventData struct {
+	OpName string
 	Params []Value
 	Res    Value
 	Err    error
 }
 
 func calAndSetEventNode(e *Expr) {
-	var wrapOpEvent = func(name Value, op Operator) Operator {
+	var wrapOpEvent = func(n *node, eventType EventType) Operator {
+		var (
+			op       = n.operator
+			name     = n.value.(string)
+			nodeType = NodeType(n.flag & nodeTypeMask)
+		)
 		return func(ctx *Ctx, params []Value) (res Value, err error) {
 			res, err = op(ctx, params)
 			e.EventChan <- Event{
-				EventType: OpExecEvent,
-				NodeValue: name,
+				EventType: eventType,
+				NodeType:  nodeType,
 				Data: OpEventData{
+					OpName: name,
 					Params: params,
 					Res:    res,
 					Err:    err,
@@ -752,12 +750,14 @@ func calAndSetEventNode(e *Expr) {
 
 		switch realNode.flag & nodeTypeMask {
 		case operator:
-			realNode.operator = wrapOpEvent(realNode.value, realNode.operator)
+			realNode.operator = wrapOpEvent(realNode, OpExecEvent)
 		case fastOperator:
-			realNode.operator = wrapOpEvent(realNode.value, realNode.operator)
+			realNode.operator = wrapOpEvent(realNode, FastOpExecEvent)
 			// append child nodes of fast operator
 			res = append(res, nodes[i+1], nodes[i+2])
 			parents = append(parents, e.parentIdx[i+1], e.parentIdx[i+2])
+			realIdxes[i+1] = int16(len(res) - 2)
+			realIdxes[i+2] = int16(len(res) - 1)
 			i += 2
 		}
 	}
@@ -781,5 +781,4 @@ func calAndSetEventNode(e *Expr) {
 
 	e.nodes = res
 	e.parentIdx = parents
-	e.EventChan = make(chan Event, 64)
 }

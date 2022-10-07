@@ -1,7 +1,9 @@
 package eval
 
 import (
+	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"reflect"
 	"strconv"
@@ -13,7 +15,7 @@ import (
 )
 
 func TestExpr_Eval(t *testing.T) {
-	const debugMode = false
+	const debugMode bool = true
 
 	type optimizeLevel int
 	const (
@@ -418,6 +420,28 @@ func TestExpr_Eval(t *testing.T) {
 				"F": false,
 			},
 		},
+		{
+			want:          int64(42),
+			optimizeLevel: onlyFast,
+			s: `
+(%
+  (* s_79 14 1 29)
+  (* s_12 s_n56)
+  (if
+    (eq
+      (= 0 0) T T T) s_56
+    (* s_n56 -9))
+  (-
+    (* 10 47 s_78) -14 13))`,
+			valMap: map[string]interface{}{
+				"T":     true,
+				"s_n56": int64(-56),
+				"s_12":  int64(12),
+				"s_56":  int64(56),
+				"s_79":  int64(79),
+				"s_78":  int64(78),
+			},
+		},
 	}
 
 	for _, c := range cs {
@@ -444,10 +468,11 @@ func TestExpr_Eval(t *testing.T) {
 			expr, err := Compile(cc, c.s)
 			assertNil(t, err)
 			if debugMode {
+				expr.EventChan = make(chan Event)
 				HandleDebugEvent(expr)
 				fmt.Println(Dump(expr))
 				fmt.Println()
-				fmt.Println(DumpTable(expr, true))
+				fmt.Println(DumpTable(expr, false))
 			}
 
 			res, err := expr.Eval(ctx)
@@ -645,7 +670,7 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 }
 
 func TestExpr_TryEval(t *testing.T) {
-	const debugMode = false
+	const debugMode bool = false
 
 	type optimizeLevel int
 	const (
@@ -1075,6 +1100,7 @@ func TestExpr_TryEval(t *testing.T) {
 			expr, err := Compile(cc, c.s)
 			assertNil(t, err)
 			if debugMode {
+				expr.EventChan = make(chan Event)
 				HandleDebugEvent(expr)
 				fmt.Println(Dump(expr))
 				fmt.Println()
@@ -1100,11 +1126,11 @@ func TestExpr_TryEval(t *testing.T) {
 
 func TestRandomExpressions(t *testing.T) {
 	const (
-		size          = 10000
+		size          = 3000000
 		level         = 53
 		step          = size / 100
 		showSample    = false
-		printProgress = false
+		printProgress = true
 	)
 
 	const (
@@ -1144,16 +1170,25 @@ func TestRandomExpressions(t *testing.T) {
 	}
 
 	type testCase struct {
-		rco  bool
-		expr string
-		want Value
+		level int
+		rco   bool
+		expr  string
+		want  Value
 
+		cc  *CompileConfig
 		got Value
 		err error
 	}
 
 	exprChan := make(chan testCase, bufferSize)
 	verifyChan := make(chan testCase, bufferSize)
+	eventChan := make(chan Event, bufferSize)
+
+	go func() {
+		for e := range eventChan {
+			_ = e // do nothing
+		}
+	}()
 
 	var pwg sync.WaitGroup
 
@@ -1185,11 +1220,13 @@ func TestRandomExpressions(t *testing.T) {
 					options = append(options, EnableRCO, GenSelectors(dneMap))
 				}
 
-				expr := GenerateRandomExpr((i%level)+1, r, options...)
+				l := (i % level) + 1
+				expr := GenerateRandomExpr(l, r, options...)
 				exprChan <- testCase{
-					rco:  v&0b1100 == 0b1100,
-					expr: expr.Expr,
-					want: expr.Res,
+					level: l,
+					rco:   v&0b1100 == 0b1100,
+					expr:  expr.Expr,
+					want:  expr.Res,
 				}
 			}
 		}(rand.New(rand.NewSource(random.Int63())))
@@ -1206,13 +1243,14 @@ func TestRandomExpressions(t *testing.T) {
 		go func(r *rand.Rand) {
 			defer cwg.Done()
 			for c := range exprChan {
-				v := r.Intn(0b1000)
+				v := r.Intn(0b10000)
 				// combination of optimizations
 				cc := CopyCompileConfig(conf)
 				cc.CompileOptions[Reordering] = v&0b1 != 0
 				cc.CompileOptions[FastEvaluation] = v&0b10 != 0
 				cc.CompileOptions[ConstantFolding] = v&0b100 != 0
 				cc.CompileOptions[AllowUnknownSelectors] = c.rco
+				cc.CompileOptions[ReportEvent] = v&0b1000 != 0 && c.level <= level/2
 
 				expr, err := Compile(cc, c.expr)
 				if err != nil {
@@ -1221,11 +1259,16 @@ func TestRandomExpressions(t *testing.T) {
 					continue
 				}
 
+				if cc.CompileOptions[ReportEvent] {
+					expr.EventChan = eventChan
+				}
+
+				c.cc = cc
 				ctx := NewCtxWithMap(cc, valMap)
 				if c.rco {
-					c.got, c.err = expr.TryEval(ctx)
+					c.got, c.err = safeExec(expr.TryEval, ctx)
 				} else {
-					c.got, c.err = expr.Eval(ctx)
+					c.got, c.err = safeExec(expr.Eval, ctx)
 				}
 				verifyChan <- c
 
@@ -1274,34 +1317,76 @@ func TestRandomExpressions(t *testing.T) {
 }
 
 func TestReportEvent(t *testing.T) {
-	cc := NewCompileConfig(Optimizations(false), EnableReportEvent)
+	vals := map[string]interface{}{
+		"v2": 2,
+		"v3": 3,
+	}
 
-	s := `(+ 1 2)`
+	cc := NewCompileConfig(EnableReportEvent, RegisterVals(vals))
+
+	s := `(+ 1 v2 v3)`
 
 	e, err := Compile(cc, s)
 	assertNil(t, err)
+	e.EventChan = make(chan Event)
 
-	var events []Value
-
+	var events []Event
 	wg := sync.WaitGroup{}
-
 	wg.Add(1)
+
 	go func() {
 		for ev := range e.EventChan {
-			if ev.EventType == LoopEvent {
-				events = append(events, ev.NodeValue)
-			}
+			events = append(events, ev)
 		}
 		wg.Done()
 	}()
 
-	res, err := e.Eval(nil)
+	res, err := e.Eval(NewCtxWithMap(cc, vals))
 	close(e.EventChan)
 
 	wg.Wait()
 	assertNil(t, err)
-	assertEquals(t, res, int64(3))
-	assertEquals(t, events, []Value{int64(1), int64(2), "+"})
+	assertEquals(t, res, int64(6))
+	assertEquals(t, events, []Event{
+		{
+			EventType: LoopEvent,
+			NodeType:  ConstantNode,
+			CurtIdx:   1,
+			Data:      int64(1),
+			Stack:     []Value{},
+		},
+		{
+			EventType: LoopEvent,
+			NodeType:  SelectorNode,
+			CurtIdx:   3,
+			Data:      "v2",
+			Stack:     []Value{int64(1)},
+		},
+		{
+			EventType: LoopEvent,
+			NodeType:  SelectorNode,
+			CurtIdx:   5,
+			Data:      "v3",
+			Stack:     []Value{int64(1), int64(2)},
+		},
+		{
+			EventType: LoopEvent,
+			NodeType:  OperatorNode,
+			CurtIdx:   7,
+			Data:      "+",
+			Stack:     []Value{int64(1), int64(2), int64(3)},
+		},
+		{
+			EventType: OpExecEvent,
+			NodeType:  OperatorNode,
+			Data: OpEventData{
+				OpName: "+",
+				Params: []Value{int64(1), int64(2), int64(3)},
+				Res:    int64(6),
+				Err:    nil,
+			},
+		},
+	})
 }
 
 func TestStatelessOperators(t *testing.T) {
@@ -1376,6 +1461,12 @@ func assertEquals(t *testing.T, got, want any, msg ...any) {
 	}
 }
 
+func assertFloatEquals(t *testing.T, got, want float64, msg ...any) {
+	if math.Abs(got-want) > 0.00001 {
+		t.Fatalf("assertFloatEquals failed, got: %+v, want: %+v, msg: %+v", got, want, msg)
+	}
+}
+
 func assertNil(t *testing.T, val any, msg ...any) {
 	if val != nil {
 		t.Fatalf("assertNil failed, got: %+v, msg: %+v", val, msg)
@@ -1395,4 +1486,13 @@ func assertErrStrContains(t *testing.T, err error, errMsg string, msg ...any) {
 	if !strings.Contains(err.Error(), errMsg) {
 		t.Fatalf("assertErrStrContains failed, err: %v, want: %s, msg: %+v", err, errMsg, msg)
 	}
+}
+
+func safeExec(fn func(*Ctx) (Value, error), ctx *Ctx) (res Value, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.New(fmt.Sprintf("%+v", r))
+		}
+	}()
+	return fn(ctx)
 }

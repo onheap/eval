@@ -40,7 +40,7 @@ func TestCopyCompileConfig(t *testing.T) {
 					op       = "is_child"
 					timeYear = time.Hour * 24 * 365
 				)
-				if len(params) != 1 {
+				if len(params) != 2 {
 					return nil, ParamsCountError(op, 1, len(params))
 				}
 
@@ -106,7 +106,7 @@ func TestCopyCompileConfig(t *testing.T) {
 				}
 			},
 		},
-		CostsMap: map[string]int{
+		CostsMap: map[string]float64{
 			"selector": 10,
 			"operator": 20,
 		},
@@ -123,7 +123,6 @@ func TestCopyCompileConfig(t *testing.T) {
 	assertEquals(t, res.ConstantMap, cc.ConstantMap)
 	assertEquals(t, res.SelectorMap, cc.SelectorMap)
 	assertEquals(t, res.CompileOptions, cc.CompileOptions)
-	assertEquals(t, res.CostsMap, cc.CostsMap)
 	assertEquals(t, res.StatelessOperators, cc.StatelessOperators)
 
 	assertEquals(t, len(res.OperatorMap), len(cc.OperatorMap))
@@ -131,6 +130,11 @@ func TestCopyCompileConfig(t *testing.T) {
 		got := reflect.ValueOf(res.OperatorMap[s])
 		want := reflect.ValueOf(cc.OperatorMap[s])
 		assertEquals(t, got, want)
+	}
+
+	assertEquals(t, len(res.CostsMap), len(cc.CostsMap))
+	for s := range cc.CostsMap {
+		assertFloatEquals(t, res.CostsMap[s], cc.CostsMap[s])
 	}
 }
 
@@ -144,7 +148,7 @@ func TestGetCosts(t *testing.T) {
 			"is_child": func(_ *Ctx, _ []Value) (Value, error) { return false, nil },
 			"not_null": func(_ *Ctx, _ []Value) (Value, error) { return false, nil },
 		},
-		CostsMap: map[string]int{
+		CostsMap: map[string]float64{
 			"selector": 10, // generally costs for all selectors
 			"operator": 20, // generally costs for all operators
 
@@ -153,12 +157,12 @@ func TestGetCosts(t *testing.T) {
 		},
 	}
 
-	assertEquals(t, cc.getCosts(selector, "birthday"), 11)
-	assertEquals(t, cc.getCosts(selector, "gender"), 10)
-	assertEquals(t, cc.getCosts(operator, "is_child"), 13)
-	assertEquals(t, cc.getCosts(fastOperator, "is_child"), 13)
-	assertEquals(t, cc.getCosts(operator, "not_null"), 20)
-	assertEquals(t, cc.getCosts(fastOperator, "not_null"), 20)
+	assertFloatEquals(t, cc.getCosts(selector, "birthday"), 11)
+	assertFloatEquals(t, cc.getCosts(selector, "gender"), 10)
+	assertFloatEquals(t, cc.getCosts(operator, "is_child"), 13)
+	assertFloatEquals(t, cc.getCosts(fastOperator, "is_child"), 13)
+	assertFloatEquals(t, cc.getCosts(operator, "not_null"), 20)
+	assertFloatEquals(t, cc.getCosts(fastOperator, "not_null"), 20)
 
 	cc = &CompileConfig{
 		SelectorMap: map[string]SelectorKey{
@@ -169,15 +173,15 @@ func TestGetCosts(t *testing.T) {
 			"is_child": func(_ *Ctx, _ []Value) (Value, error) { return false, nil },
 			"not_null": func(_ *Ctx, _ []Value) (Value, error) { return false, nil },
 		},
-		CostsMap: map[string]int{},
+		CostsMap: map[string]float64{},
 	}
 
-	assertEquals(t, cc.getCosts(selector, "birthday"), 7)
-	assertEquals(t, cc.getCosts(selector, "gender"), 7)
-	assertEquals(t, cc.getCosts(operator, "is_child"), 10)
-	assertEquals(t, cc.getCosts(fastOperator, "is_child"), 10)
-	assertEquals(t, cc.getCosts(operator, "not_null"), 10)
-	assertEquals(t, cc.getCosts(fastOperator, "not_null"), 10)
+	assertFloatEquals(t, cc.getCosts(selector, "birthday"), 7)
+	assertFloatEquals(t, cc.getCosts(selector, "gender"), 7)
+	assertFloatEquals(t, cc.getCosts(operator, "is_child"), 10)
+	assertFloatEquals(t, cc.getCosts(fastOperator, "is_child"), 10)
+	assertFloatEquals(t, cc.getCosts(operator, "not_null"), 10)
+	assertFloatEquals(t, cc.getCosts(fastOperator, "not_null"), 10)
 }
 
 func TestOptimizeConstantFolding(t *testing.T) {
@@ -361,8 +365,8 @@ func TestOptimizeConstantFolding(t *testing.T) {
 							op       = "is_child"
 							timeYear = time.Hour * 24 * 365
 						)
-						if len(params) != 1 {
-							return nil, ParamsCountError(op, 1, len(params))
+						if len(params) != 2 {
+							return nil, ParamsCountError(op, 2, len(params))
 						}
 
 						birthday, ok := params[0].(string)
@@ -555,7 +559,7 @@ func TestOptimizeFastEvaluation(t *testing.T) {
 							op       = "is_child"
 							timeYear = time.Hour * 24 * 365
 						)
-						if len(params) != 1 {
+						if len(params) != 2 {
 							return nil, ParamsCountError(op, 1, len(params))
 						}
 
@@ -661,7 +665,7 @@ func TestReordering(t *testing.T) {
 					"v1": SelectorKey(1),
 					"v2": SelectorKey(2),
 				},
-				CostsMap: map[string]int{
+				CostsMap: map[string]float64{
 					"v1": 10,
 					"v2": 20,
 					"=":  30,
@@ -686,7 +690,7 @@ func TestReordering(t *testing.T) {
 					"v1": SelectorKey(1),
 					"v2": SelectorKey(2),
 				},
-				CostsMap: map[string]int{
+				CostsMap: map[string]float64{
 					"v1": 10,
 					"v2": 20,
 					"=":  30,
@@ -715,7 +719,7 @@ func TestReordering(t *testing.T) {
 					"v1": SelectorKey(1),
 					"v2": SelectorKey(2),
 				},
-				CostsMap: map[string]int{
+				CostsMap: map[string]float64{
 					"v1": 20,
 					"v2": 10,
 				},
@@ -764,7 +768,7 @@ func TestReordering(t *testing.T) {
 					"v4": SelectorKey(4),
 					"v6": SelectorKey(6),
 				},
-				CostsMap: map[string]int{
+				CostsMap: map[string]float64{
 					"selector": 2,
 					"operator": 3,
 					"v3":       50,
@@ -893,7 +897,7 @@ func TestOptimize(t *testing.T) {
 					"v4": SelectorKey(4),
 					"v6": SelectorKey(6),
 				},
-				CostsMap: map[string]int{
+				CostsMap: map[string]float64{
 					"selector": 2,
 					"operator": 3,
 					"v3":       50,
@@ -957,7 +961,7 @@ func TestOptimize(t *testing.T) {
 							op       = "is_child"
 							timeYear = time.Hour * 24 * 365
 						)
-						if len(params) != 1 {
+						if len(params) != 2 {
 							return nil, ParamsCountError(op, 1, len(params))
 						}
 
@@ -1220,7 +1224,7 @@ func TestCompile(t *testing.T) {
 					"T2": SelectorKey(169),
 					"F":  SelectorKey(170),
 				},
-				CostsMap: map[string]int{
+				CostsMap: map[string]float64{
 					"T1": 3,
 					"T2": 1,
 					"F":  5,

@@ -669,21 +669,26 @@ func HandleDebugEvent(e *Expr) {
 			case OpExecEvent:
 				data := ev.Data.(OpEventData)
 				fmt.Printf(
-					"%13s: op: %v, params: %v, res: %v, err: %v\n",
-					"Exec Operator", ev.NodeValue, data.Params, data.Res, data.Err)
+					"%13s: op: %s, params: %v, res: %v, err: %v\n",
+					"Exec Operator", data.OpName, data.Params, data.Res, data.Err)
+			case FastOpExecEvent:
+				data := ev.Data.(OpEventData)
+				fmt.Printf(
+					"%13s: op: %s, params: %v, res: %v, err: %v\n",
+					"Exec Fast Operator", data.OpName, data.Params, data.Res, data.Err)
 			case LoopEvent:
 				var (
 					sb   strings.Builder
-					curt = ev.NodeValue
+					curt = ev.Data
 				)
 
 				if ev.CurtIdx-prev.CurtIdx > 2 {
-					sb.WriteString(fmt.Sprintf("%13s: [%v] jump to [%v]\n\n", "Short Circuit", prev.NodeValue, curt))
+					sb.WriteString(fmt.Sprintf("%13s: [%v] jump to [%v]\n\n", "Short Circuit", prev.Data, curt))
 				} else {
 					sb.WriteString(fmt.Sprintf("\n"))
 				}
 
-				sb.WriteString(fmt.Sprintf("%13s: [%v], idx:[%d]\n", "Current Node", curt, ev.CurtIdx))
+				sb.WriteString(fmt.Sprintf("%13s: [%v], type:[%s], idx:[%d]\n", "Current Node", curt, ev.NodeType.String(), ev.CurtIdx))
 
 				sb.WriteString(fmt.Sprintf("%13s: ", "Operand Stack"))
 				for i := len(ev.Stack) - 1; i >= 0; i-- {

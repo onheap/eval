@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"math"
 	"reflect"
 	"testing"
 	"time"
@@ -9,7 +10,7 @@ import (
 type verifyNode struct {
 	tpy       uint8
 	data      Value
-	cost      int
+	cost      float64
 	selectKey SelectorKey
 	children  []verifyNode
 }
@@ -37,7 +38,7 @@ var assertAstTreeIdentical = func(t *testing.T, got *astNode, want verifyNode, m
 			t.Fatalf("node type mismatched, got: %+v, want: %+v, msg: %+v", nodeType, want.tpy, msg)
 		}
 
-		if want.cost != 0 && want.cost != got.cost {
+		if want.cost != 0 && math.Abs(want.cost-got.cost) > 0.00001 {
 			t.Fatalf("node cost mismatched, got: %+v, want: %+v, msg: %+v", got.cost, want.cost, msg)
 		}
 
