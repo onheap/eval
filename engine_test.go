@@ -14,7 +14,7 @@ import (
 )
 
 func TestExpr_Eval(t *testing.T) {
-	const debugMode = false
+	const debugMode bool = false
 
 	type optimizeLevel int
 	const (
@@ -449,7 +449,7 @@ func TestExpr_Eval(t *testing.T) {
 				HandleDebugEvent(expr)
 				fmt.Println(Dump(expr))
 				fmt.Println()
-				fmt.Println(DumpTable(expr, true))
+				fmt.Println(DumpTable(expr, false))
 			}
 
 			res, err := expr.Eval(ctx)
@@ -647,7 +647,7 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 }
 
 func TestExpr_TryEval(t *testing.T) {
-	const debugMode = false
+	const debugMode bool = false
 
 	type optimizeLevel int
 	const (
@@ -1103,11 +1103,11 @@ func TestExpr_TryEval(t *testing.T) {
 
 func TestRandomExpressions(t *testing.T) {
 	const (
-		size          = 3000000
+		size          = 10000
 		level         = 53
 		step          = size / 100
 		showSample    = false
-		printProgress = true
+		printProgress = false
 	)
 
 	const (
@@ -1277,34 +1277,76 @@ func TestRandomExpressions(t *testing.T) {
 }
 
 func TestReportEvent(t *testing.T) {
-	cc := NewCompileConfig(Optimizations(false), EnableReportEvent)
+	vals := map[string]interface{}{
+		"v2": 2,
+		"v3": 3,
+	}
 
-	s := `(+ 1 2)`
+	cc := NewCompileConfig(EnableReportEvent, RegisterVals(vals))
+
+	s := `(+ 1 v2 v3)`
 
 	e, err := Compile(cc, s)
 	assertNil(t, err)
 	e.EventChan = make(chan Event)
 
-	var events []Value
+	var events []Event
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 
 	go func() {
 		for ev := range e.EventChan {
-			if ev.EventType == LoopEvent {
-				events = append(events, ev.NodeValue)
-			}
+			events = append(events, ev)
 		}
 		wg.Done()
 	}()
 
-	res, err := e.Eval(nil)
+	res, err := e.Eval(NewCtxWithMap(cc, vals))
 	close(e.EventChan)
 
 	wg.Wait()
 	assertNil(t, err)
-	assertEquals(t, res, int64(3))
-	assertEquals(t, events, []Value{int64(1), int64(2), "+"})
+	assertEquals(t, res, int64(6))
+	assertEquals(t, events, []Event{
+		{
+			EventType: LoopEvent,
+			NodeType:  ConstantNode,
+			CurtIdx:   1,
+			Data:      int64(1),
+			Stack:     []Value{},
+		},
+		{
+			EventType: LoopEvent,
+			NodeType:  SelectorNode,
+			CurtIdx:   3,
+			Data:      "v2",
+			Stack:     []Value{int64(1)},
+		},
+		{
+			EventType: LoopEvent,
+			NodeType:  SelectorNode,
+			CurtIdx:   5,
+			Data:      "v3",
+			Stack:     []Value{int64(1), int64(2)},
+		},
+		{
+			EventType: LoopEvent,
+			NodeType:  OperatorNode,
+			CurtIdx:   7,
+			Data:      "+",
+			Stack:     []Value{int64(1), int64(2), int64(3)},
+		},
+		{
+			EventType: OpExecEvent,
+			NodeType:  OperatorNode,
+			Data: OpEventData{
+				OpName: "+",
+				Params: []Value{int64(1), int64(2), int64(3)},
+				Res:    int64(6),
+				Err:    nil,
+			},
+		},
+	})
 }
 
 func TestStatelessOperators(t *testing.T) {

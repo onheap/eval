@@ -196,7 +196,8 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 			}
 			continue
 		default:
-			reportEvent(e, i, os, osTop)
+			// `i+1` is meant to point to the read node instead of the event node
+			reportEvent(e, i+1, os, osTop)
 			continue
 		}
 		if b, ok := res.(bool); ok {
@@ -293,7 +294,8 @@ func (e *Expr) TryEval(ctx *Ctx) (res Value, err error) {
 			}
 			continue
 		default:
-			reportEvent(e, i, os, osTop)
+			// `i+1` is meant to point to the read node instead of the event node
+			reportEvent(e, i+1, os, osTop)
 			continue
 		}
 

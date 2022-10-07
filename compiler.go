@@ -701,13 +701,18 @@ type OpEventData struct {
 
 func calAndSetEventNode(e *Expr) {
 	var wrapOpEvent = func(n *node, eventType EventType) Operator {
+		var (
+			op       = n.operator
+			name     = n.value.(string)
+			nodeType = NodeType(n.flag & nodeTypeMask)
+		)
 		return func(ctx *Ctx, params []Value) (res Value, err error) {
-			res, err = n.operator(ctx, params)
+			res, err = op(ctx, params)
 			e.EventChan <- Event{
 				EventType: eventType,
-				NodeType:  NodeType(n.flag & nodeTypeMask),
+				NodeType:  nodeType,
 				Data: OpEventData{
-					OpName: n.value.(string),
+					OpName: name,
 					Params: params,
 					Res:    res,
 					Err:    err,

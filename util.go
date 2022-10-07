@@ -666,7 +666,7 @@ func HandleDebugEvent(e *Expr) {
 		var prev Event
 		for ev := range e.EventChan {
 			switch ev.EventType {
-			case OpExecEvent:
+			case OpExecEvent, FastOpExecEvent:
 				data := ev.Data.(OpEventData)
 				fmt.Printf(
 					"%13s: op: %s, params: %v, res: %v, err: %v\n",
