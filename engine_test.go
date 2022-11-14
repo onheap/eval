@@ -1380,18 +1380,18 @@ func TestReportEvent(t *testing.T) {
 			Stack:     []Value{int64(1), int64(2), int64(3)},
 			Data: LoopEventData{
 				NodeValue: "+",
-
-				NodeType: OperatorNode,
-				CurtIdx:  7,
+				NodeType:  OperatorNode,
+				CurtIdx:   7,
 			},
 		},
 		{
 			EventType: OpExecEvent,
 			Data: OpEventData{
-				OpName: "+",
-				Params: []Value{int64(1), int64(2), int64(3)},
-				Res:    int64(6),
-				Err:    nil,
+				IsFastOp: false,
+				OpName:   "+",
+				Params:   []Value{int64(1), int64(2), int64(3)},
+				Res:      int64(6),
+				Err:      nil,
 			},
 		},
 	})

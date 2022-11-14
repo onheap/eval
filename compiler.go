@@ -722,10 +722,11 @@ func (t NodeType) String() string {
 }
 
 type OpEventData struct {
-	OpName string
-	Params []Value
-	Res    Value
-	Err    error
+	IsFastOp bool
+	OpName   string
+	Params   []Value
+	Res      Value
+	Err      error
 }
 
 type LoopEventData struct {
@@ -735,20 +736,22 @@ type LoopEventData struct {
 }
 
 func calAndSetEventNode(e *Expr) {
-	var wrapOpEvent = func(n *node, eventType EventType) Operator {
+	var wrapOpEvent = func(n *node) Operator {
 		var (
-			op   = n.operator
-			name = n.value.(string)
+			op       = n.operator
+			name     = n.value.(string)
+			isFastOp = n.getNodeType() == fastOperator
 		)
 		return func(ctx *Ctx, params []Value) (res Value, err error) {
 			res, err = op(ctx, params)
 			e.EventChan <- Event{
-				EventType: eventType,
+				EventType: OpExecEvent,
 				Data: OpEventData{
-					OpName: name,
-					Params: params,
-					Res:    res,
-					Err:    err,
+					IsFastOp: isFastOp,
+					OpName:   name,
+					Params:   params,
+					Res:      res,
+					Err:      err,
 				},
 			}
 			return
@@ -787,9 +790,9 @@ func calAndSetEventNode(e *Expr) {
 
 		switch realNode.flag & nodeTypeMask {
 		case operator:
-			realNode.operator = wrapOpEvent(realNode, OpExecEvent)
+			realNode.operator = wrapOpEvent(realNode)
 		case fastOperator:
-			realNode.operator = wrapOpEvent(realNode, OpExecEvent)
+			realNode.operator = wrapOpEvent(realNode)
 			// append child nodes of fast operator
 			res = append(res, nodes[i+1], nodes[i+2])
 			parents = append(parents, e.parentIdx[i+1], e.parentIdx[i+2])
