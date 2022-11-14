@@ -521,6 +521,11 @@ func contains(params []Value, target Value) bool {
 
 func DumpTable(expr *Expr, skipEventNode bool) string {
 
+	var (
+		width  = 5
+		format = fmt.Sprintf("|%%%dv", width)
+	)
+
 	type fetcher struct {
 		name string
 		fn   func(e *Expr, i int) Value
@@ -582,11 +587,10 @@ func DumpTable(expr *Expr, skipEventNode bool) string {
 					v = n.value
 				}
 				res := fmt.Sprintf("%v", v)
-				l := len(res)
-				if l > 4 {
-					l = 4
+				if l := len(res); l > width {
+					res = res[:width]
 				}
-				return res[0:l]
+				return res
 			},
 		},
 		pIdx: {
@@ -640,7 +644,7 @@ func DumpTable(expr *Expr, skipEventNode bool) string {
 				continue
 			}
 
-			sb.WriteString(fmt.Sprintf("|%4v", fetchers[f].fn(expr, j)))
+			sb.WriteString(fmt.Sprintf(format, fetchers[f].fn(expr, j)))
 		}
 		sb.WriteString("|\n")
 	}
