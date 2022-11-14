@@ -575,7 +575,13 @@ func DumpTable(expr *Expr, skipEventNode bool) string {
 		node: {
 			name: "node",
 			fn: func(e *Expr, i int) Value {
-				res := fmt.Sprintf("%v", e.nodes[i].value)
+				var v Value
+				if n := e.nodes[i]; n.getNodeType() == event {
+					v = n.value.(LoopEventData).NodeValue
+				} else {
+					v = n.value
+				}
+				res := fmt.Sprintf("%v", v)
 				l := len(res)
 				if l > 4 {
 					l = 4
@@ -663,7 +669,7 @@ func GetSelectorKeys(e *Expr) []SelectorKeys {
 
 func HandleDebugEvent(e *Expr) {
 	go func() {
-		var prev Event
+		var prev LoopEventData
 		for ev := range e.EventChan {
 			switch ev.EventType {
 			case OpExecEvent:
@@ -671,24 +677,24 @@ func HandleDebugEvent(e *Expr) {
 				fmt.Printf(
 					"%13s: op: %s, params: %v, res: %v, err: %v\n",
 					"Exec Operator", data.OpName, data.Params, data.Res, data.Err)
-			case FastOpExecEvent:
-				data := ev.Data.(OpEventData)
-				fmt.Printf(
-					"%13s: op: %s, params: %v, res: %v, err: %v\n",
-					"Exec Fast Operator", data.OpName, data.Params, data.Res, data.Err)
 			case LoopEvent:
 				var (
 					sb   strings.Builder
-					curt = ev.Data
+					curt = ev.Data.(LoopEventData)
 				)
 
-				if ev.CurtIdx-prev.CurtIdx > 2 {
-					sb.WriteString(fmt.Sprintf("%13s: [%v] jump to [%v]\n\n", "Short Circuit", prev.Data, curt))
+				var minSteps int16 = 2
+				if prev.NodeType == FastOperatorNode {
+					minSteps = 4
+				}
+
+				if curt.CurtIdx-prev.CurtIdx > minSteps {
+					sb.WriteString(fmt.Sprintf("%13s: [%v] jump to [%v]\n\n", "Short Circuit", prev.NodeValue, curt))
 				} else {
 					sb.WriteString(fmt.Sprintf("\n"))
 				}
 
-				sb.WriteString(fmt.Sprintf("%13s: [%v], type:[%s], idx:[%d]\n", "Current Node", curt, ev.NodeType.String(), ev.CurtIdx))
+				sb.WriteString(fmt.Sprintf("%13s: [%v], type:[%s], idx:[%d]\n", "Current Node", curt.NodeValue, "ddd", curt.CurtIdx))
 
 				sb.WriteString(fmt.Sprintf("%13s: ", "Operand Stack"))
 				for i := len(ev.Stack) - 1; i >= 0; i-- {
@@ -697,7 +703,7 @@ func HandleDebugEvent(e *Expr) {
 				sb.WriteString("|")
 				fmt.Println(sb.String())
 
-				prev = ev
+				prev = curt
 			default:
 				fmt.Printf("Unknown event: %+v\n", ev)
 			}

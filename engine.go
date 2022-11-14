@@ -196,8 +196,7 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 			}
 			continue
 		default:
-			// `i+1` is meant to point to the read node instead of the event node
-			reportEvent(e, i+1, os, osTop)
+			reportEvent(e, os, osTop, curt.value)
 			continue
 		}
 		if b, ok := res.(bool); ok {
@@ -294,8 +293,7 @@ func (e *Expr) TryEval(ctx *Ctx) (res Value, err error) {
 			}
 			continue
 		default:
-			// `i+1` is meant to point to the read node instead of the event node
-			reportEvent(e, i+1, os, osTop)
+			reportEvent(e, os, osTop, curt.value)
 			continue
 		}
 
@@ -368,49 +366,17 @@ func getSelectorValueProxy(ctx *Ctx, n *node) (Value, error) {
 type EventType string
 
 const (
-	LoopEvent       EventType = "LOOP"
-	OpExecEvent     EventType = "OP_EXEC"
-	FastOpExecEvent EventType = "FAST_OP_EXEC"
+	LoopEvent   EventType = "LOOP"
+	OpExecEvent EventType = "OP_EXEC"
 )
-
-type NodeType uint8
-
-const (
-	ConstantNode     NodeType = 0b001
-	SelectorNode     NodeType = 0b010
-	OperatorNode     NodeType = 0b011
-	FastOperatorNode NodeType = 0b100
-	CondNode         NodeType = 0b101
-	EventNode        NodeType = 0b111
-)
-
-func (t NodeType) String() string {
-	switch t {
-	case ConstantNode:
-		return "constant"
-	case SelectorNode:
-		return "selector"
-	case OperatorNode:
-		return "operator"
-	case FastOperatorNode:
-		return "fast_operator"
-	case CondNode:
-		return "cond"
-	case EventNode:
-		return "event"
-	}
-	return "unknown"
-}
 
 type Event struct {
-	CurtIdx   int16
 	EventType EventType
-	NodeType  NodeType
 	Stack     []Value
 	Data      interface{}
 }
 
-func reportEvent(e *Expr, curtIdx int16, os []Value, osTop int16) {
+func reportEvent(e *Expr, os []Value, osTop int16, data Value) {
 	stack := make([]Value, osTop+1)
 	for i := int16(0); i <= osTop; i++ {
 		stack[i] = os[i]
@@ -419,8 +385,6 @@ func reportEvent(e *Expr, curtIdx int16, os []Value, osTop int16) {
 	e.EventChan <- Event{
 		EventType: LoopEvent,
 		Stack:     stack,
-		CurtIdx:   curtIdx,
-		Data:      e.nodes[curtIdx].value,
-		NodeType:  NodeType(e.nodes[curtIdx].flag & nodeTypeMask),
+		Data:      data,
 	}
 }
