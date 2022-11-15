@@ -679,8 +679,8 @@ func HandleDebugEvent(e *Expr) {
 			case OpExecEvent:
 				data := ev.Data.(OpEventData)
 				fmt.Printf(
-					"%13s: op: %s, params: %v, res: %v, err: %v\n",
-					"Exec Operator", data.OpName, data.Params, data.Res, data.Err)
+					"%13s: op: %s, isFast: %v, params: %v, res: %v, err: %v\n",
+					"Exec Operator", data.OpName, data.IsFastOp, data.Params, data.Res, data.Err)
 			case LoopEvent:
 				var (
 					sb   strings.Builder
@@ -693,7 +693,7 @@ func HandleDebugEvent(e *Expr) {
 				}
 
 				if curt.CurtIdx-prev.CurtIdx > minSteps {
-					sb.WriteString(fmt.Sprintf("%13s: [%v] jump to [%v]\n\n", "Short Circuit", prev.NodeValue, curt))
+					sb.WriteString(fmt.Sprintf("%13s: [%v] jump to [%v]\n\n", "Short Circuit", prev.NodeValue, curt.NodeValue))
 				} else {
 					sb.WriteString(fmt.Sprintf("\n"))
 				}

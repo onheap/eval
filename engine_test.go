@@ -32,7 +32,7 @@ func TestExpr_Eval(t *testing.T) {
 	}{
 		{
 			want:          true,
-			optimizeLevel: disable,
+			optimizeLevel: onlyFast,
 			s: `
 (not
   (and
@@ -1130,7 +1130,7 @@ func TestRandomExpressions(t *testing.T) {
 		level         = 53
 		step          = size / 100
 		showSample    = false
-		printProgress = true
+		printProgress = false
 	)
 
 	const (
