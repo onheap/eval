@@ -692,30 +692,66 @@ func calAndSetShortCircuitForRCO(e *Expr) {
 	}
 }
 
+type NodeType uint8
+
+const (
+	ConstantNode     = NodeType(constant)
+	SelectorNode     = NodeType(selector)
+	OperatorNode     = NodeType(operator)
+	FastOperatorNode = NodeType(fastOperator)
+	CondNode         = NodeType(cond)
+	EventNode        = NodeType(event)
+)
+
+func (t NodeType) String() string {
+	switch t {
+	case ConstantNode:
+		return "constant"
+	case SelectorNode:
+		return "selector"
+	case OperatorNode:
+		return "operator"
+	case FastOperatorNode:
+		return "fast_operator"
+	case CondNode:
+		return "cond"
+	case EventNode:
+		return "event"
+	}
+	return "unknown"
+}
+
 type OpEventData struct {
-	OpName string
-	Params []Value
-	Res    Value
-	Err    error
+	IsFastOp bool
+	OpName   string
+	Params   []Value
+	Res      Value
+	Err      error
+}
+
+type LoopEventData struct {
+	CurtIdx   int16
+	NodeType  NodeType
+	NodeValue Value
 }
 
 func calAndSetEventNode(e *Expr) {
-	var wrapOpEvent = func(n *node, eventType EventType) Operator {
+	var wrapOpEvent = func(n *node) Operator {
 		var (
 			op       = n.operator
 			name     = n.value.(string)
-			nodeType = NodeType(n.flag & nodeTypeMask)
+			isFastOp = n.getNodeType() == fastOperator
 		)
 		return func(ctx *Ctx, params []Value) (res Value, err error) {
 			res, err = op(ctx, params)
 			e.EventChan <- Event{
-				EventType: eventType,
-				NodeType:  nodeType,
+				EventType: OpExecEvent,
 				Data: OpEventData{
-					OpName: name,
-					Params: params,
-					Res:    res,
-					Err:    err,
+					IsFastOp: isFastOp,
+					OpName:   name,
+					Params:   params,
+					Res:      res,
+					Err:      err,
 				},
 			}
 			return
@@ -739,7 +775,11 @@ func calAndSetEventNode(e *Expr) {
 			osTop:    realNode.osTop,
 			scIdx:    realNode.scIdx,
 			selKey:   realNode.selKey,
-			value:    realNode.value,
+			value: LoopEventData{
+				CurtIdx:   int16(len(res) + 1), // the real node index
+				NodeType:  NodeType(realNode.flag & nodeTypeMask),
+				NodeValue: realNode.value,
+			},
 		}
 		res = append(res, debugNode)
 		eventNodeIdxes[i] = int16(len(res) - 1)
@@ -750,9 +790,9 @@ func calAndSetEventNode(e *Expr) {
 
 		switch realNode.flag & nodeTypeMask {
 		case operator:
-			realNode.operator = wrapOpEvent(realNode, OpExecEvent)
+			realNode.operator = wrapOpEvent(realNode)
 		case fastOperator:
-			realNode.operator = wrapOpEvent(realNode, FastOpExecEvent)
+			realNode.operator = wrapOpEvent(realNode)
 			// append child nodes of fast operator
 			res = append(res, nodes[i+1], nodes[i+2])
 			parents = append(parents, e.parentIdx[i+1], e.parentIdx[i+2])

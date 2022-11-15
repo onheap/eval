@@ -15,7 +15,7 @@ import (
 )
 
 func TestExpr_Eval(t *testing.T) {
-	const debugMode bool = true
+	const debugMode bool = false
 
 	type optimizeLevel int
 	const (
@@ -32,7 +32,7 @@ func TestExpr_Eval(t *testing.T) {
 	}{
 		{
 			want:          true,
-			optimizeLevel: disable,
+			optimizeLevel: onlyFast,
 			s: `
 (not
   (and
@@ -1126,11 +1126,11 @@ func TestExpr_TryEval(t *testing.T) {
 
 func TestRandomExpressions(t *testing.T) {
 	const (
-		size          = 3000000
+		size          = 30000
 		level         = 53
 		step          = size / 100
 		showSample    = false
-		printProgress = true
+		printProgress = false
 	)
 
 	const (
@@ -1350,40 +1350,48 @@ func TestReportEvent(t *testing.T) {
 	assertEquals(t, events, []Event{
 		{
 			EventType: LoopEvent,
-			NodeType:  ConstantNode,
-			CurtIdx:   1,
-			Data:      int64(1),
 			Stack:     []Value{},
+			Data: LoopEventData{
+				NodeValue: int64(1),
+				NodeType:  ConstantNode,
+				CurtIdx:   1,
+			},
 		},
 		{
 			EventType: LoopEvent,
-			NodeType:  SelectorNode,
-			CurtIdx:   3,
-			Data:      "v2",
 			Stack:     []Value{int64(1)},
+			Data: LoopEventData{
+				NodeValue: "v2",
+				NodeType:  SelectorNode,
+				CurtIdx:   3,
+			},
 		},
 		{
 			EventType: LoopEvent,
-			NodeType:  SelectorNode,
-			CurtIdx:   5,
-			Data:      "v3",
 			Stack:     []Value{int64(1), int64(2)},
+			Data: LoopEventData{
+				NodeValue: "v3",
+				NodeType:  SelectorNode,
+				CurtIdx:   5,
+			},
 		},
 		{
 			EventType: LoopEvent,
-			NodeType:  OperatorNode,
-			CurtIdx:   7,
-			Data:      "+",
 			Stack:     []Value{int64(1), int64(2), int64(3)},
+			Data: LoopEventData{
+				NodeValue: "+",
+				NodeType:  OperatorNode,
+				CurtIdx:   7,
+			},
 		},
 		{
 			EventType: OpExecEvent,
-			NodeType:  OperatorNode,
 			Data: OpEventData{
-				OpName: "+",
-				Params: []Value{int64(1), int64(2), int64(3)},
-				Res:    int64(6),
-				Err:    nil,
+				IsFastOp: false,
+				OpName:   "+",
+				Params:   []Value{int64(1), int64(2), int64(3)},
+				Res:      int64(6),
+				Err:      nil,
 			},
 		},
 	})
