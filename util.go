@@ -588,7 +588,7 @@ func DumpTable(expr *Expr, skipEventNode bool) string {
 				}
 				res := fmt.Sprintf("%v", v)
 				if l := len(res); l > width {
-					res = res[:width]
+					res = res[:width-1] + "…"
 				}
 				return res
 			},
