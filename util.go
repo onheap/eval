@@ -395,16 +395,31 @@ func IndentByParentheses(s string) string {
 	return strings.TrimSpace(sb.String())
 }
 
-func Dump(e *Expr) string {
-	var getChildIdxes = func(idx int16) (res []int16) {
+type TreeNode struct {
+	NodeType NodeType
+	SelKey   SelectorKey
+	Value    Value
+	Operator Operator
+
+	Idx       int
+	ChildCnt  int
+	ChildIdx  int
+	ParentIdx int
+}
+
+type Tree []TreeNode
+
+func GetAstTree(e *Expr) Tree {
+	nodes := e.nodes
+	var getChildren = func(idx int) (res []int) {
 		for i, p := range e.parentIdx {
-			if p == idx && e.nodes[i].getNodeType() != event {
-				res = append(res, int16(i))
+			if int(p) == idx && nodes[i].getNodeType() != event {
+				res = append(res, i)
 			}
 		}
 
-		if e.nodes[idx].getNodeType() == cond {
-			res = []int16{
+		if nodes[idx].getNodeType() == cond {
+			res = []int{
 				res[0], // condition node
 				res[1], // true branch
 				res[3], // false branch
@@ -413,57 +428,100 @@ func Dump(e *Expr) string {
 		return
 	}
 
-	var helper func(int16) (string, bool)
+	var root int
+	for idx, pIdx := range e.parentIdx {
+		if pIdx == -1 {
+			root = idx
+		}
+	}
 
-	helper = func(idx int16) (string, bool) {
-		n := e.nodes[idx]
-		if n.childCnt == 0 {
+	size := len(e.nodes)
+	tree := make([]TreeNode, 0, size)
+	queue := make([]int, 0, size)
+	queue = append(queue, root)
+
+	idx := 0
+	for idx < len(queue) {
+		curtIdx := queue[idx]
+		children := getChildren(curtIdx)
+		childIdx := len(queue)
+		childCnt := len(children)
+
+		curt := nodes[curtIdx]
+
+		n := TreeNode{
+			NodeType: NodeType(curt.getNodeType()),
+			SelKey:   curt.selKey,
+			Value:    curt.value,
+			Operator: curt.operator,
+		}
+		n.ChildCnt = childCnt
+		switch n.NodeType {
+		case ConstantNode, SelectorNode:
+			n.ChildIdx = -1
+		default:
+			n.ChildIdx = childIdx
+		}
+
+		tree = append(tree, n)
+		queue = append(queue, children...)
+		idx++
+	}
+
+	return tree
+}
+
+func (t Tree) DumpCode(format bool) string {
+	var helper func(int) (string, bool)
+
+	helper = func(idx int) (string, bool) {
+		n := t[idx]
+		if n.ChildCnt == 0 {
 			return dumpLeafNode(n)
 		}
 
+		cIdx := n.ChildIdx
+		cCnt := n.ChildCnt
+
 		var sb strings.Builder
-		sb.WriteString(fmt.Sprintf("(%v", n.value))
+		sb.WriteString("(")
+		sb.WriteString(n.Value.(string))
 
-		childIdxes := getChildIdxes(idx)
-
-		for _, cIdx := range childIdxes {
-			cc, isLeaf := helper(cIdx)
-			if isLeaf {
-				sb.WriteString(fmt.Sprintf(" %s", cc))
+		for i := cIdx; i < cIdx+cCnt; i++ {
+			s, isLeaf := helper(i)
+			if !format || isLeaf {
+				sb.WriteString(" ")
+				sb.WriteString(s)
 				continue
 			}
 
-			for _, cs := range strings.Split(cc, "\n") {
+			for _, cs := range strings.Split(s, "\n") {
 				sb.WriteString(fmt.Sprintf("\n  %s", cs))
 			}
 		}
 		sb.WriteString(")")
 		return sb.String(), false
 	}
-
-	var rootIdx int16
-	for idx, pIdx := range e.parentIdx {
-		if pIdx == -1 {
-			rootIdx = int16(idx)
-		}
-	}
-
-	res, _ := helper(rootIdx)
-	return res
+	code, _ := helper(0)
+	return code
 }
 
-func dumpLeafNode(node *node) (string, bool) {
-	switch node.getNodeType() {
-	case event:
+func Dump(e *Expr) string {
+	return GetAstTree(e).DumpCode(true)
+}
+
+func dumpLeafNode(node TreeNode) (string, bool) {
+	switch node.NodeType {
+	case EventNode:
 		return "eventNode", false
-	case selector:
-		return fmt.Sprint(node.value), true
-	case operator, fastOperator:
-		return fmt.Sprintf("(%v)", node.value), false
+	case SelectorNode:
+		return fmt.Sprint(node.Value), true
+	case OperatorNode, FastOperatorNode:
+		return fmt.Sprintf("(%v)", node.Value), false
 	}
 
 	var res string
-	switch v := node.value.(type) {
+	switch v := node.Value.(type) {
 	case string:
 		res = strconv.Quote(v)
 	case []string:
@@ -650,25 +708,6 @@ func DumpTable(expr *Expr, skipEventNode bool) string {
 	}
 
 	return sb.String()
-}
-
-type SelectorKeys struct {
-	SelKey SelectorKey
-	StrKey string
-}
-
-func GetSelectorKeys(e *Expr) []SelectorKeys {
-	res := make([]SelectorKeys, len(e.nodes)/2)
-
-	for _, n := range e.nodes {
-		if n.getNodeType() == selector {
-			res = append(res, SelectorKeys{
-				SelKey: n.selKey,
-				StrKey: n.value.(string),
-			})
-		}
-	}
-	return res
 }
 
 func HandleDebugEvent(e *Expr) {

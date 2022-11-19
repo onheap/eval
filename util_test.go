@@ -105,7 +105,7 @@ func TestIndentByParentheses(t *testing.T) {
 ;; hhh0`)
 }
 
-func TestPrintCode(t *testing.T) {
+func TestDump(t *testing.T) {
 	s := `
 
 ;;;; optimize:false

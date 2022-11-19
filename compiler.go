@@ -253,24 +253,43 @@ func parentNode(e *Expr, idx int16) (*node, int16) {
 }
 
 func optimizeReordering(cc *CompileConfig, root *astNode) {
-	for _, child := range root.children {
-		optimizeReordering(cc, child)
+
+	var helper func(curt, parent *astNode)
+
+	helper = func(curt, parent *astNode) {
+		for _, child := range curt.children {
+			helper(child, curt)
+		}
+
+		calculateNodeCosts(cc, curt, parent)
+
+		if !isBoolOpNode(curt.node) {
+			return
+		}
+
+		// reordering child nodes based on node cost
+		sort.SliceStable(curt.children, func(i, j int) bool {
+			return curt.children[i].cost < curt.children[j].cost
+		})
 	}
 
-	calculateNodeCosts(cc, root)
-
-	if !isBoolOpNode(root.node) {
-		return
-	}
-
-	// reordering child nodes based on node cost
-	sort.SliceStable(root.children, func(i, j int) bool {
-		return root.children[i].cost < root.children[j].cost
-	})
+	helper(root, nil)
 }
 
-func calculateNodeCosts(conf *CompileConfig, root *astNode) {
-	children := root.children
+func calculateNodeCosts(conf *CompileConfig, curt, parent *astNode) {
+	n := curt.node
+	children := curt.children
+	nodeType := n.flag & nodeTypeMask
+
+	if (nodeType == fastOperator || nodeType == selector) &&
+		parent != nil && isBoolOpNode(parent.node) {
+		identifier := getCostIdentifier(parent, curt, children)
+		if score, exist := conf.CostsMap[identifier]; exist {
+			curt.cost = score
+			return
+		}
+	}
+
 	const (
 		loops       float64 = 1
 		inlinedCall float64 = 1
@@ -282,9 +301,6 @@ func calculateNodeCosts(conf *CompileConfig, root *astNode) {
 		operationCost float64
 		childrenCost  float64
 	)
-
-	n := root.node
-	nodeType := n.flag & nodeTypeMask
 
 	// base cost
 	switch nodeType {
@@ -305,9 +321,17 @@ func calculateNodeCosts(conf *CompileConfig, root *astNode) {
 	}
 
 	// operation cost
-	if nodeType == selector ||
-		nodeType == operator ||
-		nodeType == fastOperator {
+	switch nodeType {
+	case operator, fastOperator:
+		var found bool
+		if parent != nil && isBoolOpNode(parent.node) {
+			identifier := getCostIdentifier(parent, curt, nil)
+			operationCost, found = conf.CostsMap[identifier]
+		}
+		if !found {
+			operationCost = conf.getCosts(nodeType, n.value.(string))
+		}
+	case selector:
 		operationCost = conf.getCosts(nodeType, n.value.(string))
 	}
 
@@ -319,7 +343,42 @@ func calculateNodeCosts(conf *CompileConfig, root *astNode) {
 		}
 	}
 
-	root.cost = baseCost + operationCost + childrenCost
+	curt.cost = baseCost + operationCost + childrenCost
+}
+
+func getCostIdentifier(parent *astNode, curt *astNode, children []*astNode) string {
+	var tree Tree
+	var appendChildren = func(parentIdx int, children ...*astNode) {
+		if parentIdx != -1 {
+			tree[parentIdx].ChildCnt = len(children)
+			tree[parentIdx].ChildIdx = len(tree)
+		}
+
+		for _, c := range children {
+			n := c.node
+			tree = append(tree,
+				TreeNode{
+					NodeType: NodeType(n.getNodeType()),
+					SelKey:   n.selKey,
+					Value:    n.value,
+					Operator: n.operator,
+
+					Idx:       len(tree),
+					ChildCnt:  0,
+					ChildIdx:  -1,
+					ParentIdx: parentIdx,
+				},
+			)
+		}
+	}
+
+	appendChildren(-1, parent)
+	appendChildren(0, curt)
+	if len(children) != 0 {
+		appendChildren(1, children...)
+	}
+
+	return tree.DumpCode(false)
 }
 
 func optimizeConstantFolding(cc *CompileConfig, root *astNode) {
