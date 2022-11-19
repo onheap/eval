@@ -356,15 +356,13 @@ func getCostIdentifier(parent *astNode, curt *astNode, children []*astNode) stri
 
 		for _, c := range children {
 			n := c.node
-			tree = append(tree,
-				TreeNode{
-					NodeType:  NodeType(n.getNodeType()),
-					Value:     n.value,
-					Idx:       len(tree),
-					ChildIdx:  -1,
-					ParentIdx: parentIdx,
-				},
-			)
+			tree = append(tree, TreeNode{
+				NodeType:  NodeType(n.getNodeType()),
+				Value:     n.value,
+				Idx:       len(tree),
+				ChildIdx:  -1,
+				ParentIdx: parentIdx,
+			})
 		}
 	}
 
