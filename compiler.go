@@ -15,6 +15,8 @@ const (
 	ReduceNesting   Option = "reduce_nesting"
 	ConstantFolding Option = "constant_folding"
 
+	ContextBasedReordering Option = "context_based_reordering"
+
 	Debug                 Option = "debug"
 	ReportEvent           Option = "report_event"
 	InfixNotation         Option = "infix_notation"
@@ -281,9 +283,11 @@ func calculateNodeCosts(conf *CompileConfig, curt, parent *astNode) {
 	children := curt.children
 	nodeType := n.flag & nodeTypeMask
 
-	if (nodeType == fastOperator || nodeType == selector) &&
-		parent != nil && isBoolOpNode(parent.node) {
-		identifier := getCostIdentifier(parent, curt, children)
+	contextCostEnabled := conf.CompileOptions[ContextBasedReordering] &&
+		parent != nil && isBoolOpNode(parent.node)
+
+	if contextCostEnabled && (nodeType == fastOperator || nodeType == selector) {
+		identifier := getContextCostIdentifier(parent, curt, children)
 		if score, exist := conf.CostsMap[identifier]; exist {
 			curt.cost = score
 			return
@@ -324,8 +328,8 @@ func calculateNodeCosts(conf *CompileConfig, curt, parent *astNode) {
 	switch nodeType {
 	case operator, fastOperator:
 		var found bool
-		if parent != nil && isBoolOpNode(parent.node) {
-			identifier := getCostIdentifier(parent, curt, nil)
+		if contextCostEnabled {
+			identifier := getContextCostIdentifier(parent, curt, nil)
 			operationCost, found = conf.CostsMap[identifier]
 		}
 		if !found {
@@ -346,7 +350,7 @@ func calculateNodeCosts(conf *CompileConfig, curt, parent *astNode) {
 	curt.cost = baseCost + operationCost + childrenCost
 }
 
-func getCostIdentifier(parent *astNode, curt *astNode, children []*astNode) string {
+func getContextCostIdentifier(parent *astNode, curt *astNode, children []*astNode) string {
 	var tree Tree
 	var appendChildren = func(parentIdx int, children ...*astNode) {
 		if parentIdx != -1 {
