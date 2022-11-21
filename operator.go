@@ -295,12 +295,12 @@ func (c comparison) execute(_ *Ctx, params []Value) (Value, error) {
 }
 
 func comparisonEquals(_ *Ctx, params []Value) (Value, error) {
-	if len(params) < 2 {
-		return nil, errCnt2(equals, params)
-	}
-
 	if len(params) == 2 {
 		return params[0] == params[1], nil
+	}
+
+	if len(params) < 2 {
+		return nil, errCnt2(equals, params)
 	}
 
 	v := params[0]

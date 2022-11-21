@@ -162,13 +162,6 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 			if err != nil {
 				return
 			}
-		case selector:
-			res, err = ctx.Get(curt.selKey, curt.value.(string))
-			if err != nil {
-				return
-			}
-		case constant:
-			res = curt.value
 		case operator:
 			cCnt := int16(curt.childCnt)
 			osTop = osTop - cCnt
@@ -184,6 +177,13 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 			if err != nil {
 				return
 			}
+		case selector:
+			res, err = ctx.Get(curt.selKey, curt.value.(string))
+			if err != nil {
+				return
+			}
+		case constant:
+			res = curt.value
 		case cond:
 			res, osTop = os[osTop], osTop-1
 			res, err = curt.operator(ctx, []Value{res})
