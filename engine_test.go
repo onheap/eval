@@ -1126,11 +1126,11 @@ func TestExpr_TryEval(t *testing.T) {
 
 func TestRandomExpressions(t *testing.T) {
 	const (
-		size          = 30000
+		size          = 4000000
 		level         = 53
 		step          = size / 100
 		showSample    = false
-		printProgress = false
+		printProgress = true
 	)
 
 	const (
