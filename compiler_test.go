@@ -836,7 +836,7 @@ func TestReordering(t *testing.T) {
 				optimizeFastEvaluation(cc, ast)
 			}
 
-			calculateNodeCosts(cc, ast)
+			calculateNodeCosts(cc, ast, nil)
 			optimizeReordering(cc, ast)
 			if len(c.errMsg) != 0 {
 				assertErrStrContains(t, err, c.errMsg, c)
@@ -1390,4 +1390,19 @@ func TestCompile(t *testing.T) {
 			assertEquals(t, e.maxStackSize, maxOsTop+1)
 		})
 	}
+}
+
+func TestGetCostIdentifier(t *testing.T) {
+	s := `(and (> Adults 1) (now))`
+
+	vals := map[string]interface{}{
+		"Origin":  "MOW",
+		"Country": "RU",
+		"Adults":  1,
+
+		"now": func(*Ctx, []Value) (Value, error) { return time.Now().Unix(), nil },
+	}
+
+	_, _ = Eval(s, vals)
+
 }
