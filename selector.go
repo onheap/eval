@@ -78,9 +78,13 @@ func NewCtxWithMap(cc *CompileConfig, vals map[string]interface{}) *Ctx {
 		return &Ctx{Selector: NewMapSelector(vals)}
 	}
 
+	for key := range vals {
+		GetOrRegisterKey(cc, key)
+	}
+
 	var sel Selector
 	minKey, maxKey := selKeyRange(cc)
-	if 0 <= minKey && maxKey < 256 {
+	if minKey <= maxKey && 0 <= minKey && maxKey < 256 {
 		sel = NewSliceSelector(cc, vals)
 	} else {
 		sel = NewMapSelector(vals)
