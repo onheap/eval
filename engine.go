@@ -92,7 +92,7 @@ func (e *Expr) EvalBool(ctx *Ctx) (bool, error) {
 }
 
 func (e *Expr) TryEvalBool(ctx *Ctx) (bool, error) {
-	res, err := e.Eval(ctx)
+	res, err := e.TryEval(ctx)
 	if err != nil {
 		return false, err
 	}

@@ -74,102 +74,84 @@ func ToValueMap(m map[string]interface{}) map[string]Value {
 }
 
 func NewCtxWithMap(cc *CompileConfig, vals map[string]interface{}) *Ctx {
+	if cc.CompileOptions[AllowUnknownSelectors] {
+		return &Ctx{Selector: NewMapSelector(vals)}
+	}
+
+	for key := range vals {
+		GetOrRegisterKey(cc, key)
+	}
+
 	var sel Selector
-	if sliceSelectorAvailable(cc) {
+	minKey, maxKey := selKeyRange(cc)
+	if minKey <= maxKey && 0 <= minKey && maxKey < 256 {
 		sel = NewSliceSelector(cc, vals)
 	} else {
 		sel = NewMapSelector(vals)
 	}
 
-	return &Ctx{
-		Selector: sel,
-	}
+	return &Ctx{Selector: sel}
 }
 
-func sliceSelectorAvailable(cc *CompileConfig) bool {
-	const (
-		minKeyRange = 0
-		maxKeyRange = 256
-	)
-
-	if cc.CompileOptions[AllowUnknownSelectors] {
-		return false
-	}
-
-	if len(cc.SelectorMap) > maxKeyRange-minKeyRange {
-		return false
-	}
-
+func selKeyRange(cc *CompileConfig) (min, max SelectorKey) {
+	min, max = math.MaxInt16, math.MinInt16
 	for _, key := range cc.SelectorMap {
-		if key < minKeyRange || key >= maxKeyRange {
-			return false
+		if key < min {
+			min = key
+		}
+		if key > max {
+			max = key
 		}
 	}
-
-	return true
+	return
 }
 
-type SliceSelector struct {
-	Values []Value
-}
+type SliceSelector []Value
 
 func NewSliceSelector(cc *CompileConfig, vals map[string]interface{}) SliceSelector {
-	maxKey := 0
-	for name := range vals {
-		key := GetOrRegisterKey(cc, name)
-		if int(key) > maxKey {
-			maxKey = int(key)
-		}
-	}
-	size := max(len(cc.SelectorMap), maxKey+1)
-	sel := SliceSelector{
-		Values: make([]Value, size),
-	}
+	_, maxKey := selKeyRange(cc)
+	sel := make([]Value, maxKey+1)
 	for name, val := range vals {
 		key := cc.SelectorMap[name]
-		sel.Values[key] = unifyType(val)
+		sel[key] = unifyType(val)
 	}
 	return sel
 }
 
 func (s SliceSelector) Get(key SelectorKey, _ string) (Value, error) {
-	if int(key) >= len(s.Values) {
+	if int(key) >= len(s) {
 		return nil, fmt.Errorf("selectorKey not exist %d", key)
 	}
-	return s.Values[key], nil
+	return s[key], nil
 }
 
 func (s SliceSelector) Set(key SelectorKey, _ string, val Value) error {
-	if int(key) >= len(s.Values) {
+	if int(key) >= len(s) {
 		return fmt.Errorf("selectorKey not exist %d", key)
 	}
-	s.Values[key] = val
+	s[key] = val
 	return nil
 }
 
 func (s SliceSelector) Cached(key SelectorKey, _ string) bool {
-	if int(key) >= len(s.Values) {
+	if int(key) >= len(s) {
 		return false
 	}
 	return true
 }
 
-type MapSelector struct {
-	Values map[string]Value
-}
+type MapSelector map[string]Value
 
 func NewMapSelector(vals map[string]interface{}) MapSelector {
-	s := MapSelector{
-		Values: make(map[string]Value),
-	}
+	s := make(map[string]Value, len(vals))
 	for name, val := range vals {
-		s.Values[name] = unifyType(val)
+		s[name] = unifyType(val)
 	}
 	return s
 }
 
 func (s MapSelector) Get(_ SelectorKey, key string) (Value, error) {
-	val, exist := s.Values[key]
+	val, exist := s[key]
 	if !exist {
 		return nil, fmt.Errorf("selectorKey not exist %s", key)
 	}
@@ -177,12 +159,12 @@ func (s MapSelector) Get(_ SelectorKey, key string) (Value, error) {
 }
 
 func (s MapSelector) Set(_ SelectorKey, key string, val Value) error {
-	s.Values[key] = val
+	s[key] = val
 	return nil
 }
 
 func (s MapSelector) Cached(_ SelectorKey, key string) bool {
-	_, exist := s.Values[key]
+	_, exist := s[key]
 	return exist
 }
 
