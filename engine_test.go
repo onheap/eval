@@ -621,14 +621,14 @@ func TestEval_AllowUnknownVariables(t *testing.T) {
 		{
 			want: false,
 			expr: `(< age 18)`,
-			cc:   NewConfig(EnableUnknownVariables),
+			cc:   NewConfig(EnableUndefinedVariable),
 			vals: map[string]interface{}{
 				"age": int64(20),
 			},
 		},
 		{
 			expr:   `(< not_exist_key 18)`,
-			cc:     NewConfig(EnableUnknownVariables),
+			cc:     NewConfig(EnableUndefinedVariable),
 			errMsg: "variableKey not exist",
 		},
 		{
@@ -648,7 +648,7 @@ func TestEval_AllowUnknownVariables(t *testing.T) {
    (- 2 v3) (/ 6 3) 4)
  (* 5 -6 7)
 )`,
-			cc: NewConfig(EnableUnknownVariables),
+			cc: NewConfig(EnableUndefinedVariable),
 			vals: map[string]interface{}{
 				"v3": int64(3),
 			},
@@ -1079,7 +1079,7 @@ func TestExpr_TryEval(t *testing.T) {
 	for _, c := range cs {
 		t.Run(c.s, func(t *testing.T) {
 			var options []Option
-			options = append(options, EnableUnknownVariables)
+			options = append(options, EnableUndefinedVariable)
 			if debugMode {
 				options = append(options, EnableDebug)
 			}
@@ -1218,7 +1218,7 @@ func TestRandomExpressions(t *testing.T) {
 				}
 
 				if v&0b1100 == 0b1100 {
-					options = append(options, EnableRCO, GenVariables(dneMap))
+					options = append(options, EnableTryEval, GenVariables(dneMap))
 				}
 
 				l := (i % level) + 1
@@ -1250,7 +1250,7 @@ func TestRandomExpressions(t *testing.T) {
 				cc.CompileOptions[Reordering] = v&0b1 != 0
 				cc.CompileOptions[FastEvaluation] = v&0b10 != 0
 				cc.CompileOptions[ConstantFolding] = v&0b100 != 0
-				cc.CompileOptions[AllowUnknownVariables] = c.rco
+				cc.CompileOptions[AllowUndefinedVariable] = c.rco
 				cc.CompileOptions[ReportEvent] = v&0b1000 != 0 && c.level <= level/2
 
 				expr, err := Compile(cc, c.expr)

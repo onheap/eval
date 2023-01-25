@@ -1066,7 +1066,7 @@ func TestParseAstTree(t *testing.T) {
 		},
 		// return an error when expr use unregister variable
 		{
-			cc:   NewConfig(EnableUnknownVariables),
+			cc:   NewConfig(EnableUndefinedVariable),
 			expr: `(< age 18)`,
 			ast: verifyNode{
 				tpy:  operator,
@@ -1087,7 +1087,7 @@ func TestParseAstTree(t *testing.T) {
 
 		// return an error when expr use operator at variable position
 		{
-			cc:     NewConfig(EnableUnknownVariables),
+			cc:     NewConfig(EnableUndefinedVariable),
 			expr:   `(and and and)`,
 			errMsg: "unknown token error",
 		},
@@ -1406,8 +1406,8 @@ func TestParseInfixAstTree(t *testing.T) {
 			},
 			cc: &Config{
 				CompileOptions: map[CompileOption]bool{
-					InfixNotation:         true,
-					AllowUnknownVariables: true,
+					InfixNotation:          true,
+					AllowUndefinedVariable: true,
 				},
 			},
 		},
@@ -1444,8 +1444,8 @@ func TestParseInfixAstTree(t *testing.T) {
 			},
 			cc: &Config{
 				CompileOptions: map[CompileOption]bool{
-					InfixNotation:         true,
-					AllowUnknownVariables: true,
+					InfixNotation:          true,
+					AllowUndefinedVariable: true,
 				},
 			},
 		},
@@ -1471,8 +1471,8 @@ func TestParseInfixAstTree(t *testing.T) {
 			},
 			cc: &Config{
 				CompileOptions: map[CompileOption]bool{
-					InfixNotation:         true,
-					AllowUnknownVariables: true,
+					InfixNotation:          true,
+					AllowUndefinedVariable: true,
 				},
 			},
 		},
@@ -1498,8 +1498,8 @@ func TestParseInfixAstTree(t *testing.T) {
 			},
 			cc: &Config{
 				CompileOptions: map[CompileOption]bool{
-					InfixNotation:         true,
-					AllowUnknownVariables: true,
+					InfixNotation:          true,
+					AllowUndefinedVariable: true,
 				},
 			},
 		},
@@ -1535,8 +1535,8 @@ func TestParseInfixAstTree(t *testing.T) {
 			},
 			cc: &Config{
 				CompileOptions: map[CompileOption]bool{
-					InfixNotation:         true,
-					AllowUnknownVariables: true,
+					InfixNotation:          true,
+					AllowUndefinedVariable: true,
 				},
 			},
 		},
@@ -1568,8 +1568,8 @@ func TestParseInfixAstTree(t *testing.T) {
 			},
 			cc: &Config{
 				CompileOptions: map[CompileOption]bool{
-					InfixNotation:         true,
-					AllowUnknownVariables: true,
+					InfixNotation:          true,
+					AllowUndefinedVariable: true,
 				},
 			},
 		},
@@ -1602,8 +1602,8 @@ func TestParseInfixAstTree(t *testing.T) {
 			},
 			cc: &Config{
 				CompileOptions: map[CompileOption]bool{
-					InfixNotation:         true,
-					AllowUnknownVariables: true,
+					InfixNotation:          true,
+					AllowUndefinedVariable: true,
 				},
 			},
 		},
@@ -1659,8 +1659,8 @@ func TestParseInfixAstTree(t *testing.T) {
 			},
 			cc: &Config{
 				CompileOptions: map[CompileOption]bool{
-					InfixNotation:         true,
-					AllowUnknownVariables: true,
+					InfixNotation:          true,
+					AllowUndefinedVariable: true,
 				},
 			},
 		},
@@ -1692,8 +1692,8 @@ func TestParseInfixAstTree(t *testing.T) {
 			},
 			cc: &Config{
 				CompileOptions: map[CompileOption]bool{
-					InfixNotation:         true,
-					AllowUnknownVariables: true,
+					InfixNotation:          true,
+					AllowUndefinedVariable: true,
 				},
 			},
 		},
@@ -1783,8 +1783,8 @@ func TestParseInfixAstTree(t *testing.T) {
 			},
 			cc: &Config{
 				CompileOptions: map[CompileOption]bool{
-					InfixNotation:         true,
-					AllowUnknownVariables: true,
+					InfixNotation:          true,
+					AllowUndefinedVariable: true,
 				},
 			},
 		},
@@ -1874,8 +1874,8 @@ func TestParseInfixAstTree(t *testing.T) {
 			},
 			cc: &Config{
 				CompileOptions: map[CompileOption]bool{
-					InfixNotation:         true,
-					AllowUnknownVariables: true,
+					InfixNotation:          true,
+					AllowUndefinedVariable: true,
 				},
 			},
 		},

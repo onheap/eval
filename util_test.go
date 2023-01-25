@@ -280,8 +280,8 @@ func TestGenerateRandomExpr_RCO(t *testing.T) {
 			"var_false_1": VariableKey(4),
 		},
 		CompileOptions: map[CompileOption]bool{
-			ConstantFolding:       false,
-			AllowUnknownVariables: true,
+			ConstantFolding:        false,
+			AllowUndefinedVariable: true,
 		},
 	}
 	valMap := map[string]interface{}{
@@ -301,7 +301,7 @@ func TestGenerateRandomExpr_RCO(t *testing.T) {
 
 	for i := 1; i < size; i++ {
 		genRes := GenerateRandomExpr(i, r,
-			GenType(GenBool), EnableCondition, EnableVariable, GenVariables(valMap), EnableRCO, GenVariables(dneMap))
+			GenType(GenBool), EnableCondition, EnableVariable, GenVariables(valMap), EnableTryEval, GenVariables(dneMap))
 
 		expr, err := Compile(cc, genRes.Expr)
 

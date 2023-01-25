@@ -14,13 +14,13 @@ var (
 	}
 )
 
-// UndefinedVarKey means that the current key is defined in the VariableKey type
+// UndefinedVarKey means that the current key is undefined in the VariableKey type
 // In this case you should use the string type key
 const UndefinedVarKey VariableKey = math.MinInt16
 
 // DNE means Does Not Exist, it used in RCO (remote call optimization).
-// When executing an expression with RCO, if the value of a VariableKey is not cached,
-// the variable proxy will return DNE as its value
+// When executing an expression with RCO, if the variable is not cached,
+// the variable fetcher proxy will return DNE as its value
 type dne struct{ DoesNotExist string }
 
 func (dne) String() string { return "DNE" }
@@ -29,7 +29,7 @@ var DNE = dne{DoesNotExist: "DNE"}
 
 var ErrDNE = errors.New("DNE")
 
-// VariableFetcher is used to get values of the expression variables.
+// VariableFetcher is used to fetch values of the expression variables.
 // Note that there are two types of keys in each method parameters,
 // varKey is of type VariableKey, strKey is of type string,
 // varKey offers better performance, strKey offers more flexibility,
@@ -74,7 +74,7 @@ func ToValueMap(m map[string]interface{}) map[string]Value {
 }
 
 func NewCtxFromVars(cc *Config, vals map[string]interface{}) *Ctx {
-	if cc.CompileOptions[AllowUnknownVariables] {
+	if cc.CompileOptions[AllowUndefinedVariable] {
 		return &Ctx{VariableFetcher: NewMapVarFetcher(vals)}
 	}
 

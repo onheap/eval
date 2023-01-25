@@ -20,7 +20,7 @@ const (
 type GenExprConfig struct {
 	EnableVariable  bool
 	EnableCondition bool
-	EnableRCO       bool
+	EnableTryEval   bool
 	WantError       bool
 	GenType         GenExprType
 	NumVariables    []GenExprResult
@@ -42,8 +42,8 @@ var (
 	EnableCondition GenExprOption = func(c *GenExprConfig) {
 		c.EnableCondition = true
 	}
-	EnableRCO GenExprOption = func(c *GenExprConfig) {
-		c.EnableRCO = true
+	EnableTryEval GenExprOption = func(c *GenExprConfig) {
+		c.EnableTryEval = true
 	}
 
 	GenType = func(genType GenExprType) GenExprOption {
@@ -54,25 +54,27 @@ var (
 
 	GenVariables = func(m map[string]interface{}) GenExprOption {
 		return func(c *GenExprConfig) {
-			var ns []GenExprResult
-			var bs []GenExprResult
-			var ds []GenExprResult
+			var (
+				numVars  []GenExprResult
+				boolVars []GenExprResult
+				dneVars  []GenExprResult
+			)
 			for k, v := range m {
 				if v == DNE {
-					ds = append(ds, GenExprResult{Expr: k, Res: v})
+					dneVars = append(dneVars, GenExprResult{Expr: k, Res: v})
 					continue
 				}
 				v = UnifyType(v)
 				switch v.(type) {
 				case int64:
-					ns = append(ns, GenExprResult{Expr: k, Res: v})
+					numVars = append(numVars, GenExprResult{Expr: k, Res: v})
 				case bool:
-					bs = append(bs, GenExprResult{Expr: k, Res: v})
+					boolVars = append(boolVars, GenExprResult{Expr: k, Res: v})
 				}
 			}
-			c.NumVariables = append(c.NumVariables, ns...)
-			c.BoolVariables = append(c.BoolVariables, bs...)
-			c.DneVariables = append(c.DneVariables, ds...)
+			c.NumVariables = append(c.NumVariables, numVars...)
+			c.BoolVariables = append(c.BoolVariables, boolVars...)
+			c.DneVariables = append(c.DneVariables, dneVars...)
 		}
 	}
 )
@@ -120,7 +122,7 @@ func GenerateRandomExpr(level int, random *rand.Rand, opts ...GenExprOption) Gen
 			v := random.Intn(100)
 			if genType == GenBool {
 				switch {
-				case r == 1 && c.EnableRCO && len(c.DneVariables) != 0:
+				case r == 1 && c.EnableTryEval && len(c.DneVariables) != 0:
 					idx := (v) % len(c.DneVariables)
 					return c.DneVariables[idx]
 				case r < 4 && c.EnableVariable && len(c.BoolVariables) != 0:
@@ -137,7 +139,7 @@ func GenerateRandomExpr(level int, random *rand.Rand, opts ...GenExprOption) Gen
 
 			if genType == GenNumber {
 				switch {
-				case r == 1 && c.EnableRCO && len(c.DneVariables) != 0:
+				case r == 1 && c.EnableTryEval && len(c.DneVariables) != 0:
 					idx := (v) % len(c.DneVariables)
 					return c.DneVariables[idx]
 				case r < 4 && c.EnableVariable && len(c.NumVariables) != 0:
@@ -552,7 +554,7 @@ func DumpTable(expr *Expr, skipEventNode bool) string {
 		case fastOperator:
 			res = "OPf"
 		case variable:
-			res = "S"
+			res = "V"
 		case constant:
 			res = "C"
 		case cond:

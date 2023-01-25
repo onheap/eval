@@ -340,8 +340,8 @@ func (p *parser) parse() (*astNode, *Config, error) {
 	return ast, p.conf, nil
 }
 
-func (p *parser) allowUnknownVariables() bool {
-	return p.conf.CompileOptions[AllowUnknownVariables]
+func (p *parser) allowUndefinedVariable() bool {
+	return p.conf.CompileOptions[AllowUndefinedVariable]
 }
 
 func (p *parser) isInfixNotation() bool {
@@ -584,7 +584,7 @@ func (p *parser) parseVariable() (*astNode, error) {
 }
 
 func (p *parser) parseUnknownVariable() (*astNode, error) {
-	if !p.allowUnknownVariables() {
+	if !p.allowUndefinedVariable() {
 		return nil, nil
 	}
 

@@ -15,10 +15,10 @@ const (
 	ReduceNesting   CompileOption = "reduce_nesting"
 	ConstantFolding CompileOption = "constant_folding"
 
-	Debug                 CompileOption = "debug"
-	ReportEvent           CompileOption = "report_event"
-	InfixNotation         CompileOption = "infix_notation"
-	AllowUnknownVariables CompileOption = "allow_unknown_variables"
+	Debug                  CompileOption = "debug"
+	ReportEvent            CompileOption = "report_event"
+	InfixNotation          CompileOption = "infix_notation"
+	AllowUndefinedVariable CompileOption = "allow_undefined_variable"
 )
 
 type optimizer func(config *Config, root *astNode)
@@ -66,8 +66,8 @@ func copyConfig(dst, src *Config) {
 type Option func(conf *Config)
 
 var (
-	EnableUnknownVariables Option = func(c *Config) {
-		c.CompileOptions[AllowUnknownVariables] = true
+	EnableUndefinedVariable Option = func(c *Config) {
+		c.CompileOptions[AllowUndefinedVariable] = true
 	}
 	EnableDebug Option = func(c *Config) {
 		c.CompileOptions[Debug] = true
