@@ -826,7 +826,7 @@ func TestParseAstTree(t *testing.T) {
 
 		{
 			expr: `(math.Abs 1 abc.def.ijk)`,
-			cc: NewConfig(WithEnv(map[string]interface{}{
+			cc: NewConfig(RegVarAndOp(map[string]interface{}{
 				"math.Abs":    Operator(nil), // just a placeholder
 				"abc.def.ijk": -1,
 			})),

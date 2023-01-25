@@ -61,7 +61,7 @@ type Expr struct {
 
 func Eval(expr string, vals map[string]interface{}, opts ...Option) (Value, error) {
 	if len(opts) == 0 {
-		opts = append(opts, WithEnv(vals))
+		opts = append(opts, RegVarAndOp(vals))
 	}
 	conf := NewConfig(opts...)
 	tree, err := Compile(conf, expr)

@@ -33,7 +33,7 @@ var ErrDNE = errors.New("DNE")
 // Note that there are two types of keys in each method parameters,
 // varKey is of type VariableKey, strKey is of type string,
 // varKey offers better performance, strKey offers more flexibility,
-// we can use any of them, as they will all be passed in during the expr execution.
+// we can use any of them, as they will all be passed in during the expression execution.
 // we recommend using varKey (if it satisfies your requirements) to get better performance.
 type VariableFetcher interface {
 	// Get gets a value from the variable

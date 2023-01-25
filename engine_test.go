@@ -447,7 +447,7 @@ func TestExpr_Eval(t *testing.T) {
 	for _, c := range cs {
 		t.Run(c.s, func(t *testing.T) {
 			var options []Option
-			options = append(options, WithEnv(c.valMap))
+			options = append(options, RegVarAndOp(c.valMap))
 
 			if debugMode {
 				options = append(options, EnableDebug)
@@ -593,7 +593,7 @@ func TestEval_Infix(t *testing.T) {
 			got, err := Eval(c.expr, c.vals,
 				Optimizations(false),
 				EnableInfixNotation,
-				WithEnv(c.vals))
+				RegVarAndOp(c.vals))
 
 			if len(c.errMsg) != 0 {
 				assertErrStrContains(t, err, c.errMsg)
@@ -1323,7 +1323,7 @@ func TestReportEvent(t *testing.T) {
 		"v3": 3,
 	}
 
-	cc := NewConfig(EnableReportEvent, WithEnv(vals))
+	cc := NewConfig(EnableReportEvent, RegVarAndOp(vals))
 
 	s := `(+ 1 v2 v3)`
 

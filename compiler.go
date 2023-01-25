@@ -92,7 +92,8 @@ var (
 		c.CompileOptions[InfixNotation] = true
 	}
 
-	WithEnv = func(vals map[string]interface{}) Option {
+	// RegVarAndOp registers variables and operators to config
+	RegVarAndOp = func(vals map[string]interface{}) Option {
 		return func(c *Config) {
 			for k, v := range vals {
 				switch a := v.(type) {
@@ -106,6 +107,8 @@ var (
 			}
 		}
 	}
+
+	// ExtendConf extends source config
 	ExtendConf = func(src *Config) Option {
 		return func(c *Config) {
 			if src != nil {
