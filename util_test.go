@@ -145,7 +145,7 @@ func TestPrintCode(t *testing.T) {
 
 `
 
-	cc := &CompileConfig{
+	cc := &Config{
 		SelectorMap: map[string]SelectorKey{
 			"age":         SelectorKey(1),
 			"gender":      SelectorKey(2),
@@ -192,7 +192,7 @@ func TestPrintCode(t *testing.T) {
 func TestGenerateRandomExpr_Bool(t *testing.T) {
 	const size = 50
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	cc := &CompileConfig{
+	cc := &Config{
 		SelectorMap: map[string]SelectorKey{
 			//"select_true":    SelectorKey(1),
 			//"select_false":   SelectorKey(2),
@@ -201,7 +201,7 @@ func TestGenerateRandomExpr_Bool(t *testing.T) {
 			"T": SelectorKey(1),
 			"F": SelectorKey(2),
 		},
-		CompileOptions: map[Option]bool{
+		CompileOptions: map[CompileOption]bool{
 			ConstantFolding: false,
 		},
 	}
@@ -217,7 +217,7 @@ func TestGenerateRandomExpr_Bool(t *testing.T) {
 	for i := 1; i < size; i++ {
 		expr := GenerateRandomExpr(i, r, GenType(GenBool), EnableSelector, EnableCondition, GenSelectors(valMap))
 
-		got, err := Eval(expr.Expr, valMap, WithConf(cc))
+		got, err := Eval(expr.Expr, valMap, ExtendConf(cc))
 		if err != nil {
 			fmt.Println(GenerateTestCase(expr.Expr, expr.Res, valMap))
 			t.Fatalf("assertNil failed, got: %+v\n", err)
@@ -252,9 +252,9 @@ func TestGenerateRandomExpr_Number(t *testing.T) {
 		valMap[k] = int64(v)
 	}
 
-	cc := &CompileConfig{
+	cc := &Config{
 		SelectorMap: keyMap,
-		CompileOptions: map[Option]bool{
+		CompileOptions: map[CompileOption]bool{
 			ConstantFolding: false,
 		},
 	}
@@ -264,7 +264,7 @@ func TestGenerateRandomExpr_Number(t *testing.T) {
 		//fmt.Println(IndentByParentheses(expr.Expr))
 		//fmt.Println(expr.Res)
 
-		got, err := Eval(expr.Expr, valMap, WithConf(cc))
+		got, err := Eval(expr.Expr, valMap, ExtendConf(cc))
 		if err != nil {
 			fmt.Println(GenerateTestCase(expr.Expr, expr.Res, valMap))
 			t.Fatalf("assertNil failed, got: %+v\n", err)
@@ -280,14 +280,14 @@ func TestGenerateRandomExpr_Number(t *testing.T) {
 func TestGenerateRandomExpr_RCO(t *testing.T) {
 	const size = 50
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	cc := &CompileConfig{
+	cc := &Config{
 		SelectorMap: map[string]SelectorKey{
 			"select_true":    SelectorKey(1),
 			"select_false":   SelectorKey(2),
 			"select_true_1":  SelectorKey(3),
 			"select_false_1": SelectorKey(4),
 		},
-		CompileOptions: map[Option]bool{
+		CompileOptions: map[CompileOption]bool{
 			ConstantFolding:       false,
 			AllowUnknownSelectors: true,
 		},
@@ -305,7 +305,7 @@ func TestGenerateRandomExpr_RCO(t *testing.T) {
 		"select_dne_3": DNE,
 	}
 
-	ctx := NewCtxWithMap(cc, valMap)
+	ctx := NewCtxFromVars(cc, valMap)
 
 	for i := 1; i < size; i++ {
 		genRes := GenerateRandomExpr(i, r,

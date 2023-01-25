@@ -62,7 +62,7 @@ func TestLex(t *testing.T) {
 	testCases := []struct {
 		expr   string
 		tokens []token
-		cc     *CompileConfig
+		cc     *Config
 		errMsg string
 	}{
 		{
@@ -89,7 +89,7 @@ func TestLex(t *testing.T) {
 				{typ: ident, val: "!"},
 				{typ: ident, val: "a"},
 			},
-			cc: NewCompileConfig(EnableInfixNotation),
+			cc: NewConfig(EnableInfixNotation),
 		},
 		{
 			expr: `1 + 2 == (3)`,
@@ -102,7 +102,7 @@ func TestLex(t *testing.T) {
 				{typ: integer, val: "3"},
 				{typ: rParen, val: ")"},
 			},
-			cc: NewCompileConfig(EnableInfixNotation),
+			cc: NewConfig(EnableInfixNotation),
 		},
 		{
 			expr: `a & !b == c`,
@@ -114,7 +114,7 @@ func TestLex(t *testing.T) {
 				{typ: ident, val: "=="},
 				{typ: ident, val: "c"},
 			},
-			cc: NewCompileConfig(EnableInfixNotation),
+			cc: NewConfig(EnableInfixNotation),
 		},
 
 		{
@@ -126,7 +126,7 @@ func TestLex(t *testing.T) {
 				{typ: ident, val: "=="},
 				{typ: integer, val: "-3"},
 			},
-			cc: NewCompileConfig(EnableInfixNotation),
+			cc: NewConfig(EnableInfixNotation),
 		},
 
 		{
@@ -141,7 +141,7 @@ func TestLex(t *testing.T) {
 				{typ: ident, val: "!"},
 				{typ: ident, val: "c"},
 			},
-			cc: NewCompileConfig(EnableInfixNotation),
+			cc: NewConfig(EnableInfixNotation),
 		},
 
 		{
@@ -150,7 +150,7 @@ func TestLex(t *testing.T) {
 				{typ: ident, val: "!"},
 				{typ: ident, val: "a"},
 			},
-			cc: NewCompileConfig(EnableInfixNotation),
+			cc: NewConfig(EnableInfixNotation),
 		},
 
 		{
@@ -166,7 +166,7 @@ func TestLex(t *testing.T) {
 				{typ: ident, val: "c"},
 				{typ: rParen, val: ")"},
 			},
-			cc: NewCompileConfig(EnableInfixNotation),
+			cc: NewConfig(EnableInfixNotation),
 		},
 
 		{
@@ -175,7 +175,7 @@ func TestLex(t *testing.T) {
 				{typ: ident, val: "!"},
 				{typ: ident, val: "true"},
 			},
-			cc: NewCompileConfig(EnableInfixNotation),
+			cc: NewConfig(EnableInfixNotation),
 		},
 
 		{
@@ -184,18 +184,18 @@ func TestLex(t *testing.T) {
 				{typ: ident, val: "!"},
 				{typ: ident, val: "false"},
 			},
-			cc: NewCompileConfig(EnableInfixNotation),
+			cc: NewConfig(EnableInfixNotation),
 		},
 
 		{
 			expr:   `!!a`,
-			cc:     NewCompileConfig(EnableInfixNotation),
+			cc:     NewConfig(EnableInfixNotation),
 			errMsg: "can not parse token",
 		},
 
 		{
 			expr: `!!`,
-			cc:   NewCompileConfig(EnableInfixNotation),
+			cc:   NewConfig(EnableInfixNotation),
 			tokens: []token{
 				{typ: ident, val: "!"},
 				{typ: ident, val: "!"},
@@ -204,19 +204,19 @@ func TestLex(t *testing.T) {
 
 		{
 			expr:   `!!!`,
-			cc:     NewCompileConfig(EnableInfixNotation),
+			cc:     NewConfig(EnableInfixNotation),
 			errMsg: "can not parse token",
 		},
 
 		{
 			expr:   `a!`,
-			cc:     NewCompileConfig(EnableInfixNotation),
+			cc:     NewConfig(EnableInfixNotation),
 			errMsg: "can not parse token",
 		},
 
 		{
 			expr: `a >= 8 && !(b && !e) && mod(c + 6 * f, 10) == 7`,
-			cc:   NewCompileConfig(EnableInfixNotation),
+			cc:   NewConfig(EnableInfixNotation),
 			tokens: []token{
 				{typ: ident, val: "a"},
 				{typ: ident, val: ">="},
@@ -430,7 +430,7 @@ func TestLex(t *testing.T) {
 				{typ: ident, val: "+"},
 				{typ: integer, val: "2"},
 			},
-			cc: NewCompileConfig(EnableInfixNotation),
+			cc: NewConfig(EnableInfixNotation),
 		},
 
 		{
@@ -703,31 +703,31 @@ func TestLex(t *testing.T) {
 func TestParseConfig(t *testing.T) {
 	testCases := []struct {
 		expr   string
-		origin map[Option]bool
-		want   map[Option]bool
+		origin map[CompileOption]bool
+		want   map[CompileOption]bool
 		errMsg string
 	}{
 		{
 			expr:   `(+ 1 1)`,
-			origin: map[Option]bool{},
-			want:   map[Option]bool{},
+			origin: map[CompileOption]bool{},
+			want:   map[CompileOption]bool{},
 		},
 		{
 			expr:   `;;;; constant_folding: true, reordering: true`,
-			origin: map[Option]bool{},
-			want: map[Option]bool{
+			origin: map[CompileOption]bool{},
+			want: map[CompileOption]bool{
 				Reordering:      true,
 				ConstantFolding: true,
 			},
 		},
 		{
 			expr: `;;;; optimize:false`,
-			origin: map[Option]bool{
+			origin: map[CompileOption]bool{
 				Reordering:      true,
 				FastEvaluation:  true,
 				ConstantFolding: true,
 			},
-			want: map[Option]bool{
+			want: map[CompileOption]bool{
 				Reordering:      false,
 				FastEvaluation:  false,
 				ConstantFolding: false,
@@ -740,12 +740,12 @@ func TestParseConfig(t *testing.T) {
 ;; then only enable reordering and constant_folding
 ;;;; reordering: true, constant_folding: true
 `,
-			origin: map[Option]bool{
+			origin: map[CompileOption]bool{
 				Reordering:      true,
 				FastEvaluation:  true,
 				ConstantFolding: true,
 			},
-			want: map[Option]bool{
+			want: map[CompileOption]bool{
 				Reordering:      true,
 				FastEvaluation:  false,
 				ConstantFolding: true,
@@ -754,7 +754,7 @@ func TestParseConfig(t *testing.T) {
 
 		{
 			expr: `;;;;unsupported_option:false`,
-			origin: map[Option]bool{
+			origin: map[CompileOption]bool{
 				Reordering:      true,
 				FastEvaluation:  true,
 				ConstantFolding: true,
@@ -764,7 +764,7 @@ func TestParseConfig(t *testing.T) {
 
 		{
 			expr: `;;;;reordering:disabled`,
-			origin: map[Option]bool{
+			origin: map[CompileOption]bool{
 				Reordering:      true,
 				FastEvaluation:  true,
 				ConstantFolding: true,
@@ -774,7 +774,7 @@ func TestParseConfig(t *testing.T) {
 
 		{
 			expr: `;;;;reordering:false:false`,
-			origin: map[Option]bool{
+			origin: map[CompileOption]bool{
 				Reordering:      true,
 				FastEvaluation:  true,
 				ConstantFolding: true,
@@ -785,7 +785,7 @@ func TestParseConfig(t *testing.T) {
 
 	for _, c := range testCases {
 		t.Run(c.expr, func(t *testing.T) {
-			p := newParser(&CompileConfig{CompileOptions: c.origin}, c.expr)
+			p := newParser(&Config{CompileOptions: c.origin}, c.expr)
 			err := p.lex()
 			assertNil(t, err, c)
 			err = p.parseConfig()
@@ -807,7 +807,7 @@ func TestParseConfig(t *testing.T) {
 
 func TestParseAstTree(t *testing.T) {
 	testCases := []struct {
-		cc     *CompileConfig
+		cc     *Config
 		expr   string
 		ast    verifyNode
 		errMsg string
@@ -826,7 +826,7 @@ func TestParseAstTree(t *testing.T) {
 
 		{
 			expr: `(math.Abs 1 abc.def.ijk)`,
-			cc: NewCompileConfig(Register(map[string]interface{}{
+			cc: NewConfig(WithEnv(map[string]interface{}{
 				"math.Abs":    Operator(nil), // just a placeholder
 				"abc.def.ijk": -1,
 			})),
@@ -847,7 +847,7 @@ func TestParseAstTree(t *testing.T) {
    (- 2 v3) (/ -6 3) 4)
  (* 5 6 7)
 )`,
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"v3": SelectorKey(3),
 				},
@@ -895,7 +895,7 @@ func TestParseAstTree(t *testing.T) {
 
 		{
 			// with special character (emoji, chinese character)
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"age":      SelectorKey(1),
 					"language": SelectorKey(2),
@@ -962,7 +962,7 @@ func TestParseAstTree(t *testing.T) {
 		},
 		// with custom operator and selector and constant
 		{
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"birthday": SelectorKey(3),
 				},
@@ -1011,7 +1011,7 @@ func TestParseAstTree(t *testing.T) {
 		},
 		{
 			expr: `(now)`,
-			cc: &CompileConfig{
+			cc: &Config{
 				OperatorMap: map[string]Operator{
 					"now": func(_ *Ctx, _ []Value) (Value, error) {
 						return time.Now().Unix(), nil
@@ -1060,13 +1060,13 @@ func TestParseAstTree(t *testing.T) {
 			},
 		},
 		{
-			cc:     NewCompileConfig(),
+			cc:     NewConfig(),
 			expr:   `(< age 18)`,
 			errMsg: "unknown token error",
 		},
 		// return an error when expr use unregister selector
 		{
-			cc:   NewCompileConfig(EnableStringSelectors),
+			cc:   NewConfig(EnableStringSelectors),
 			expr: `(< age 18)`,
 			ast: verifyNode{
 				tpy:  operator,
@@ -1087,13 +1087,13 @@ func TestParseAstTree(t *testing.T) {
 
 		// return an error when expr use operator at selector position
 		{
-			cc:     NewCompileConfig(EnableStringSelectors),
+			cc:     NewConfig(EnableStringSelectors),
 			expr:   `(and and and)`,
 			errMsg: "unknown token error",
 		},
 
 		{
-			cc:     NewCompileConfig(),
+			cc:     NewConfig(),
 			expr:   `(and and and)`,
 			errMsg: "unknown token error",
 		},
@@ -1157,7 +1157,7 @@ func TestParseAstTree(t *testing.T) {
 
 func TestParseInfixAstTree(t *testing.T) {
 	testCases := []struct {
-		cc     *CompileConfig
+		cc     *Config
 		expr   string
 		ast    verifyNode
 		errMsg string
@@ -1172,8 +1172,8 @@ func TestParseInfixAstTree(t *testing.T) {
 					{tpy: constant, data: int64(2)},
 				},
 			},
-			cc: &CompileConfig{
-				CompileOptions: map[Option]bool{
+			cc: &Config{
+				CompileOptions: map[CompileOption]bool{
 					InfixNotation: true,
 				},
 			},
@@ -1203,8 +1203,8 @@ func TestParseInfixAstTree(t *testing.T) {
 					{tpy: constant, data: int64(4)},
 				},
 			},
-			cc: &CompileConfig{
-				CompileOptions: map[Option]bool{
+			cc: &Config{
+				CompileOptions: map[CompileOption]bool{
 					InfixNotation: true,
 				},
 			},
@@ -1227,8 +1227,8 @@ func TestParseInfixAstTree(t *testing.T) {
 					},
 				},
 			},
-			cc: &CompileConfig{
-				CompileOptions: map[Option]bool{
+			cc: &Config{
+				CompileOptions: map[CompileOption]bool{
 					InfixNotation: true,
 				},
 			},
@@ -1251,8 +1251,8 @@ func TestParseInfixAstTree(t *testing.T) {
 					{tpy: constant, data: int64(3)},
 				},
 			},
-			cc: &CompileConfig{
-				CompileOptions: map[Option]bool{
+			cc: &Config{
+				CompileOptions: map[CompileOption]bool{
 					InfixNotation: true,
 				},
 			},
@@ -1275,8 +1275,8 @@ func TestParseInfixAstTree(t *testing.T) {
 					{tpy: constant, data: int64(3)},
 				},
 			},
-			cc: &CompileConfig{
-				CompileOptions: map[Option]bool{
+			cc: &Config{
+				CompileOptions: map[CompileOption]bool{
 					InfixNotation: true,
 				},
 			},
@@ -1320,8 +1320,8 @@ func TestParseInfixAstTree(t *testing.T) {
 					{tpy: constant, data: int64(5)},
 				},
 			},
-			cc: &CompileConfig{
-				CompileOptions: map[Option]bool{
+			cc: &Config{
+				CompileOptions: map[CompileOption]bool{
 					InfixNotation: true,
 				},
 			},
@@ -1372,8 +1372,8 @@ func TestParseInfixAstTree(t *testing.T) {
 					},
 				},
 			},
-			cc: &CompileConfig{
-				CompileOptions: map[Option]bool{
+			cc: &Config{
+				CompileOptions: map[CompileOption]bool{
 					InfixNotation: true,
 				},
 			},
@@ -1388,8 +1388,8 @@ func TestParseInfixAstTree(t *testing.T) {
 					{tpy: constant, data: false},
 				},
 			},
-			cc: &CompileConfig{
-				CompileOptions: map[Option]bool{
+			cc: &Config{
+				CompileOptions: map[CompileOption]bool{
 					InfixNotation: true,
 				},
 			},
@@ -1404,8 +1404,8 @@ func TestParseInfixAstTree(t *testing.T) {
 					{tpy: selector, data: "b"},
 				},
 			},
-			cc: &CompileConfig{
-				CompileOptions: map[Option]bool{
+			cc: &Config{
+				CompileOptions: map[CompileOption]bool{
 					InfixNotation:         true,
 					AllowUnknownSelectors: true,
 				},
@@ -1442,8 +1442,8 @@ func TestParseInfixAstTree(t *testing.T) {
 					},
 				},
 			},
-			cc: &CompileConfig{
-				CompileOptions: map[Option]bool{
+			cc: &Config{
+				CompileOptions: map[CompileOption]bool{
 					InfixNotation:         true,
 					AllowUnknownSelectors: true,
 				},
@@ -1469,8 +1469,8 @@ func TestParseInfixAstTree(t *testing.T) {
 					},
 				},
 			},
-			cc: &CompileConfig{
-				CompileOptions: map[Option]bool{
+			cc: &Config{
+				CompileOptions: map[CompileOption]bool{
 					InfixNotation:         true,
 					AllowUnknownSelectors: true,
 				},
@@ -1496,8 +1496,8 @@ func TestParseInfixAstTree(t *testing.T) {
 					},
 				},
 			},
-			cc: &CompileConfig{
-				CompileOptions: map[Option]bool{
+			cc: &Config{
+				CompileOptions: map[CompileOption]bool{
 					InfixNotation:         true,
 					AllowUnknownSelectors: true,
 				},
@@ -1533,8 +1533,8 @@ func TestParseInfixAstTree(t *testing.T) {
 					},
 				},
 			},
-			cc: &CompileConfig{
-				CompileOptions: map[Option]bool{
+			cc: &Config{
+				CompileOptions: map[CompileOption]bool{
 					InfixNotation:         true,
 					AllowUnknownSelectors: true,
 				},
@@ -1566,8 +1566,8 @@ func TestParseInfixAstTree(t *testing.T) {
 					},
 				},
 			},
-			cc: &CompileConfig{
-				CompileOptions: map[Option]bool{
+			cc: &Config{
+				CompileOptions: map[CompileOption]bool{
 					InfixNotation:         true,
 					AllowUnknownSelectors: true,
 				},
@@ -1600,8 +1600,8 @@ func TestParseInfixAstTree(t *testing.T) {
 					{tpy: cond, data: "fi"},
 				},
 			},
-			cc: &CompileConfig{
-				CompileOptions: map[Option]bool{
+			cc: &Config{
+				CompileOptions: map[CompileOption]bool{
 					InfixNotation:         true,
 					AllowUnknownSelectors: true,
 				},
@@ -1657,8 +1657,8 @@ func TestParseInfixAstTree(t *testing.T) {
 					{tpy: cond, data: "fi"},
 				},
 			},
-			cc: &CompileConfig{
-				CompileOptions: map[Option]bool{
+			cc: &Config{
+				CompileOptions: map[CompileOption]bool{
 					InfixNotation:         true,
 					AllowUnknownSelectors: true,
 				},
@@ -1690,8 +1690,8 @@ func TestParseInfixAstTree(t *testing.T) {
 					{tpy: cond, data: "fi"},
 				},
 			},
-			cc: &CompileConfig{
-				CompileOptions: map[Option]bool{
+			cc: &Config{
+				CompileOptions: map[CompileOption]bool{
 					InfixNotation:         true,
 					AllowUnknownSelectors: true,
 				},
@@ -1781,8 +1781,8 @@ func TestParseInfixAstTree(t *testing.T) {
 					},
 				},
 			},
-			cc: &CompileConfig{
-				CompileOptions: map[Option]bool{
+			cc: &Config{
+				CompileOptions: map[CompileOption]bool{
 					InfixNotation:         true,
 					AllowUnknownSelectors: true,
 				},
@@ -1813,8 +1813,8 @@ func TestParseInfixAstTree(t *testing.T) {
 					{tpy: constant, data: int64(1)},
 				},
 			},
-			cc: &CompileConfig{
-				CompileOptions: map[Option]bool{
+			cc: &Config{
+				CompileOptions: map[CompileOption]bool{
 					InfixNotation: true,
 				},
 			},
@@ -1872,8 +1872,8 @@ func TestParseInfixAstTree(t *testing.T) {
 					},
 				},
 			},
-			cc: &CompileConfig{
-				CompileOptions: map[Option]bool{
+			cc: &Config{
+				CompileOptions: map[CompileOption]bool{
 					InfixNotation:         true,
 					AllowUnknownSelectors: true,
 				},
@@ -1911,8 +1911,8 @@ func TestParseInfixAstTree(t *testing.T) {
 					},
 				},
 			},
-			cc: &CompileConfig{
-				CompileOptions: map[Option]bool{
+			cc: &Config{
+				CompileOptions: map[CompileOption]bool{
 					InfixNotation: true,
 				},
 			},
@@ -1955,8 +1955,8 @@ func TestParseInfixAstTree(t *testing.T) {
 					{tpy: constant, data: int64(6)},
 				},
 			},
-			cc: &CompileConfig{
-				CompileOptions: map[Option]bool{
+			cc: &Config{
+				CompileOptions: map[CompileOption]bool{
 					InfixNotation: true,
 				},
 			},

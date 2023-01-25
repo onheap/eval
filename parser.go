@@ -59,17 +59,17 @@ type astNode struct {
 
 type parser struct {
 	source string
-	conf   *CompileConfig
+	conf   *Config
 	tokens []token
 	idx    int
 
 	leafNodeParser []func() (*astNode, error)
 }
 
-func newParser(cc *CompileConfig, source string) *parser {
+func newParser(cc *Config, source string) *parser {
 	return &parser{
 		source: source,
-		conf:   CopyCompileConfig(cc),
+		conf:   CopyConfig(cc),
 	}
 }
 
@@ -324,7 +324,7 @@ func (p *parser) check() error {
 	return nil
 }
 
-func (p *parser) parse() (*astNode, *CompileConfig, error) {
+func (p *parser) parse() (*astNode, *Config, error) {
 	err := p.lex()
 	if err != nil {
 		return nil, nil, err
@@ -922,7 +922,7 @@ func (p *parser) parseConfig() error {
 				pair[i] = strings.TrimSpace(pair[i])
 			}
 
-			option := Option(pair[0])
+			option := CompileOption(pair[0])
 			enabled, err := strconv.ParseBool(pair[1])
 			if err != nil {
 				return p.errWithToken(fmt.Errorf("invalid config value %s, err %w", s, err), t)

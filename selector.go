@@ -44,7 +44,7 @@ type Selector interface {
 	Cached(selKey SelectorKey, strKey string) bool
 }
 
-func GetOrRegisterKey(cc *CompileConfig, name string) SelectorKey {
+func GetOrRegisterKey(cc *Config, name string) SelectorKey {
 	if key, exist := cc.SelectorMap[name]; exist {
 		return key
 	}
@@ -73,13 +73,10 @@ func ToValueMap(m map[string]interface{}) map[string]Value {
 	return res
 }
 
-func NewCtxWithMap(cc *CompileConfig, vals map[string]interface{}) *Ctx {
+// NewCtxFromVars
+func NewCtxFromVars(cc *Config, vals map[string]interface{}) *Ctx {
 	if cc.CompileOptions[AllowUnknownSelectors] {
 		return &Ctx{Selector: NewMapSelector(vals)}
-	}
-
-	for key := range vals {
-		GetOrRegisterKey(cc, key)
 	}
 
 	var sel Selector
@@ -93,7 +90,7 @@ func NewCtxWithMap(cc *CompileConfig, vals map[string]interface{}) *Ctx {
 	return &Ctx{Selector: sel}
 }
 
-func selKeyRange(cc *CompileConfig) (min, max SelectorKey) {
+func selKeyRange(cc *Config) (min, max SelectorKey) {
 	min, max = math.MaxInt16, math.MinInt16
 	for _, key := range cc.SelectorMap {
 		if key < min {
@@ -108,13 +105,16 @@ func selKeyRange(cc *CompileConfig) (min, max SelectorKey) {
 
 type SliceSelector []Value
 
-func NewSliceSelector(cc *CompileConfig, vals map[string]interface{}) SliceSelector {
+func NewSliceSelector(cc *Config, vals map[string]interface{}) SliceSelector {
 	_, maxKey := selKeyRange(cc)
 	sel := make([]Value, maxKey+1)
-	for name, val := range vals {
-		key := cc.SelectorMap[name]
-		sel[key] = unifyType(val)
+
+	for name, key := range cc.SelectorMap {
+		if val, exist := vals[name]; exist {
+			sel[key] = unifyType(val)
+		}
 	}
+
 	return sel
 }
 

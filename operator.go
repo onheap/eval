@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func RegisterOperator(cc *CompileConfig, name string, op Operator) error {
+func RegisterOperator(cc *Config, name string, op Operator) error {
 	if _, exist := builtinOperators[name]; exist {
 		return fmt.Errorf("operator already exist %s", name)
 	}

@@ -59,16 +59,16 @@ type Expr struct {
 	EventChan chan Event
 }
 
-func Eval(expr string, vals map[string]interface{}, opts ...CompileOption) (Value, error) {
+func Eval(expr string, vals map[string]interface{}, opts ...Option) (Value, error) {
 	if len(opts) == 0 {
-		opts = append(opts, Register(vals))
+		opts = append(opts, WithEnv(vals))
 	}
-	conf := NewCompileConfig(opts...)
+	conf := NewConfig(opts...)
 	tree, err := Compile(conf, expr)
 	if err != nil {
 		return nil, err
 	}
-	return tree.Eval(NewCtxWithMap(conf, vals))
+	return tree.Eval(NewCtxFromVars(conf, vals))
 }
 
 func (e *Expr) EvalBool(ctx *Ctx) (bool, error) {

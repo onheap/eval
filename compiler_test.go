@@ -9,9 +9,9 @@ import (
 	"time"
 )
 
-func TestCopyCompileConfig(t *testing.T) {
-	var res *CompileConfig
-	res = CopyCompileConfig(nil)
+func TestCopyConfig(t *testing.T) {
+	var res *Config
+	res = CopyConfig(nil)
 	assertNotNil(t, res)
 	assertNotNil(t, res.OperatorMap)
 	assertNotNil(t, res.ConstantMap)
@@ -19,7 +19,7 @@ func TestCopyCompileConfig(t *testing.T) {
 	assertNotNil(t, res.CompileOptions)
 	assertNotNil(t, res.StatelessOperators)
 
-	res = CopyCompileConfig(&CompileConfig{})
+	res = CopyConfig(&Config{})
 	assertNotNil(t, res)
 	assertNotNil(t, res.OperatorMap)
 	assertNotNil(t, res.ConstantMap)
@@ -27,7 +27,7 @@ func TestCopyCompileConfig(t *testing.T) {
 	assertNotNil(t, res.CompileOptions)
 	assertNotNil(t, res.StatelessOperators)
 
-	cc := &CompileConfig{
+	cc := &Config{
 		ConstantMap: map[string]Value{
 			"birthdate_format": "Jan 02, 2006",
 		},
@@ -110,7 +110,7 @@ func TestCopyCompileConfig(t *testing.T) {
 			"selector": 10,
 			"operator": 20,
 		},
-		CompileOptions: map[Option]bool{
+		CompileOptions: map[CompileOption]bool{
 			Reordering:      true,
 			ConstantFolding: false,
 		},
@@ -119,7 +119,7 @@ func TestCopyCompileConfig(t *testing.T) {
 		StatelessOperators: []string{"max", "to_set"},
 	}
 
-	res = CopyCompileConfig(cc)
+	res = CopyConfig(cc)
 	assertEquals(t, res.ConstantMap, cc.ConstantMap)
 	assertEquals(t, res.SelectorMap, cc.SelectorMap)
 	assertEquals(t, res.CompileOptions, cc.CompileOptions)
@@ -139,7 +139,7 @@ func TestCopyCompileConfig(t *testing.T) {
 }
 
 func TestGetCosts(t *testing.T) {
-	cc := &CompileConfig{
+	cc := &Config{
 		SelectorMap: map[string]SelectorKey{
 			"birthday": SelectorKey(3),
 			"gender":   SelectorKey(4),
@@ -164,7 +164,7 @@ func TestGetCosts(t *testing.T) {
 	assertFloatEquals(t, cc.getCosts(operator, "not_null"), 20)
 	assertFloatEquals(t, cc.getCosts(fastOperator, "not_null"), 20)
 
-	cc = &CompileConfig{
+	cc = &Config{
 		SelectorMap: map[string]SelectorKey{
 			"birthday": SelectorKey(3),
 			"gender":   SelectorKey(4),
@@ -186,7 +186,7 @@ func TestGetCosts(t *testing.T) {
 
 func TestOptimizeConstantFolding(t *testing.T) {
 	testCases := []struct {
-		cc   *CompileConfig
+		cc   *Config
 		expr string
 		ast  verifyNode
 	}{
@@ -239,7 +239,7 @@ func TestOptimizeConstantFolding(t *testing.T) {
    (- 2 v3) (/ 6 3) 4)
  (* 5 6 7)
 )`,
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"v3": SelectorKey(3),
 				},
@@ -290,7 +290,7 @@ func TestOptimizeConstantFolding(t *testing.T) {
    (t_version "1.2.3")
 )
 `,
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"app_version": SelectorKey(1),
 				},
@@ -321,7 +321,7 @@ func TestOptimizeConstantFolding(t *testing.T) {
  (< 5 v6)
  false
 )`,
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"v3": SelectorKey(3),
 					"v4": SelectorKey(4),
@@ -344,7 +344,7 @@ func TestOptimizeConstantFolding(t *testing.T) {
  (< 5 v6)
  false
 )`,
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"v3": SelectorKey(3),
 					"v4": SelectorKey(4),
@@ -358,7 +358,7 @@ func TestOptimizeConstantFolding(t *testing.T) {
 		},
 
 		{
-			cc: &CompileConfig{
+			cc: &Config{
 				OperatorMap: map[string]Operator{
 					"is_child": func(_ *Ctx, params []Value) (Value, error) {
 						const (
@@ -415,14 +415,14 @@ func TestOptimizeConstantFolding(t *testing.T) {
 
 func TestOptimizeFastEvaluation(t *testing.T) {
 	testCases := []struct {
-		cc     *CompileConfig
+		cc     *Config
 		expr   string
 		ast    verifyNode
 		errMsg string
 	}{
 		{
 			expr: `(+ 1 v1)`,
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"v1": SelectorKey(1),
 				},
@@ -439,7 +439,7 @@ func TestOptimizeFastEvaluation(t *testing.T) {
 
 		{
 			expr: `(= v1 v1)`,
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"v1": SelectorKey(1),
 				},
@@ -460,7 +460,7 @@ func TestOptimizeFastEvaluation(t *testing.T) {
   (+ 1 v1)
   (* v2 3 v4)
 )`,
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"v1": SelectorKey(1),
 					"v2": SelectorKey(2),
@@ -499,7 +499,7 @@ func TestOptimizeFastEvaluation(t *testing.T) {
    (- 2 v3) (/ 6 3) 4)
  (* 5 6 7)
 )`,
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"v3": SelectorKey(3),
 				},
@@ -546,7 +546,7 @@ func TestOptimizeFastEvaluation(t *testing.T) {
 		},
 
 		{
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"birthday": SelectorKey(3),
 				},
@@ -616,14 +616,14 @@ func TestOptimizeFastEvaluation(t *testing.T) {
 func TestReordering(t *testing.T) {
 	testCases := []struct {
 		fastEval bool // whether to enable FastEvaluation optimization
-		cc       *CompileConfig
+		cc       *Config
 		expr     string
 		ast      verifyNode
 		errMsg   string
 	}{
 		{
 			expr: `(+ 1 v1)`,
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"v1": SelectorKey(1),
 				},
@@ -642,7 +642,7 @@ func TestReordering(t *testing.T) {
 		{
 			expr:     `(+ 1 v1)`,
 			fastEval: true,
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"v1": SelectorKey(1),
 				},
@@ -660,7 +660,7 @@ func TestReordering(t *testing.T) {
 
 		{
 			expr: `(= v1 v2)`,
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"v1": SelectorKey(1),
 					"v2": SelectorKey(2),
@@ -685,7 +685,7 @@ func TestReordering(t *testing.T) {
 		{
 			expr:     `(= v1 v2)`,
 			fastEval: true,
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"v1": SelectorKey(1),
 					"v2": SelectorKey(2),
@@ -714,7 +714,7 @@ func TestReordering(t *testing.T) {
   (= v2 2)  ;; this line will be reordered to the first line as it costs less
 )
 `,
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"v1": SelectorKey(1),
 					"v2": SelectorKey(2),
@@ -762,7 +762,7 @@ func TestReordering(t *testing.T) {
  false
 )`,
 			fastEval: true,
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"v3": SelectorKey(3),
 					"v4": SelectorKey(4),
@@ -851,14 +851,14 @@ func TestReordering(t *testing.T) {
 
 func TestOptimize(t *testing.T) {
 	testCases := []struct {
-		cc     *CompileConfig
+		cc     *Config
 		expr   string
 		ast    verifyNode
 		errMsg string
 	}{
 		{
 			expr: `(+ 1 v1)`,
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"v1": SelectorKey(1),
 				},
@@ -891,7 +891,7 @@ func TestOptimize(t *testing.T) {
  (< 5 v6)
  (= 1 0)
 )`,
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"v3": SelectorKey(3),
 					"v4": SelectorKey(4),
@@ -948,7 +948,7 @@ func TestOptimize(t *testing.T) {
 		},
 
 		{
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"birthday": SelectorKey(3),
 				},
@@ -1015,7 +1015,7 @@ func TestOptimize(t *testing.T) {
 
 func TestCheck(t *testing.T) {
 	testCases := []struct {
-		cc       *CompileConfig
+		cc       *Config
 		optimize bool
 		expr     string
 		size     int
@@ -1032,7 +1032,7 @@ func TestCheck(t *testing.T) {
 		},
 		{
 			expr: `(+ 1 v1)`,
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"v1": SelectorKey(1),
 				},
@@ -1042,7 +1042,7 @@ func TestCheck(t *testing.T) {
 		{
 			expr:     `(+ 1 v1)`,
 			optimize: true,
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"v1": SelectorKey(1),
 				},
@@ -1111,14 +1111,14 @@ func TestCheck(t *testing.T) {
 
 func TestCompile(t *testing.T) {
 	testCases := []struct {
-		cc     *CompileConfig
+		cc     *Config
 		expr   string
 		nodes  []*node
 		errMsg string
 	}{
 		{
 			expr: `(+ 1 2)`,
-			cc:   NewCompileConfig(Optimizations(false)),
+			cc:   NewConfig(Optimizations(false)),
 			nodes: []*node{
 				{
 					flag:  constant,
@@ -1154,11 +1154,11 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			expr: `(+ 1 v1)`,
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"v1": SelectorKey(168),
 				},
-				CompileOptions: map[Option]bool{
+				CompileOptions: map[CompileOption]bool{
 					FastEvaluation: false,
 				},
 			},
@@ -1187,7 +1187,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			expr: `(+ 1 v1)`,
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"v1": SelectorKey(168),
 				},
@@ -1218,7 +1218,7 @@ func TestCompile(t *testing.T) {
 
 		{
 			expr: `(and T1 T2 F)`,
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"T1": SelectorKey(168),
 					"T2": SelectorKey(169),
@@ -1264,7 +1264,7 @@ func TestCompile(t *testing.T) {
 
 		{
 			expr: `(and A (or B C (= D E)) F)`,
-			cc: &CompileConfig{
+			cc: &Config{
 				SelectorMap: map[string]SelectorKey{
 					"A": SelectorKey(168),
 					"B": SelectorKey(169),
@@ -1273,7 +1273,7 @@ func TestCompile(t *testing.T) {
 					"E": SelectorKey(172),
 					"F": SelectorKey(173),
 				},
-				CompileOptions: map[Option]bool{
+				CompileOptions: map[CompileOption]bool{
 					Reordering: false,
 				},
 			},
@@ -1349,14 +1349,14 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			expr:   fmt.Sprintf(`(+ %s)`, strings.Repeat(`1 `, 128)),
-			cc:     NewCompileConfig(Optimizations(false)),
+			cc:     NewConfig(Optimizations(false)),
 			errMsg: "operators cannot exceed a maximum of 127 parameters",
 		},
 		{
 			expr: fmt.Sprintf(
 				`(and %s)`, strings.Repeat(
 					fmt.Sprintf(`(= %s)`, strings.Repeat(`(= 1 1) `, 127)), 127)),
-			cc:     NewCompileConfig(Optimizations(false)),
+			cc:     NewConfig(Optimizations(false)),
 			errMsg: "expression cannot exceed a maximum of 32767 nodes",
 		},
 	}
