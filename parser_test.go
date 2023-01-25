@@ -8,11 +8,11 @@ import (
 )
 
 type verifyNode struct {
-	tpy       uint8
-	data      Value
-	cost      float64
-	selectKey SelectorKey
-	children  []verifyNode
+	tpy         uint8
+	data        Value
+	cost        float64
+	variableKey VariableKey
+	children    []verifyNode
 }
 
 var assertAstTreeIdentical = func(t *testing.T, got *astNode, want verifyNode, msg ...any) {
@@ -42,8 +42,8 @@ var assertAstTreeIdentical = func(t *testing.T, got *astNode, want verifyNode, m
 			t.Fatalf("node cost mismatched, got: %+v, want: %+v, msg: %+v", got.cost, want.cost, msg)
 		}
 
-		if want.selectKey != SelectorKey(0) && want.selectKey != got.node.selKey {
-			t.Fatalf("node selKey mismatched, got: %+v, want: %+v, msg: %+v", got.node.selKey, want.selectKey, msg)
+		if want.variableKey != VariableKey(0) && want.variableKey != got.node.varKey {
+			t.Fatalf("node varKey mismatched, got: %+v, want: %+v, msg: %+v", got.node.varKey, want.variableKey, msg)
 		}
 
 		// check children
@@ -835,7 +835,7 @@ func TestParseAstTree(t *testing.T) {
 				data: "math.Abs",
 				children: []verifyNode{
 					{tpy: constant, data: int64(1)},
-					{tpy: selector, data: "abc.def.ijk"},
+					{tpy: variable, data: "abc.def.ijk"},
 				},
 			},
 		},
@@ -848,8 +848,8 @@ func TestParseAstTree(t *testing.T) {
  (* 5 6 7)
 )`,
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"v3": SelectorKey(3),
+				VariableKeyMap: map[string]VariableKey{
+					"v3": VariableKey(3),
 				},
 			},
 			ast: verifyNode{
@@ -866,7 +866,7 @@ func TestParseAstTree(t *testing.T) {
 								data: "-",
 								children: []verifyNode{
 									{tpy: constant, data: int64(2)},
-									{tpy: selector, data: "v3", selectKey: SelectorKey(3)},
+									{tpy: variable, data: "v3", variableKey: VariableKey(3)},
 								},
 							},
 							{
@@ -896,10 +896,10 @@ func TestParseAstTree(t *testing.T) {
 		{
 			// with special character (emoji, chinese character)
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"age":      SelectorKey(1),
-					"language": SelectorKey(2),
-					"country":  SelectorKey(3),
+				VariableKeyMap: map[string]VariableKey{
+					"age":      VariableKey(1),
+					"language": VariableKey(2),
+					"country":  VariableKey(3),
 				},
 			},
 			expr: `
@@ -920,7 +920,7 @@ func TestParseAstTree(t *testing.T) {
 						tpy:  operator,
 						data: "<=",
 						children: []verifyNode{
-							{tpy: selector, data: "age", selectKey: SelectorKey(1)},
+							{tpy: variable, data: "age", variableKey: VariableKey(1)},
 							{tpy: constant, data: int64(3)},
 						},
 					},
@@ -937,7 +937,7 @@ func TestParseAstTree(t *testing.T) {
 										tpy:  operator,
 										data: "in",
 										children: []verifyNode{
-											{tpy: selector, data: "language", selectKey: SelectorKey(2)},
+											{tpy: variable, data: "language", variableKey: VariableKey(2)},
 											{tpy: constant, data: []string{"zh", "zh-CN"}},
 										},
 									},
@@ -945,7 +945,7 @@ func TestParseAstTree(t *testing.T) {
 										tpy:  operator,
 										data: "=",
 										children: []verifyNode{
-											{tpy: selector, data: "country", selectKey: SelectorKey(3)},
+											{tpy: variable, data: "country", variableKey: VariableKey(3)},
 											{tpy: constant, data: "CN"},
 										},
 									},
@@ -960,11 +960,11 @@ func TestParseAstTree(t *testing.T) {
 				},
 			},
 		},
-		// with custom operator and selector and constant
+		// with custom operator and variable and constant
 		{
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"birthday": SelectorKey(3),
+				VariableKeyMap: map[string]VariableKey{
+					"birthday": VariableKey(3),
 				},
 				ConstantMap: map[string]Value{
 					"birthdate_format": "Jan 02, 2006",
@@ -1004,7 +1004,7 @@ func TestParseAstTree(t *testing.T) {
 				tpy:  operator,
 				data: "is_child",
 				children: []verifyNode{
-					{tpy: selector, data: "birthday", selectKey: SelectorKey(3)},
+					{tpy: variable, data: "birthday", variableKey: VariableKey(3)},
 					{tpy: constant, data: "Jan 02, 2006"}, // constant nodes will be replaced directly with the value
 				},
 			},
@@ -1064,15 +1064,15 @@ func TestParseAstTree(t *testing.T) {
 			expr:   `(< age 18)`,
 			errMsg: "unknown token error",
 		},
-		// return an error when expr use unregister selector
+		// return an error when expr use unregister variable
 		{
-			cc:   NewConfig(EnableStringSelectors),
+			cc:   NewConfig(EnableUnknownVariables),
 			expr: `(< age 18)`,
 			ast: verifyNode{
 				tpy:  operator,
 				data: "<",
 				children: []verifyNode{
-					{tpy: selector, data: "age"},
+					{tpy: variable, data: "age"},
 					{tpy: constant, data: int64(18)},
 				},
 			},
@@ -1085,9 +1085,9 @@ func TestParseAstTree(t *testing.T) {
 			},
 		},
 
-		// return an error when expr use operator at selector position
+		// return an error when expr use operator at variable position
 		{
-			cc:     NewConfig(EnableStringSelectors),
+			cc:     NewConfig(EnableUnknownVariables),
 			expr:   `(and and and)`,
 			errMsg: "unknown token error",
 		},
@@ -1401,13 +1401,13 @@ func TestParseInfixAstTree(t *testing.T) {
 				tpy:  operator,
 				data: "!",
 				children: []verifyNode{
-					{tpy: selector, data: "b"},
+					{tpy: variable, data: "b"},
 				},
 			},
 			cc: &Config{
 				CompileOptions: map[CompileOption]bool{
 					InfixNotation:         true,
-					AllowUnknownSelectors: true,
+					AllowUnknownVariables: true,
 				},
 			},
 		},
@@ -1422,7 +1422,7 @@ func TestParseInfixAstTree(t *testing.T) {
 						tpy:  operator,
 						data: "!",
 						children: []verifyNode{
-							{tpy: selector, data: "b"},
+							{tpy: variable, data: "b"},
 						},
 					},
 					{
@@ -1433,11 +1433,11 @@ func TestParseInfixAstTree(t *testing.T) {
 								tpy:  operator,
 								data: "+",
 								children: []verifyNode{
-									{tpy: selector, data: "a"},
+									{tpy: variable, data: "a"},
 									{tpy: constant, data: int64(1)},
 								},
 							},
-							{tpy: selector, data: "c"},
+							{tpy: variable, data: "c"},
 						},
 					},
 				},
@@ -1445,7 +1445,7 @@ func TestParseInfixAstTree(t *testing.T) {
 			cc: &Config{
 				CompileOptions: map[CompileOption]bool{
 					InfixNotation:         true,
-					AllowUnknownSelectors: true,
+					AllowUnknownVariables: true,
 				},
 			},
 		},
@@ -1460,7 +1460,7 @@ func TestParseInfixAstTree(t *testing.T) {
 						tpy:  operator,
 						data: "!",
 						children: []verifyNode{
-							{tpy: selector, data: "a"},
+							{tpy: variable, data: "a"},
 						},
 					},
 					{
@@ -1472,7 +1472,7 @@ func TestParseInfixAstTree(t *testing.T) {
 			cc: &Config{
 				CompileOptions: map[CompileOption]bool{
 					InfixNotation:         true,
-					AllowUnknownSelectors: true,
+					AllowUnknownVariables: true,
 				},
 			},
 		},
@@ -1487,7 +1487,7 @@ func TestParseInfixAstTree(t *testing.T) {
 						tpy:  operator,
 						data: "in",
 						children: []verifyNode{
-							{tpy: selector, data: "a"},
+							{tpy: variable, data: "a"},
 							{
 								tpy:  constant,
 								data: []int64{1, 2, 3},
@@ -1499,7 +1499,7 @@ func TestParseInfixAstTree(t *testing.T) {
 			cc: &Config{
 				CompileOptions: map[CompileOption]bool{
 					InfixNotation:         true,
-					AllowUnknownSelectors: true,
+					AllowUnknownVariables: true,
 				},
 			},
 		},
@@ -1514,19 +1514,19 @@ func TestParseInfixAstTree(t *testing.T) {
 						tpy:  operator,
 						data: "!",
 						children: []verifyNode{
-							{tpy: selector, data: "c"},
+							{tpy: variable, data: "c"},
 						},
 					},
 					{
 						tpy:  operator,
 						data: "==",
 						children: []verifyNode{
-							{tpy: selector, data: "e"},
+							{tpy: variable, data: "e"},
 							{
 								tpy:  operator,
 								data: "!",
 								children: []verifyNode{
-									{tpy: selector, data: "f"},
+									{tpy: variable, data: "f"},
 								},
 							},
 						},
@@ -1536,7 +1536,7 @@ func TestParseInfixAstTree(t *testing.T) {
 			cc: &Config{
 				CompileOptions: map[CompileOption]bool{
 					InfixNotation:         true,
-					AllowUnknownSelectors: true,
+					AllowUnknownVariables: true,
 				},
 			},
 		},
@@ -1551,17 +1551,17 @@ func TestParseInfixAstTree(t *testing.T) {
 						tpy:  operator,
 						data: ">",
 						children: []verifyNode{
-							{tpy: selector, data: "a"},
+							{tpy: variable, data: "a"},
 							{tpy: constant, data: int64(0)},
 						},
 					},
-					{tpy: selector, data: "a"},
+					{tpy: variable, data: "a"},
 					{
 						tpy:  operator,
 						data: "-",
 						children: []verifyNode{
 							{tpy: constant, data: int64(0)},
-							{tpy: selector, data: "a"},
+							{tpy: variable, data: "a"},
 						},
 					},
 				},
@@ -1569,7 +1569,7 @@ func TestParseInfixAstTree(t *testing.T) {
 			cc: &Config{
 				CompileOptions: map[CompileOption]bool{
 					InfixNotation:         true,
-					AllowUnknownSelectors: true,
+					AllowUnknownVariables: true,
 				},
 			},
 		},
@@ -1584,17 +1584,17 @@ func TestParseInfixAstTree(t *testing.T) {
 						tpy:  operator,
 						data: ">",
 						children: []verifyNode{
-							{tpy: selector, data: "a"},
+							{tpy: variable, data: "a"},
 							{tpy: constant, data: int64(0)},
 						},
 					},
-					{tpy: selector, data: "a"},
+					{tpy: variable, data: "a"},
 					{
 						tpy:  operator,
 						data: "-",
 						children: []verifyNode{
 							{tpy: constant, data: int64(0)},
-							{tpy: selector, data: "a"},
+							{tpy: variable, data: "a"},
 						},
 					},
 					{tpy: cond, data: "fi"},
@@ -1603,7 +1603,7 @@ func TestParseInfixAstTree(t *testing.T) {
 			cc: &Config{
 				CompileOptions: map[CompileOption]bool{
 					InfixNotation:         true,
-					AllowUnknownSelectors: true,
+					AllowUnknownVariables: true,
 				},
 			},
 		},
@@ -1618,7 +1618,7 @@ func TestParseInfixAstTree(t *testing.T) {
 						tpy:  operator,
 						data: "!=",
 						children: []verifyNode{
-							{tpy: selector, data: "a"},
+							{tpy: variable, data: "a"},
 							{tpy: constant, data: int64(0)},
 						},
 					},
@@ -1626,8 +1626,8 @@ func TestParseInfixAstTree(t *testing.T) {
 						tpy:  operator,
 						data: "/",
 						children: []verifyNode{
-							{tpy: selector, data: "b"},
-							{tpy: selector, data: "a"},
+							{tpy: variable, data: "b"},
+							{tpy: variable, data: "a"},
 						},
 					},
 					{
@@ -1638,17 +1638,17 @@ func TestParseInfixAstTree(t *testing.T) {
 								tpy:  operator,
 								data: ">",
 								children: []verifyNode{
-									{tpy: selector, data: "a"},
+									{tpy: variable, data: "a"},
 									{tpy: constant, data: int64(0)},
 								},
 							},
-							{tpy: selector, data: "a"},
+							{tpy: variable, data: "a"},
 							{
 								tpy:  operator,
 								data: "-",
 								children: []verifyNode{
 									{tpy: constant, data: int64(0)},
-									{tpy: selector, data: "a"},
+									{tpy: variable, data: "a"},
 								},
 							},
 							{tpy: cond, data: "fi"},
@@ -1660,7 +1660,7 @@ func TestParseInfixAstTree(t *testing.T) {
 			cc: &Config{
 				CompileOptions: map[CompileOption]bool{
 					InfixNotation:         true,
-					AllowUnknownSelectors: true,
+					AllowUnknownVariables: true,
 				},
 			},
 		},
@@ -1676,24 +1676,24 @@ func TestParseInfixAstTree(t *testing.T) {
 						data: keywordIf,
 						children: []verifyNode{
 							{
-								tpy:  selector,
+								tpy:  variable,
 								data: "a",
 							},
-							{tpy: selector, data: "b"},
-							{tpy: selector, data: "c"},
+							{tpy: variable, data: "b"},
+							{tpy: variable, data: "c"},
 							{tpy: cond, data: "fi"},
 						},
 					},
 
-					{tpy: selector, data: "d"},
-					{tpy: selector, data: "e"},
+					{tpy: variable, data: "d"},
+					{tpy: variable, data: "e"},
 					{tpy: cond, data: "fi"},
 				},
 			},
 			cc: &Config{
 				CompileOptions: map[CompileOption]bool{
 					InfixNotation:         true,
-					AllowUnknownSelectors: true,
+					AllowUnknownVariables: true,
 				},
 			},
 		},
@@ -1716,7 +1716,7 @@ func TestParseInfixAstTree(t *testing.T) {
 										tpy:  operator,
 										data: "!",
 										children: []verifyNode{
-											{tpy: selector, data: "b"},
+											{tpy: variable, data: "b"},
 										},
 									},
 									{
@@ -1727,11 +1727,11 @@ func TestParseInfixAstTree(t *testing.T) {
 												tpy:  operator,
 												data: "+",
 												children: []verifyNode{
-													{tpy: selector, data: "a"},
+													{tpy: variable, data: "a"},
 													{tpy: constant, data: int64(1)},
 												},
 											},
-											{tpy: selector, data: "c"},
+											{tpy: variable, data: "c"},
 										},
 									},
 								},
@@ -1740,12 +1740,12 @@ func TestParseInfixAstTree(t *testing.T) {
 								tpy:  operator,
 								data: "==",
 								children: []verifyNode{
-									{tpy: selector, data: "d"},
+									{tpy: variable, data: "d"},
 									{
 										tpy:  operator,
 										data: "!",
 										children: []verifyNode{
-											{tpy: selector, data: "c"},
+											{tpy: variable, data: "c"},
 										},
 									},
 								},
@@ -1760,19 +1760,19 @@ func TestParseInfixAstTree(t *testing.T) {
 								tpy:  operator,
 								data: "!",
 								children: []verifyNode{
-									{tpy: selector, data: "c"},
+									{tpy: variable, data: "c"},
 								},
 							},
 							{
 								tpy:  operator,
 								data: "==",
 								children: []verifyNode{
-									{tpy: selector, data: "e"},
+									{tpy: variable, data: "e"},
 									{
 										tpy:  operator,
 										data: "!",
 										children: []verifyNode{
-											{tpy: selector, data: "f"},
+											{tpy: variable, data: "f"},
 										},
 									},
 								},
@@ -1784,7 +1784,7 @@ func TestParseInfixAstTree(t *testing.T) {
 			cc: &Config{
 				CompileOptions: map[CompileOption]bool{
 					InfixNotation:         true,
-					AllowUnknownSelectors: true,
+					AllowUnknownVariables: true,
 				},
 			},
 		},
@@ -1834,7 +1834,7 @@ func TestParseInfixAstTree(t *testing.T) {
 								tpy:  operator,
 								data: "==",
 								children: []verifyNode{
-									{tpy: selector, data: "Origin"},
+									{tpy: variable, data: "Origin"},
 									{tpy: constant, data: "MOW"},
 								},
 							},
@@ -1842,7 +1842,7 @@ func TestParseInfixAstTree(t *testing.T) {
 								tpy:  operator,
 								data: "==",
 								children: []verifyNode{
-									{tpy: selector, data: "Country"},
+									{tpy: variable, data: "Country"},
 									{tpy: constant, data: "RU"},
 								},
 							},
@@ -1856,7 +1856,7 @@ func TestParseInfixAstTree(t *testing.T) {
 								tpy:  operator,
 								data: ">=",
 								children: []verifyNode{
-									{tpy: selector, data: "Value"},
+									{tpy: variable, data: "Value"},
 									{tpy: constant, data: int64(100)},
 								},
 							},
@@ -1864,7 +1864,7 @@ func TestParseInfixAstTree(t *testing.T) {
 								tpy:  operator,
 								data: "==",
 								children: []verifyNode{
-									{tpy: selector, data: "Adults"},
+									{tpy: variable, data: "Adults"},
 									{tpy: constant, data: int64(1)},
 								},
 							},
@@ -1875,7 +1875,7 @@ func TestParseInfixAstTree(t *testing.T) {
 			cc: &Config{
 				CompileOptions: map[CompileOption]bool{
 					InfixNotation:         true,
-					AllowUnknownSelectors: true,
+					AllowUnknownVariables: true,
 				},
 			},
 		},

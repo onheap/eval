@@ -6,13 +6,13 @@ import (
 )
 
 type (
-	SelectorKey int16
+	VariableKey int16
 	Value       interface{}
 	Operator    func(ctx *Ctx, params []Value) (res Value, err error)
 )
 
 type Ctx struct {
-	Selector
+	VariableFetcher
 	Ctx context.Context
 }
 
@@ -20,7 +20,7 @@ const (
 	// node types flag
 	nodeTypeMask = uint8(0b00000111)
 	constant     = uint8(0b00000001)
-	selector     = uint8(0b00000010)
+	variable     = uint8(0b00000010)
 	operator     = uint8(0b00000011)
 	fastOperator = uint8(0b00000100)
 	cond         = uint8(0b00000101)
@@ -42,7 +42,7 @@ type node struct {
 	childCnt int8
 	scIdx    int16
 	osTop    int16
-	selKey   SelectorKey
+	varKey   VariableKey
 	value    Value
 	operator Operator
 }
@@ -132,8 +132,8 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 			i++
 			child := nodes[i]
 			res = child.value
-			if child.flag&nodeTypeMask == selector {
-				res, err = ctx.Get(child.selKey, res.(string))
+			if child.flag&nodeTypeMask == variable {
+				res, err = ctx.Get(child.varKey, res.(string))
 				if err != nil {
 					return
 				}
@@ -143,8 +143,8 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 			i++
 			child = nodes[i]
 			res = child.value
-			if child.flag&nodeTypeMask == selector {
-				res, err = ctx.Get(child.selKey, res.(string))
+			if child.flag&nodeTypeMask == variable {
+				res, err = ctx.Get(child.varKey, res.(string))
 				if err != nil {
 					return
 				}
@@ -154,8 +154,8 @@ func (e *Expr) Eval(ctx *Ctx) (res Value, err error) {
 			if err != nil {
 				return
 			}
-		case selector:
-			res, err = ctx.Get(curt.selKey, curt.value.(string))
+		case variable:
+			res, err = ctx.Get(curt.varKey, curt.value.(string))
 			if err != nil {
 				return
 			}
@@ -251,8 +251,8 @@ func (e *Expr) TryEval(ctx *Ctx) (res Value, err error) {
 				return
 			}
 			i += 2
-		case selector:
-			res, err = getSelectorValueProxy(ctx, curt)
+		case variable:
+			res, err = fetchVariableValueProxy(ctx, curt)
 			if err != nil {
 				return
 			}
@@ -337,22 +337,22 @@ func getNodeValueProxy(ctx *Ctx, n *node) (res Value, err error) {
 	if n.flag&nodeTypeMask == constant {
 		res = n.value
 	} else {
-		res, err = getSelectorValueProxy(ctx, n)
+		res, err = fetchVariableValueProxy(ctx, n)
 	}
 	return
 }
 
-func getSelectorValueProxy(ctx *Ctx, n *node) (Value, error) {
+func fetchVariableValueProxy(ctx *Ctx, n *node) (Value, error) {
 	var (
-		selKey = n.selKey
+		varKey = n.varKey
 		strKey = n.value.(string)
 	)
 
-	if !ctx.Cached(selKey, strKey) {
+	if !ctx.Cached(varKey, strKey) {
 		return DNE, nil
 	}
 
-	return ctx.Get(selKey, strKey)
+	return ctx.Get(varKey, strKey)
 }
 
 type EventType string

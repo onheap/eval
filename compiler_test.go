@@ -15,7 +15,7 @@ func TestCopyConfig(t *testing.T) {
 	assertNotNil(t, res)
 	assertNotNil(t, res.OperatorMap)
 	assertNotNil(t, res.ConstantMap)
-	assertNotNil(t, res.SelectorMap)
+	assertNotNil(t, res.VariableKeyMap)
 	assertNotNil(t, res.CompileOptions)
 	assertNotNil(t, res.StatelessOperators)
 
@@ -23,7 +23,7 @@ func TestCopyConfig(t *testing.T) {
 	assertNotNil(t, res)
 	assertNotNil(t, res.OperatorMap)
 	assertNotNil(t, res.ConstantMap)
-	assertNotNil(t, res.SelectorMap)
+	assertNotNil(t, res.VariableKeyMap)
 	assertNotNil(t, res.CompileOptions)
 	assertNotNil(t, res.StatelessOperators)
 
@@ -31,8 +31,8 @@ func TestCopyConfig(t *testing.T) {
 		ConstantMap: map[string]Value{
 			"birthdate_format": "Jan 02, 2006",
 		},
-		SelectorMap: map[string]SelectorKey{
-			"birthday": SelectorKey(3),
+		VariableKeyMap: map[string]VariableKey{
+			"birthday": VariableKey(3),
 		},
 		OperatorMap: map[string]Operator{
 			"is_child": func(_ *Ctx, params []Value) (Value, error) {
@@ -107,7 +107,7 @@ func TestCopyConfig(t *testing.T) {
 			},
 		},
 		CostsMap: map[string]float64{
-			"selector": 10,
+			"variable": 10,
 			"operator": 20,
 		},
 		CompileOptions: map[CompileOption]bool{
@@ -121,7 +121,7 @@ func TestCopyConfig(t *testing.T) {
 
 	res = CopyConfig(cc)
 	assertEquals(t, res.ConstantMap, cc.ConstantMap)
-	assertEquals(t, res.SelectorMap, cc.SelectorMap)
+	assertEquals(t, res.VariableKeyMap, cc.VariableKeyMap)
 	assertEquals(t, res.CompileOptions, cc.CompileOptions)
 	assertEquals(t, res.StatelessOperators, cc.StatelessOperators)
 
@@ -140,34 +140,34 @@ func TestCopyConfig(t *testing.T) {
 
 func TestGetCosts(t *testing.T) {
 	cc := &Config{
-		SelectorMap: map[string]SelectorKey{
-			"birthday": SelectorKey(3),
-			"gender":   SelectorKey(4),
+		VariableKeyMap: map[string]VariableKey{
+			"birthday": VariableKey(3),
+			"gender":   VariableKey(4),
 		},
 		OperatorMap: map[string]Operator{
 			"is_child": func(_ *Ctx, _ []Value) (Value, error) { return false, nil },
 			"not_null": func(_ *Ctx, _ []Value) (Value, error) { return false, nil },
 		},
 		CostsMap: map[string]float64{
-			"selector": 10, // generally costs for all selectors
+			"variable": 10, // generally costs for all variables
 			"operator": 20, // generally costs for all operators
 
 			"is_child": 13, // specified costs for operator `is_child`
-			"birthday": 11, // specified costs for selector `birthday`
+			"birthday": 11, // specified costs for variable `birthday`
 		},
 	}
 
-	assertFloatEquals(t, cc.getCosts(selector, "birthday"), 11)
-	assertFloatEquals(t, cc.getCosts(selector, "gender"), 10)
+	assertFloatEquals(t, cc.getCosts(variable, "birthday"), 11)
+	assertFloatEquals(t, cc.getCosts(variable, "gender"), 10)
 	assertFloatEquals(t, cc.getCosts(operator, "is_child"), 13)
 	assertFloatEquals(t, cc.getCosts(fastOperator, "is_child"), 13)
 	assertFloatEquals(t, cc.getCosts(operator, "not_null"), 20)
 	assertFloatEquals(t, cc.getCosts(fastOperator, "not_null"), 20)
 
 	cc = &Config{
-		SelectorMap: map[string]SelectorKey{
-			"birthday": SelectorKey(3),
-			"gender":   SelectorKey(4),
+		VariableKeyMap: map[string]VariableKey{
+			"birthday": VariableKey(3),
+			"gender":   VariableKey(4),
 		},
 		OperatorMap: map[string]Operator{
 			"is_child": func(_ *Ctx, _ []Value) (Value, error) { return false, nil },
@@ -176,8 +176,8 @@ func TestGetCosts(t *testing.T) {
 		CostsMap: map[string]float64{},
 	}
 
-	assertFloatEquals(t, cc.getCosts(selector, "birthday"), 7)
-	assertFloatEquals(t, cc.getCosts(selector, "gender"), 7)
+	assertFloatEquals(t, cc.getCosts(variable, "birthday"), 7)
+	assertFloatEquals(t, cc.getCosts(variable, "gender"), 7)
 	assertFloatEquals(t, cc.getCosts(operator, "is_child"), 10)
 	assertFloatEquals(t, cc.getCosts(fastOperator, "is_child"), 10)
 	assertFloatEquals(t, cc.getCosts(operator, "not_null"), 10)
@@ -240,8 +240,8 @@ func TestOptimizeConstantFolding(t *testing.T) {
  (* 5 6 7)
 )`,
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"v3": SelectorKey(3),
+				VariableKeyMap: map[string]VariableKey{
+					"v3": VariableKey(3),
 				},
 			},
 			ast: verifyNode{
@@ -258,7 +258,7 @@ func TestOptimizeConstantFolding(t *testing.T) {
 								data: "-",
 								children: []verifyNode{
 									{tpy: constant, data: int64(2)},
-									{tpy: selector, data: "v3"},
+									{tpy: variable, data: "v3"},
 								},
 							},
 							{tpy: constant, data: int64(2)},
@@ -291,8 +291,8 @@ func TestOptimizeConstantFolding(t *testing.T) {
 )
 `,
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"app_version": SelectorKey(1),
+				VariableKeyMap: map[string]VariableKey{
+					"app_version": VariableKey(1),
 				},
 			},
 			ast: verifyNode{
@@ -303,7 +303,7 @@ func TestOptimizeConstantFolding(t *testing.T) {
 						tpy:  operator,
 						data: "t_version",
 						children: []verifyNode{
-							{tpy: selector, data: "app_version"},
+							{tpy: variable, data: "app_version"},
 						},
 					},
 					{tpy: constant, data: int64(1_0002_0003)},
@@ -322,10 +322,10 @@ func TestOptimizeConstantFolding(t *testing.T) {
  false
 )`,
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"v3": SelectorKey(3),
-					"v4": SelectorKey(4),
-					"v6": SelectorKey(6),
+				VariableKeyMap: map[string]VariableKey{
+					"v3": VariableKey(3),
+					"v4": VariableKey(4),
+					"v6": VariableKey(6),
 				},
 			},
 			ast: verifyNode{
@@ -345,10 +345,10 @@ func TestOptimizeConstantFolding(t *testing.T) {
  false
 )`,
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"v3": SelectorKey(3),
-					"v4": SelectorKey(4),
-					"v6": SelectorKey(6),
+				VariableKeyMap: map[string]VariableKey{
+					"v3": VariableKey(3),
+					"v4": VariableKey(4),
+					"v6": VariableKey(6),
 				},
 			},
 			ast: verifyNode{
@@ -423,8 +423,8 @@ func TestOptimizeFastEvaluation(t *testing.T) {
 		{
 			expr: `(+ 1 v1)`,
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"v1": SelectorKey(1),
+				VariableKeyMap: map[string]VariableKey{
+					"v1": VariableKey(1),
 				},
 			},
 			ast: verifyNode{
@@ -432,7 +432,7 @@ func TestOptimizeFastEvaluation(t *testing.T) {
 				data: "+",
 				children: []verifyNode{
 					{tpy: constant, data: int64(1)},
-					{tpy: selector, data: "v1"},
+					{tpy: variable, data: "v1"},
 				},
 			},
 		},
@@ -440,16 +440,16 @@ func TestOptimizeFastEvaluation(t *testing.T) {
 		{
 			expr: `(= v1 v1)`,
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"v1": SelectorKey(1),
+				VariableKeyMap: map[string]VariableKey{
+					"v1": VariableKey(1),
 				},
 			},
 			ast: verifyNode{
 				tpy:  fastOperator,
 				data: "=",
 				children: []verifyNode{
-					{tpy: selector, data: "v1"},
-					{tpy: selector, data: "v1"},
+					{tpy: variable, data: "v1"},
+					{tpy: variable, data: "v1"},
 				},
 			},
 		},
@@ -461,10 +461,10 @@ func TestOptimizeFastEvaluation(t *testing.T) {
   (* v2 3 v4)
 )`,
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"v1": SelectorKey(1),
-					"v2": SelectorKey(2),
-					"v4": SelectorKey(4),
+				VariableKeyMap: map[string]VariableKey{
+					"v1": VariableKey(1),
+					"v2": VariableKey(2),
+					"v4": VariableKey(4),
 				},
 			},
 			ast: verifyNode{
@@ -476,16 +476,16 @@ func TestOptimizeFastEvaluation(t *testing.T) {
 						data: "+",
 						children: []verifyNode{
 							{tpy: constant, data: int64(1)},
-							{tpy: selector, data: "v1"},
+							{tpy: variable, data: "v1"},
 						},
 					},
 					{
 						tpy:  operator,
 						data: "*",
 						children: []verifyNode{
-							{tpy: selector, data: "v2"},
+							{tpy: variable, data: "v2"},
 							{tpy: constant, data: int64(3)},
-							{tpy: selector, data: "v4"},
+							{tpy: variable, data: "v4"},
 						},
 					},
 				},
@@ -500,8 +500,8 @@ func TestOptimizeFastEvaluation(t *testing.T) {
  (* 5 6 7)
 )`,
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"v3": SelectorKey(3),
+				VariableKeyMap: map[string]VariableKey{
+					"v3": VariableKey(3),
 				},
 			},
 			ast: verifyNode{
@@ -518,7 +518,7 @@ func TestOptimizeFastEvaluation(t *testing.T) {
 								data: "-",
 								children: []verifyNode{
 									{tpy: constant, data: int64(2)},
-									{tpy: selector, data: "v3"},
+									{tpy: variable, data: "v3"},
 								},
 							},
 							{
@@ -547,8 +547,8 @@ func TestOptimizeFastEvaluation(t *testing.T) {
 
 		{
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"birthday": SelectorKey(3),
+				VariableKeyMap: map[string]VariableKey{
+					"birthday": VariableKey(3),
 				},
 				ConstantMap: map[string]Value{
 					"birthdate_format": "Jan 02, 2006",
@@ -589,7 +589,7 @@ func TestOptimizeFastEvaluation(t *testing.T) {
 				tpy:  fastOperator,
 				data: "is_child",
 				children: []verifyNode{
-					{tpy: selector, data: "birthday"},
+					{tpy: variable, data: "birthday"},
 					{tpy: constant, data: "Jan 02, 2006"}, // constant nodes will be replaced directly with the value
 				},
 			},
@@ -624,8 +624,8 @@ func TestReordering(t *testing.T) {
 		{
 			expr: `(+ 1 v1)`,
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"v1": SelectorKey(1),
+				VariableKeyMap: map[string]VariableKey{
+					"v1": VariableKey(1),
 				},
 			},
 			ast: verifyNode{
@@ -634,7 +634,7 @@ func TestReordering(t *testing.T) {
 				cost: 31, // 5(base) + 3(loops) + 10(op cost) + 13(children cost)
 				children: []verifyNode{
 					{tpy: constant, data: int64(1), cost: 1},
-					{tpy: selector, data: "v1", cost: 12}, // 7 + 5
+					{tpy: variable, data: "v1", cost: 12}, // 7 + 5
 				},
 			},
 		},
@@ -643,8 +643,8 @@ func TestReordering(t *testing.T) {
 			expr:     `(+ 1 v1)`,
 			fastEval: true,
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"v1": SelectorKey(1),
+				VariableKeyMap: map[string]VariableKey{
+					"v1": VariableKey(1),
 				},
 			},
 			ast: verifyNode{
@@ -653,7 +653,7 @@ func TestReordering(t *testing.T) {
 				cost: 28, // 5(base) + 10(op cost) + 13(children cost)
 				children: []verifyNode{
 					{tpy: constant, data: int64(1), cost: 1},
-					{tpy: selector, data: "v1", cost: 12}, // 7 + 5
+					{tpy: variable, data: "v1", cost: 12}, // 7 + 5
 				},
 			},
 		},
@@ -661,9 +661,9 @@ func TestReordering(t *testing.T) {
 		{
 			expr: `(= v1 v2)`,
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"v1": SelectorKey(1),
-					"v2": SelectorKey(2),
+				VariableKeyMap: map[string]VariableKey{
+					"v1": VariableKey(1),
+					"v2": VariableKey(2),
 				},
 				CostsMap: map[string]float64{
 					"v1": 10,
@@ -676,8 +676,8 @@ func TestReordering(t *testing.T) {
 				data: "=",
 				cost: 78, // 5(base) + 3(loops) + 30(op cost) + 40(children cost)
 				children: []verifyNode{
-					{tpy: selector, data: "v1", cost: 15},
-					{tpy: selector, data: "v2", cost: 25},
+					{tpy: variable, data: "v1", cost: 15},
+					{tpy: variable, data: "v2", cost: 25},
 				},
 			},
 		},
@@ -686,9 +686,9 @@ func TestReordering(t *testing.T) {
 			expr:     `(= v1 v2)`,
 			fastEval: true,
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"v1": SelectorKey(1),
-					"v2": SelectorKey(2),
+				VariableKeyMap: map[string]VariableKey{
+					"v1": VariableKey(1),
+					"v2": VariableKey(2),
 				},
 				CostsMap: map[string]float64{
 					"v1": 10,
@@ -701,8 +701,8 @@ func TestReordering(t *testing.T) {
 				data: "=",
 				cost: 75, // 5(base) + 30(op cost) + 40(children cost)
 				children: []verifyNode{
-					{tpy: selector, data: "v1", cost: 15},
-					{tpy: selector, data: "v2", cost: 25},
+					{tpy: variable, data: "v1", cost: 15},
+					{tpy: variable, data: "v2", cost: 25},
 				},
 			},
 		},
@@ -715,9 +715,9 @@ func TestReordering(t *testing.T) {
 )
 `,
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"v1": SelectorKey(1),
-					"v2": SelectorKey(2),
+				VariableKeyMap: map[string]VariableKey{
+					"v1": VariableKey(1),
+					"v2": VariableKey(2),
 				},
 				CostsMap: map[string]float64{
 					"v1": 20,
@@ -734,7 +734,7 @@ func TestReordering(t *testing.T) {
 						data: "=",
 						cost: 34,
 						children: []verifyNode{
-							{tpy: selector, data: "v2", cost: 15},
+							{tpy: variable, data: "v2", cost: 15},
 							{tpy: constant, data: int64(2), cost: 1},
 						},
 					},
@@ -743,7 +743,7 @@ func TestReordering(t *testing.T) {
 						data: "=",
 						cost: 44,
 						children: []verifyNode{
-							{tpy: selector, data: "v1", cost: 25},
+							{tpy: variable, data: "v1", cost: 25},
 							{tpy: constant, data: int64(1), cost: 1},
 						},
 					},
@@ -763,13 +763,13 @@ func TestReordering(t *testing.T) {
 )`,
 			fastEval: true,
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"v3": SelectorKey(3),
-					"v4": SelectorKey(4),
-					"v6": SelectorKey(6),
+				VariableKeyMap: map[string]VariableKey{
+					"v3": VariableKey(3),
+					"v4": VariableKey(4),
+					"v6": VariableKey(6),
 				},
 				CostsMap: map[string]float64{
-					"selector": 2,
+					"variable": 2,
 					"operator": 3,
 					"v3":       50,
 				},
@@ -786,7 +786,7 @@ func TestReordering(t *testing.T) {
 						cost: 16,
 						children: []verifyNode{
 							{tpy: constant, data: int64(5), cost: 1},
-							{tpy: selector, data: "v6", cost: 7},
+							{tpy: variable, data: "v6", cost: 7},
 						},
 					},
 					{
@@ -804,11 +804,11 @@ func TestReordering(t *testing.T) {
 										data: "/",
 										cost: 16, //  5 + 3 + (7 + 1)
 										children: []verifyNode{
-											{tpy: selector, data: "v6", cost: 7},
+											{tpy: variable, data: "v6", cost: 7},
 											{tpy: constant, data: int64(3), cost: 1},
 										},
 									},
-									{tpy: selector, data: "v4", cost: 7},
+									{tpy: variable, data: "v4", cost: 7},
 								},
 							},
 							{
@@ -817,7 +817,7 @@ func TestReordering(t *testing.T) {
 								cost: 64, // 5 + 3 + (1 + 55)
 								children: []verifyNode{
 									{tpy: constant, data: int64(3), cost: 1},
-									{tpy: selector, data: "v3", cost: 55},
+									{tpy: variable, data: "v3", cost: 55},
 								},
 							},
 						},
@@ -859,8 +859,8 @@ func TestOptimize(t *testing.T) {
 		{
 			expr: `(+ 1 v1)`,
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"v1": SelectorKey(1),
+				VariableKeyMap: map[string]VariableKey{
+					"v1": VariableKey(1),
 				},
 			},
 			ast: verifyNode{
@@ -868,7 +868,7 @@ func TestOptimize(t *testing.T) {
 				data: "+",
 				children: []verifyNode{
 					{tpy: constant, data: int64(1)},
-					{tpy: selector, data: "v1"},
+					{tpy: variable, data: "v1"},
 				},
 			},
 		},
@@ -892,13 +892,13 @@ func TestOptimize(t *testing.T) {
  (= 1 0)
 )`,
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"v3": SelectorKey(3),
-					"v4": SelectorKey(4),
-					"v6": SelectorKey(6),
+				VariableKeyMap: map[string]VariableKey{
+					"v3": VariableKey(3),
+					"v4": VariableKey(4),
+					"v6": VariableKey(6),
 				},
 				CostsMap: map[string]float64{
-					"selector": 2,
+					"variable": 2,
 					"operator": 3,
 					"v3":       50,
 				},
@@ -915,7 +915,7 @@ func TestOptimize(t *testing.T) {
 						cost: 16,
 						children: []verifyNode{
 							{tpy: constant, data: int64(5), cost: 1},
-							{tpy: selector, data: "v6", cost: 7},
+							{tpy: variable, data: "v6", cost: 7},
 						},
 					},
 					{
@@ -929,7 +929,7 @@ func TestOptimize(t *testing.T) {
 								cost: 16, // 5 + 3 + (1 + 7)
 								children: []verifyNode{
 									{tpy: constant, data: int64(2), cost: 1},
-									{tpy: selector, data: "v4", cost: 7},
+									{tpy: variable, data: "v4", cost: 7},
 								},
 							},
 							{
@@ -938,7 +938,7 @@ func TestOptimize(t *testing.T) {
 								cost: 64, // 5 + 3 + (1 + 55)
 								children: []verifyNode{
 									{tpy: constant, data: int64(3), cost: 1},
-									{tpy: selector, data: "v3", cost: 55},
+									{tpy: variable, data: "v3", cost: 55},
 								},
 							},
 						},
@@ -949,8 +949,8 @@ func TestOptimize(t *testing.T) {
 
 		{
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"birthday": SelectorKey(3),
+				VariableKeyMap: map[string]VariableKey{
+					"birthday": VariableKey(3),
 				},
 				ConstantMap: map[string]Value{
 					"birthdate_format": "Jan 02, 2006",
@@ -991,7 +991,7 @@ func TestOptimize(t *testing.T) {
 				tpy:  fastOperator,
 				data: "is_child",
 				children: []verifyNode{
-					{tpy: selector, data: "birthday"},
+					{tpy: variable, data: "birthday"},
 					{tpy: constant, data: "Jan 02, 2006"}, // constant nodes will be replaced directly with the value
 				},
 			},
@@ -1033,8 +1033,8 @@ func TestCheck(t *testing.T) {
 		{
 			expr: `(+ 1 v1)`,
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"v1": SelectorKey(1),
+				VariableKeyMap: map[string]VariableKey{
+					"v1": VariableKey(1),
 				},
 			},
 			size: 3,
@@ -1043,8 +1043,8 @@ func TestCheck(t *testing.T) {
 			expr:     `(+ 1 v1)`,
 			optimize: true,
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"v1": SelectorKey(1),
+				VariableKeyMap: map[string]VariableKey{
+					"v1": VariableKey(1),
 				},
 			},
 			size: 3,
@@ -1155,8 +1155,8 @@ func TestCompile(t *testing.T) {
 		{
 			expr: `(+ 1 v1)`,
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"v1": SelectorKey(168),
+				VariableKeyMap: map[string]VariableKey{
+					"v1": VariableKey(168),
 				},
 				CompileOptions: map[CompileOption]bool{
 					FastEvaluation: false,
@@ -1170,10 +1170,10 @@ func TestCompile(t *testing.T) {
 					value: int64(1),
 				},
 				{
-					flag:   selector,
+					flag:   variable,
 					osTop:  1,
 					scIdx:  1,
-					selKey: SelectorKey(168),
+					varKey: VariableKey(168),
 					value:  "v1",
 				},
 				{
@@ -1188,8 +1188,8 @@ func TestCompile(t *testing.T) {
 		{
 			expr: `(+ 1 v1)`,
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"v1": SelectorKey(168),
+				VariableKeyMap: map[string]VariableKey{
+					"v1": VariableKey(168),
 				},
 			},
 			nodes: []*node{
@@ -1207,10 +1207,10 @@ func TestCompile(t *testing.T) {
 					value: int64(1),
 				},
 				{
-					flag:   selector,
+					flag:   variable,
 					osTop:  0,
 					scIdx:  -1,
-					selKey: SelectorKey(168),
+					varKey: VariableKey(168),
 					value:  "v1",
 				},
 			},
@@ -1219,10 +1219,10 @@ func TestCompile(t *testing.T) {
 		{
 			expr: `(and T1 T2 F)`,
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"T1": SelectorKey(168),
-					"T2": SelectorKey(169),
-					"F":  SelectorKey(170),
+				VariableKeyMap: map[string]VariableKey{
+					"T1": VariableKey(168),
+					"T2": VariableKey(169),
+					"F":  VariableKey(170),
 				},
 				CostsMap: map[string]float64{
 					"T1": 3,
@@ -1232,24 +1232,24 @@ func TestCompile(t *testing.T) {
 			},
 			nodes: []*node{
 				{
-					flag:   selector | scIfFalse | andOp,
+					flag:   variable | scIfFalse | andOp,
 					osTop:  0,
 					scIdx:  -1,
-					selKey: SelectorKey(169),
+					varKey: VariableKey(169),
 					value:  "T2",
 				},
 				{
-					flag:   selector | scIfFalse | andOp,
+					flag:   variable | scIfFalse | andOp,
 					osTop:  1,
 					scIdx:  -1,
-					selKey: SelectorKey(168),
+					varKey: VariableKey(168),
 					value:  "T1",
 				},
 				{
-					flag:   selector | (scIfFalse | scIfTrue) | andOp,
+					flag:   variable | (scIfFalse | scIfTrue) | andOp,
 					osTop:  2,
 					scIdx:  -1,
-					selKey: SelectorKey(170),
+					varKey: VariableKey(170),
 					value:  "F",
 				},
 				{
@@ -1265,13 +1265,13 @@ func TestCompile(t *testing.T) {
 		{
 			expr: `(and A (or B C (= D E)) F)`,
 			cc: &Config{
-				SelectorMap: map[string]SelectorKey{
-					"A": SelectorKey(168),
-					"B": SelectorKey(169),
-					"C": SelectorKey(170),
-					"D": SelectorKey(171),
-					"E": SelectorKey(172),
-					"F": SelectorKey(173),
+				VariableKeyMap: map[string]VariableKey{
+					"A": VariableKey(168),
+					"B": VariableKey(169),
+					"C": VariableKey(170),
+					"D": VariableKey(171),
+					"E": VariableKey(172),
+					"F": VariableKey(173),
 				},
 				CompileOptions: map[CompileOption]bool{
 					Reordering: false,
@@ -1279,24 +1279,24 @@ func TestCompile(t *testing.T) {
 			},
 			nodes: []*node{
 				{
-					flag:   selector | scIfFalse | andOp,
+					flag:   variable | scIfFalse | andOp,
 					osTop:  0,
 					scIdx:  -1,
-					selKey: SelectorKey(168),
+					varKey: VariableKey(168),
 					value:  "A",
 				},
 				{
-					flag:   selector | scIfTrue | orOp,
+					flag:   variable | scIfTrue | orOp,
 					osTop:  1,
 					scIdx:  6,
-					selKey: SelectorKey(169),
+					varKey: VariableKey(169),
 					value:  "B",
 				},
 				{
-					flag:   selector | scIfTrue | orOp,
+					flag:   variable | scIfTrue | orOp,
 					osTop:  2,
 					scIdx:  6,
-					selKey: SelectorKey(170),
+					varKey: VariableKey(170),
 					value:  "C",
 				},
 				{
@@ -1307,17 +1307,17 @@ func TestCompile(t *testing.T) {
 					value:    "=",
 				},
 				{
-					flag:   selector,
+					flag:   variable,
 					osTop:  3,
 					scIdx:  4,
-					selKey: SelectorKey(171),
+					varKey: VariableKey(171),
 					value:  "D",
 				},
 				{
-					flag:   selector,
+					flag:   variable,
 					osTop:  3,
 					scIdx:  5,
-					selKey: SelectorKey(172),
+					varKey: VariableKey(172),
 					value:  "E",
 				},
 				{
@@ -1328,10 +1328,10 @@ func TestCompile(t *testing.T) {
 					value:    "or",
 				},
 				{
-					flag:   selector | (scIfTrue | scIfFalse) | andOp,
+					flag:   variable | (scIfTrue | scIfFalse) | andOp,
 					osTop:  2,
 					scIdx:  -1,
-					selKey: SelectorKey(173),
+					varKey: VariableKey(173),
 					value:  "F",
 				},
 				{
@@ -1382,7 +1382,7 @@ func TestCompile(t *testing.T) {
 				assertEquals(t, got.childCnt, want.childCnt, "childCnt", got.value)
 				assertEquals(t, got.scIdx, want.scIdx, "scIdx", got.value)
 				assertEquals(t, got.osTop, want.osTop, "osTop", got.value)
-				assertEquals(t, got.selKey, want.selKey, "selKey", got.value)
+				assertEquals(t, got.varKey, want.varKey, "varKey", got.value)
 
 				maxOsTop = maxInt16(maxOsTop, want.osTop)
 			}

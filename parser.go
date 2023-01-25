@@ -260,7 +260,7 @@ func (p *parser) parseAstTree() (root *astNode, err error) {
 
 func (p *parser) setLeafNodeParsers() {
 	fns := []func() (*astNode, error){
-		p.parseInt, p.parseStr, p.parseConst, p.parseSelector, p.parseUnknownSelector}
+		p.parseInt, p.parseStr, p.parseConst, p.parseVariable, p.parseUnknownVariable}
 
 	if p.isInfixNotation() {
 		// For infix expressions only lists with brackets are supported
@@ -340,8 +340,8 @@ func (p *parser) parse() (*astNode, *Config, error) {
 	return ast, p.conf, nil
 }
 
-func (p *parser) allowUnknownSelectors() bool {
-	return p.conf.CompileOptions[AllowUnknownSelectors]
+func (p *parser) allowUnknownVariables() bool {
+	return p.conf.CompileOptions[AllowUnknownVariables]
 }
 
 func (p *parser) isInfixNotation() bool {
@@ -560,7 +560,7 @@ func (p *parser) parseConst() (*astNode, error) {
 	return nil, nil
 }
 
-func (p *parser) parseSelector() (*astNode, error) {
+func (p *parser) parseVariable() (*astNode, error) {
 	t, err := p.peek()
 	if err != nil {
 		return nil, err
@@ -568,7 +568,7 @@ func (p *parser) parseSelector() (*astNode, error) {
 	if t.typ != ident {
 		return nil, nil
 	}
-	key, ok := p.conf.SelectorMap[t.val]
+	key, ok := p.conf.VariableKeyMap[t.val]
 	if !ok {
 		return nil, nil
 	}
@@ -576,15 +576,15 @@ func (p *parser) parseSelector() (*astNode, error) {
 	p.walk()
 	return &astNode{
 		node: &node{
-			flag:   selector,
+			flag:   variable,
 			value:  t.val,
-			selKey: key,
+			varKey: key,
 		},
 	}, nil
 }
 
-func (p *parser) parseUnknownSelector() (*astNode, error) {
-	if !p.allowUnknownSelectors() {
+func (p *parser) parseUnknownVariable() (*astNode, error) {
+	if !p.allowUnknownVariables() {
 		return nil, nil
 	}
 
@@ -608,9 +608,9 @@ func (p *parser) parseUnknownSelector() (*astNode, error) {
 	p.walk()
 	return &astNode{
 		node: &node{
-			flag:   selector,
+			flag:   variable,
 			value:  t.val,
-			selKey: UndefinedSelKey,
+			varKey: UndefinedVarKey,
 		},
 	}, nil
 }

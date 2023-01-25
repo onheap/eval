@@ -18,7 +18,7 @@ const (
 	Debug                 CompileOption = "debug"
 	ReportEvent           CompileOption = "report_event"
 	InfixNotation         CompileOption = "infix_notation"
-	AllowUnknownSelectors CompileOption = "allow_unknown_selectors"
+	AllowUnknownVariables CompileOption = "allow_unknown_variables"
 )
 
 type optimizer func(config *Config, root *astNode)
@@ -46,8 +46,8 @@ func copyConfig(dst, src *Config) {
 	for k, v := range src.ConstantMap {
 		dst.ConstantMap[k] = v
 	}
-	for k, v := range src.SelectorMap {
-		dst.SelectorMap[k] = v
+	for k, v := range src.VariableKeyMap {
+		dst.VariableKeyMap[k] = v
 	}
 	for k, v := range src.OperatorMap {
 		dst.OperatorMap[k] = v
@@ -66,8 +66,8 @@ func copyConfig(dst, src *Config) {
 type Option func(conf *Config)
 
 var (
-	EnableStringSelectors Option = func(c *Config) {
-		c.CompileOptions[AllowUnknownSelectors] = true
+	EnableUnknownVariables Option = func(c *Config) {
+		c.CompileOptions[AllowUnknownVariables] = true
 	}
 	EnableDebug Option = func(c *Config) {
 		c.CompileOptions[Debug] = true
@@ -118,8 +118,8 @@ var (
 func NewConfig(opts ...Option) *Config {
 	conf := &Config{
 		ConstantMap:        make(map[string]Value),
-		SelectorMap:        make(map[string]SelectorKey),
 		OperatorMap:        make(map[string]Operator),
+		VariableKeyMap:     make(map[string]VariableKey),
 		CompileOptions:     make(map[CompileOption]bool),
 		CostsMap:           make(map[string]float64),
 		StatelessOperators: []string{},
@@ -131,9 +131,9 @@ func NewConfig(opts ...Option) *Config {
 }
 
 type Config struct {
-	ConstantMap map[string]Value
-	SelectorMap map[string]SelectorKey
-	OperatorMap map[string]Operator
+	ConstantMap    map[string]Value
+	OperatorMap    map[string]Operator
+	VariableKeyMap map[string]VariableKey
 
 	// cost of performance
 	CostsMap map[string]float64
@@ -147,10 +147,10 @@ type Config struct {
 func (cc *Config) getCosts(nodeType uint8, nodeName string) float64 {
 	const (
 		defaultCost  float64 = 5
-		selectorCost float64 = 7
+		variableCost float64 = 7
 		operatorCost float64 = 10
 
-		selectorNode = "selector"
+		variableNode = "variable"
 		operatorNode = "operator"
 	)
 
@@ -159,11 +159,11 @@ func (cc *Config) getCosts(nodeType uint8, nodeName string) float64 {
 	}
 
 	switch nodeType {
-	case selector:
-		if v, exist := cc.CostsMap[selectorNode]; exist {
+	case variable:
+		if v, exist := cc.CostsMap[variableNode]; exist {
 			return v
 		}
-		return selectorCost
+		return variableCost
 	case operator, fastOperator:
 		if v, exist := cc.CostsMap[operatorNode]; exist {
 			return v
@@ -216,7 +216,7 @@ func optimizeReduceNesting(cc *Config, root *astNode) {
 	rootOpType := isAndOpNode(n)
 	for _, child := range root.children {
 		cn := child.node
-		if typ := cn.getNodeType(); typ == constant || typ == selector {
+		if typ := cn.getNodeType(); typ == constant || typ == variable {
 			children = append(children, child)
 			continue
 		}
@@ -301,7 +301,7 @@ func calculateNodeCosts(conf *Config, root *astNode) {
 	switch nodeType {
 	case constant:
 		baseCost = inlinedCall
-	case selector:
+	case variable:
 		baseCost = funcCall
 	case fastOperator:
 		baseCost = funcCall
@@ -316,7 +316,7 @@ func calculateNodeCosts(conf *Config, root *astNode) {
 	}
 
 	// operation cost
-	if nodeType == selector ||
+	if nodeType == variable ||
 		nodeType == operator ||
 		nodeType == fastOperator {
 		operationCost = conf.getCosts(nodeType, n.value.(string))
@@ -425,7 +425,7 @@ func optimizeFastEvaluation(cc *Config, root *astNode) {
 
 	for _, child := range root.children {
 		typ := child.node.getNodeType()
-		if typ == constant || typ == selector {
+		if typ == constant || typ == variable {
 			continue
 		}
 		return
@@ -494,7 +494,7 @@ func calAndSetNodes(e *Expr, root *astNode) {
 	root.parentIdx = -1
 	n := root.node
 	switch n.getNodeType() {
-	case constant, selector:
+	case constant, variable:
 		e.nodes = append(e.nodes, n)
 		root.idx = len(e.nodes) - 1
 	case operator:
@@ -586,7 +586,7 @@ func calAndSetStackSize(e *Expr) {
 
 		n := e.nodes[i]
 		switch n.getNodeType() {
-		case constant, selector, fastOperator:
+		case constant, variable, fastOperator:
 			f[i] = f[prev] + 1
 		case operator:
 			f[i] = f[prev] - int16(n.childCnt) + 1
@@ -707,7 +707,7 @@ type NodeType uint8
 
 const (
 	ConstantNode     = NodeType(constant)
-	SelectorNode     = NodeType(selector)
+	VariableNode     = NodeType(variable)
 	OperatorNode     = NodeType(operator)
 	FastOperatorNode = NodeType(fastOperator)
 	CondNode         = NodeType(cond)
@@ -718,8 +718,8 @@ func (t NodeType) String() string {
 	switch t {
 	case ConstantNode:
 		return "constant"
-	case SelectorNode:
-		return "selector"
+	case VariableNode:
+		return "variable"
 	case OperatorNode:
 		return "operator"
 	case FastOperatorNode:
@@ -785,7 +785,7 @@ func calAndSetEventNode(e *Expr) {
 			childCnt: realNode.childCnt,
 			osTop:    realNode.osTop,
 			scIdx:    realNode.scIdx,
-			selKey:   realNode.selKey,
+			varKey:   realNode.varKey,
 			value: LoopEventData{
 				CurtIdx:   int16(len(res) + 1), // the real node index
 				NodeType:  NodeType(realNode.flag & nodeTypeMask),

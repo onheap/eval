@@ -146,12 +146,12 @@ func TestPrintCode(t *testing.T) {
 `
 
 	cc := &Config{
-		SelectorMap: map[string]SelectorKey{
-			"age":         SelectorKey(1),
-			"gender":      SelectorKey(2),
-			"tags":        SelectorKey(3),
-			"groups":      SelectorKey(4),
-			"app_version": SelectorKey(5),
+		VariableKeyMap: map[string]VariableKey{
+			"age":         VariableKey(1),
+			"gender":      VariableKey(2),
+			"tags":        VariableKey(3),
+			"groups":      VariableKey(4),
+			"app_version": VariableKey(5),
 		},
 
 		OperatorMap: map[string]Operator{
@@ -193,29 +193,21 @@ func TestGenerateRandomExpr_Bool(t *testing.T) {
 	const size = 50
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	cc := &Config{
-		SelectorMap: map[string]SelectorKey{
-			//"select_true":    SelectorKey(1),
-			//"select_false":   SelectorKey(2),
-			//"select_true_1":  SelectorKey(3),
-			//"select_false_1": SelectorKey(4),
-			"T": SelectorKey(1),
-			"F": SelectorKey(2),
+		VariableKeyMap: map[string]VariableKey{
+			"T": VariableKey(1),
+			"F": VariableKey(2),
 		},
 		CompileOptions: map[CompileOption]bool{
 			ConstantFolding: false,
 		},
 	}
 	valMap := map[string]interface{}{
-		//"select_true":    true,
-		//"select_false":   false,
-		//"select_true_1":  true,
-		//"select_false_1": true,
 		"T": true,
 		"F": false,
 	}
 
 	for i := 1; i < size; i++ {
-		expr := GenerateRandomExpr(i, r, GenType(GenBool), EnableSelector, EnableCondition, GenSelectors(valMap))
+		expr := GenerateRandomExpr(i, r, GenType(GenBool), EnableVariable, EnableCondition, GenVariables(valMap))
 
 		got, err := Eval(expr.Expr, valMap, ExtendConf(cc))
 		if err != nil {
@@ -232,35 +224,35 @@ func TestGenerateRandomExpr_Bool(t *testing.T) {
 
 func TestGenerateRandomExpr_Number(t *testing.T) {
 	const (
-		selectorSize = 10
-		size         = 50
+		variablesSize int = 10
+		size          int = 50
 	)
 
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-	keyMap := make(map[string]SelectorKey, selectorSize)
-	valMap := make(map[string]interface{}, selectorSize)
-	for i := 0; i < selectorSize; i++ {
+	keyMap := make(map[string]VariableKey, variablesSize)
+	valMap := make(map[string]interface{}, variablesSize)
+	for i := 0; i < variablesSize; i++ {
 		v := r.Intn(200) - 100
 		var k string
 		if v < 0 {
-			k = "select_neg_" + strconv.Itoa(-v)
+			k = "var_neg_" + strconv.Itoa(-v)
 		} else {
-			k = "select_" + strconv.Itoa(v)
+			k = "var_" + strconv.Itoa(v)
 		}
-		keyMap[k] = SelectorKey(i)
+		keyMap[k] = VariableKey(i)
 		valMap[k] = int64(v)
 	}
 
 	cc := &Config{
-		SelectorMap: keyMap,
+		VariableKeyMap: keyMap,
 		CompileOptions: map[CompileOption]bool{
 			ConstantFolding: false,
 		},
 	}
 
 	for i := 0; i < size; i++ {
-		expr := GenerateRandomExpr(size, r, GenType(GenNumber), EnableCondition, EnableSelector, GenSelectors(valMap))
+		expr := GenerateRandomExpr(size, r, GenType(GenNumber), EnableCondition, EnableVariable, GenVariables(valMap))
 		//fmt.Println(IndentByParentheses(expr.Expr))
 		//fmt.Println(expr.Res)
 
@@ -281,35 +273,35 @@ func TestGenerateRandomExpr_RCO(t *testing.T) {
 	const size = 50
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	cc := &Config{
-		SelectorMap: map[string]SelectorKey{
-			"select_true":    SelectorKey(1),
-			"select_false":   SelectorKey(2),
-			"select_true_1":  SelectorKey(3),
-			"select_false_1": SelectorKey(4),
+		VariableKeyMap: map[string]VariableKey{
+			"var_true":    VariableKey(1),
+			"var_false":   VariableKey(2),
+			"var_true_1":  VariableKey(3),
+			"var_false_1": VariableKey(4),
 		},
 		CompileOptions: map[CompileOption]bool{
 			ConstantFolding:       false,
-			AllowUnknownSelectors: true,
+			AllowUnknownVariables: true,
 		},
 	}
 	valMap := map[string]interface{}{
-		"select_true":    true,
-		"select_false":   false,
-		"select_true_1":  true,
-		"select_false_1": true,
+		"var_true":    true,
+		"var_false":   false,
+		"var_true_1":  true,
+		"var_false_1": true,
 	}
 
 	dneMap := map[string]interface{}{
-		"select_dne_1": DNE,
-		"select_dne_2": DNE,
-		"select_dne_3": DNE,
+		"var_dne_1": DNE,
+		"var_dne_2": DNE,
+		"var_dne_3": DNE,
 	}
 
 	ctx := NewCtxFromVars(cc, valMap)
 
 	for i := 1; i < size; i++ {
 		genRes := GenerateRandomExpr(i, r,
-			GenType(GenBool), EnableCondition, EnableSelector, GenSelectors(valMap), EnableRCO, GenSelectors(dneMap))
+			GenType(GenBool), EnableCondition, EnableVariable, GenVariables(valMap), EnableRCO, GenVariables(dneMap))
 
 		expr, err := Compile(cc, genRes.Expr)
 
@@ -337,7 +329,7 @@ func TestGenerateTestCase(t *testing.T) {
 		{
 			expr: GenExprResult{
 				Res:  false,
-				Expr: "(not (eq select_false select_false (!= 0 0)))",
+				Expr: "(not (eq var_false var_false (!= 0 0)))",
 			},
 			want: `
         {
@@ -345,14 +337,14 @@ func TestGenerateTestCase(t *testing.T) {
             optimizeLevel: disable,
             s: ` + "`" + `
 (not
-  (eq select_false select_false
+  (eq var_false var_false
     (!= 0 0)))` + "`" + `,
             valMap: map[string]interface{}{
-                "select_false": false,
+                "var_false": false,
             },
         },`,
 			vals: map[string]interface{}{
-				"select_false": false,
+				"var_false": false,
 			},
 		},
 		{

@@ -224,9 +224,9 @@ func TestExpr_Eval(t *testing.T) {
   true)
 `,
 			valMap: map[string]interface{}{
-				"select_true_1":  true,
-				"select_false_1": false,
-				"select_false":   false,
+				"var_true_1":  true,
+				"var_false_1": false,
+				"var_false":   false,
 			},
 		},
 		{
@@ -606,7 +606,7 @@ func TestEval_Infix(t *testing.T) {
 	}
 }
 
-func TestEval_AllowUnknownSelector(t *testing.T) {
+func TestEval_AllowUnknownVariables(t *testing.T) {
 	testCases := []struct {
 		cc     *Config
 		expr   string
@@ -621,15 +621,15 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 		{
 			want: false,
 			expr: `(< age 18)`,
-			cc:   NewConfig(EnableStringSelectors),
+			cc:   NewConfig(EnableUnknownVariables),
 			vals: map[string]interface{}{
 				"age": int64(20),
 			},
 		},
 		{
 			expr:   `(< not_exist_key 18)`,
-			cc:     NewConfig(EnableStringSelectors),
-			errMsg: "selectorKey not exist",
+			cc:     NewConfig(EnableUnknownVariables),
+			errMsg: "variableKey not exist",
 		},
 		{
 			expr: `
@@ -648,7 +648,7 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
    (- 2 v3) (/ 6 3) 4)
  (* 5 -6 7)
 )`,
-			cc: NewConfig(EnableStringSelectors),
+			cc: NewConfig(EnableUnknownVariables),
 			vals: map[string]interface{}{
 				"v3": int64(3),
 			},
@@ -888,9 +888,9 @@ func TestExpr_TryEval(t *testing.T) {
   true)
 `,
 			valMap: map[string]interface{}{
-				"select_true_1":  true,
-				"select_false_1": false,
-				"select_false":   false,
+				"var_true_1":  true,
+				"var_false_1": false,
+				"var_false":   false,
 			},
 		},
 		{
@@ -1079,7 +1079,7 @@ func TestExpr_TryEval(t *testing.T) {
 	for _, c := range cs {
 		t.Run(c.s, func(t *testing.T) {
 			var options []Option
-			options = append(options, EnableStringSelectors)
+			options = append(options, EnableUnknownVariables)
 			if debugMode {
 				options = append(options, EnableDebug)
 			}
@@ -1143,31 +1143,31 @@ func TestRandomExpressions(t *testing.T) {
 	var random = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	conf := NewConfig()
-	conf.SelectorMap = map[string]SelectorKey{
-		"select_true":  SelectorKey(1),
-		"select_false": SelectorKey(2),
+	conf.VariableKeyMap = map[string]VariableKey{
+		"var_true":  VariableKey(1),
+		"var_false": VariableKey(2),
 	}
 
 	valMap := map[string]interface{}{
-		"select_true":  true,
-		"select_false": false,
+		"var_true":  true,
+		"var_false": false,
 	}
 	for i := 0; i < 20; i++ {
 		v := random.Intn(200) - 100
 		var k string
 		if v < 0 {
-			k = "select_neg_" + strconv.Itoa(-v)
+			k = "var_neg_" + strconv.Itoa(-v)
 		} else {
-			k = "select_" + strconv.Itoa(v)
+			k = "var_" + strconv.Itoa(v)
 		}
 		valMap[k] = int64(v)
 		_ = GetOrRegisterKey(conf, k)
 	}
 
 	dneMap := map[string]interface{}{
-		"select_dne_1": DNE,
-		"select_dne_2": DNE,
-		"select_dne_3": DNE,
+		"var_dne_1": DNE,
+		"var_dne_2": DNE,
+		"var_dne_3": DNE,
 	}
 
 	type testCase struct {
@@ -1214,11 +1214,11 @@ func TestRandomExpressions(t *testing.T) {
 				}
 
 				if v&0b0100 != 0 {
-					options = append(options, EnableSelector, GenSelectors(valMap))
+					options = append(options, EnableVariable, GenVariables(valMap))
 				}
 
 				if v&0b1100 == 0b1100 {
-					options = append(options, EnableRCO, GenSelectors(dneMap))
+					options = append(options, EnableRCO, GenVariables(dneMap))
 				}
 
 				l := (i % level) + 1
@@ -1250,7 +1250,7 @@ func TestRandomExpressions(t *testing.T) {
 				cc.CompileOptions[Reordering] = v&0b1 != 0
 				cc.CompileOptions[FastEvaluation] = v&0b10 != 0
 				cc.CompileOptions[ConstantFolding] = v&0b100 != 0
-				cc.CompileOptions[AllowUnknownSelectors] = c.rco
+				cc.CompileOptions[AllowUnknownVariables] = c.rco
 				cc.CompileOptions[ReportEvent] = v&0b1000 != 0 && c.level <= level/2
 
 				expr, err := Compile(cc, c.expr)
@@ -1363,7 +1363,7 @@ func TestReportEvent(t *testing.T) {
 			Stack:     []Value{int64(1)},
 			Data: LoopEventData{
 				NodeValue: "v2",
-				NodeType:  SelectorNode,
+				NodeType:  VariableNode,
 				CurtIdx:   3,
 			},
 		},
@@ -1372,7 +1372,7 @@ func TestReportEvent(t *testing.T) {
 			Stack:     []Value{int64(1), int64(2)},
 			Data: LoopEventData{
 				NodeValue: "v3",
-				NodeType:  SelectorNode,
+				NodeType:  VariableNode,
 				CurtIdx:   5,
 			},
 		},
@@ -1423,8 +1423,8 @@ func TestStatelessOperators(t *testing.T) {
 				}
 			},
 		},
-		SelectorMap: map[string]SelectorKey{
-			"num": SelectorKey(1),
+		VariableKeyMap: map[string]VariableKey{
+			"num": VariableKey(1),
 		},
 		StatelessOperators: []string{"to_set"},
 	}
