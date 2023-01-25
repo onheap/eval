@@ -588,11 +588,10 @@ func TestEval_Infix(t *testing.T) {
 	}
 	for _, c := range testCases {
 		t.Run(c.expr, func(t *testing.T) {
-			cc := NewCompileConfig(
+			got, err := Eval(c.expr, c.vals,
 				Optimizations(false),
 				EnableInfixNotation,
-				RegisterVals(c.vals))
-			got, err := Eval(c.expr, c.vals, cc)
+				Register(c.vals))
 
 			if len(c.errMsg) != 0 {
 				assertErrStrContains(t, err, c.errMsg)
@@ -656,7 +655,7 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 
 	for _, c := range testCases {
 		t.Run(c.expr, func(t *testing.T) {
-			got, err := Eval(c.expr, c.vals, c.cc)
+			got, err := Eval(c.expr, c.vals, WithConf(c.cc))
 
 			if len(c.errMsg) != 0 {
 				assertErrStrContains(t, err, c.errMsg)
@@ -1322,7 +1321,7 @@ func TestReportEvent(t *testing.T) {
 		"v3": 3,
 	}
 
-	cc := NewCompileConfig(EnableReportEvent, RegisterVals(vals))
+	cc := NewCompileConfig(EnableReportEvent, Register(vals))
 
 	s := `(+ 1 v2 v3)`
 

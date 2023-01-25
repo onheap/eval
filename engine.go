@@ -59,23 +59,15 @@ type Expr struct {
 	EventChan chan Event
 }
 
-func Eval(expr string, vals map[string]interface{}, confs ...*CompileConfig) (Value, error) {
-	var conf *CompileConfig
-	if len(confs) > 1 {
-		return nil, errors.New("error: too many compile configurations")
+func Eval(expr string, vals map[string]interface{}, opts ...CompileOption) (Value, error) {
+	if len(opts) == 0 {
+		opts = append(opts, Register(vals))
 	}
-
-	if len(confs) == 1 {
-		conf = confs[0]
-	} else {
-		conf = NewCompileConfig(RegisterVals(vals))
-	}
-
+	conf := NewCompileConfig(opts...)
 	tree, err := Compile(conf, expr)
 	if err != nil {
 		return nil, err
 	}
-
 	return tree.Eval(NewCtxWithMap(conf, vals))
 }
 

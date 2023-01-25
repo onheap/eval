@@ -38,7 +38,7 @@ func TestRegisterOperator(t *testing.T) {
 	err := RegisterOperator(cc, "max", maxOp)
 	assertNil(t, err)
 
-	res, err := Eval(`(max 1 5 3)`, nil, cc)
+	res, err := Eval(`(max 1 5 3)`, nil, WithConf(cc))
 	assertNil(t, err)
 	assertEquals(t, res, int64(5))
 

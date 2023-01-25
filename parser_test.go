@@ -826,7 +826,7 @@ func TestParseAstTree(t *testing.T) {
 
 		{
 			expr: `(math.Abs 1 abc.def.ijk)`,
-			cc: NewCompileConfig(RegisterVals(map[string]interface{}{
+			cc: NewCompileConfig(Register(map[string]interface{}{
 				"math.Abs":    Operator(nil), // just a placeholder
 				"abc.def.ijk": -1,
 			})),

@@ -38,25 +38,29 @@ func CopyCompileConfig(origin *CompileConfig) *CompileConfig {
 	if origin == nil {
 		return conf
 	}
-	for k, v := range origin.ConstantMap {
-		conf.ConstantMap[k] = v
-	}
-	for k, v := range origin.SelectorMap {
-		conf.SelectorMap[k] = v
-	}
-	for k, v := range origin.OperatorMap {
-		conf.OperatorMap[k] = v
-	}
-	for k, v := range origin.CompileOptions {
-		conf.CompileOptions[k] = v
-	}
-	for k, v := range origin.CostsMap {
-		conf.CostsMap[k] = v
-	}
-	for _, op := range origin.StatelessOperators {
-		conf.StatelessOperators = append(conf.StatelessOperators, op)
-	}
+	copyConfig(conf, origin)
 	return conf
+}
+
+func copyConfig(dst, src *CompileConfig) {
+	for k, v := range src.ConstantMap {
+		dst.ConstantMap[k] = v
+	}
+	for k, v := range src.SelectorMap {
+		dst.SelectorMap[k] = v
+	}
+	for k, v := range src.OperatorMap {
+		dst.OperatorMap[k] = v
+	}
+	for k, v := range src.CompileOptions {
+		dst.CompileOptions[k] = v
+	}
+	for k, v := range src.CostsMap {
+		dst.CostsMap[k] = v
+	}
+	for _, op := range src.StatelessOperators {
+		dst.StatelessOperators = append(dst.StatelessOperators, op)
+	}
 }
 
 type CompileOption func(conf *CompileConfig)
@@ -88,7 +92,7 @@ var (
 		c.CompileOptions[InfixNotation] = true
 	}
 
-	RegisterVals = func(vals map[string]interface{}) CompileOption {
+	Register = func(vals map[string]interface{}) CompileOption {
 		return func(c *CompileConfig) {
 			for k, v := range vals {
 				switch a := v.(type) {
@@ -100,6 +104,11 @@ var (
 					GetOrRegisterKey(c, k)
 				}
 			}
+		}
+	}
+	WithConf = func(src *CompileConfig) CompileOption {
+		return func(c *CompileConfig) {
+			copyConfig(c, src)
 		}
 	}
 )

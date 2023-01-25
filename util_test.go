@@ -217,7 +217,7 @@ func TestGenerateRandomExpr_Bool(t *testing.T) {
 	for i := 1; i < size; i++ {
 		expr := GenerateRandomExpr(i, r, GenType(GenBool), EnableSelector, EnableCondition, GenSelectors(valMap))
 
-		got, err := Eval(expr.Expr, valMap, cc)
+		got, err := Eval(expr.Expr, valMap, WithConf(cc))
 		if err != nil {
 			fmt.Println(GenerateTestCase(expr.Expr, expr.Res, valMap))
 			t.Fatalf("assertNil failed, got: %+v\n", err)
@@ -264,7 +264,7 @@ func TestGenerateRandomExpr_Number(t *testing.T) {
 		//fmt.Println(IndentByParentheses(expr.Expr))
 		//fmt.Println(expr.Res)
 
-		got, err := Eval(expr.Expr, valMap, cc)
+		got, err := Eval(expr.Expr, valMap, WithConf(cc))
 		if err != nil {
 			fmt.Println(GenerateTestCase(expr.Expr, expr.Res, valMap))
 			t.Fatalf("assertNil failed, got: %+v\n", err)
