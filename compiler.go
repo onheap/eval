@@ -6,26 +6,26 @@ import (
 	"sort"
 )
 
-type Option string
+type CompileOption string
 
 const (
-	Optimize        Option = "optimize" // switch all optimizations
-	Reordering      Option = "reordering"
-	FastEvaluation  Option = "fast_evaluation"
-	ReduceNesting   Option = "reduce_nesting"
-	ConstantFolding Option = "constant_folding"
+	Optimize        CompileOption = "optimize" // switch for all optimizations
+	Reordering      CompileOption = "reordering"
+	FastEvaluation  CompileOption = "fast_evaluation"
+	ReduceNesting   CompileOption = "reduce_nesting"
+	ConstantFolding CompileOption = "constant_folding"
 
-	Debug                 Option = "debug"
-	ReportEvent           Option = "report_event"
-	InfixNotation         Option = "infix_notation"
-	AllowUnknownSelectors Option = "allow_unknown_selectors"
+	Debug                  CompileOption = "debug"
+	ReportEvent            CompileOption = "report_event"
+	InfixNotation          CompileOption = "infix_notation"
+	AllowUndefinedVariable CompileOption = "allow_undefined_variable"
 )
 
-type optimizer func(config *CompileConfig, root *astNode)
+type optimizer func(config *Config, root *astNode)
 
 var (
-	optimizations = []Option{ConstantFolding, ReduceNesting, FastEvaluation, Reordering}
-	optimizerMap  = map[Option]optimizer{
+	optimizations = []CompileOption{ConstantFolding, ReduceNesting, FastEvaluation, Reordering}
+	optimizerMap  = map[CompileOption]optimizer{
 		ConstantFolding: optimizeConstantFolding,
 		ReduceNesting:   optimizeReduceNesting,
 		FastEvaluation:  optimizeFastEvaluation,
@@ -33,46 +33,50 @@ var (
 	}
 )
 
-func CopyCompileConfig(origin *CompileConfig) *CompileConfig {
-	conf := NewCompileConfig()
+func CopyConfig(origin *Config) *Config {
+	conf := NewConfig()
 	if origin == nil {
 		return conf
 	}
-	for k, v := range origin.ConstantMap {
-		conf.ConstantMap[k] = v
-	}
-	for k, v := range origin.SelectorMap {
-		conf.SelectorMap[k] = v
-	}
-	for k, v := range origin.OperatorMap {
-		conf.OperatorMap[k] = v
-	}
-	for k, v := range origin.CompileOptions {
-		conf.CompileOptions[k] = v
-	}
-	for k, v := range origin.CostsMap {
-		conf.CostsMap[k] = v
-	}
-	for _, op := range origin.StatelessOperators {
-		conf.StatelessOperators = append(conf.StatelessOperators, op)
-	}
+	copyConfig(conf, origin)
 	return conf
 }
 
-type CompileOption func(conf *CompileConfig)
+func copyConfig(dst, src *Config) {
+	for k, v := range src.ConstantMap {
+		dst.ConstantMap[k] = v
+	}
+	for k, v := range src.VariableKeyMap {
+		dst.VariableKeyMap[k] = v
+	}
+	for k, v := range src.OperatorMap {
+		dst.OperatorMap[k] = v
+	}
+	for k, v := range src.CompileOptions {
+		dst.CompileOptions[k] = v
+	}
+	for k, v := range src.CostsMap {
+		dst.CostsMap[k] = v
+	}
+	for _, op := range src.StatelessOperators {
+		dst.StatelessOperators = append(dst.StatelessOperators, op)
+	}
+}
+
+type Option func(conf *Config)
 
 var (
-	EnableStringSelectors CompileOption = func(c *CompileConfig) {
-		c.CompileOptions[AllowUnknownSelectors] = true
+	EnableUndefinedVariable Option = func(c *Config) {
+		c.CompileOptions[AllowUndefinedVariable] = true
 	}
-	EnableDebug CompileOption = func(c *CompileConfig) {
+	EnableDebug Option = func(c *Config) {
 		c.CompileOptions[Debug] = true
 	}
-	EnableReportEvent CompileOption = func(c *CompileConfig) {
+	EnableReportEvent Option = func(c *Config) {
 		c.CompileOptions[ReportEvent] = true
 	}
-	Optimizations = func(enable bool, opts ...Option) CompileOption {
-		return func(c *CompileConfig) {
+	Optimizations = func(enable bool, opts ...CompileOption) Option {
+		return func(c *Config) {
 			if len(opts) == 0 || (len(opts) == 1 && opts[0] == Optimize) {
 				opts = optimizations
 			}
@@ -84,12 +88,13 @@ var (
 			}
 		}
 	}
-	EnableInfixNotation CompileOption = func(c *CompileConfig) {
+	EnableInfixNotation Option = func(c *Config) {
 		c.CompileOptions[InfixNotation] = true
 	}
 
-	RegisterVals = func(vals map[string]interface{}) CompileOption {
-		return func(c *CompileConfig) {
+	// RegVarAndOp registers variables and operators to config
+	RegVarAndOp = func(vals map[string]interface{}) Option {
+		return func(c *Config) {
 			for k, v := range vals {
 				switch a := v.(type) {
 				case Operator:
@@ -102,14 +107,23 @@ var (
 			}
 		}
 	}
+
+	// ExtendConf extends source config
+	ExtendConf = func(src *Config) Option {
+		return func(c *Config) {
+			if src != nil {
+				copyConfig(c, src)
+			}
+		}
+	}
 )
 
-func NewCompileConfig(opts ...CompileOption) *CompileConfig {
-	conf := &CompileConfig{
+func NewConfig(opts ...Option) *Config {
+	conf := &Config{
 		ConstantMap:        make(map[string]Value),
-		SelectorMap:        make(map[string]SelectorKey),
 		OperatorMap:        make(map[string]Operator),
-		CompileOptions:     make(map[Option]bool),
+		VariableKeyMap:     make(map[string]VariableKey),
+		CompileOptions:     make(map[CompileOption]bool),
 		CostsMap:           make(map[string]float64),
 		StatelessOperators: []string{},
 	}
@@ -119,27 +133,27 @@ func NewCompileConfig(opts ...CompileOption) *CompileConfig {
 	return conf
 }
 
-type CompileConfig struct {
-	ConstantMap map[string]Value
-	SelectorMap map[string]SelectorKey
-	OperatorMap map[string]Operator
+type Config struct {
+	ConstantMap    map[string]Value
+	OperatorMap    map[string]Operator
+	VariableKeyMap map[string]VariableKey
 
 	// cost of performance
 	CostsMap map[string]float64
 
 	// compile options
-	CompileOptions map[Option]bool
+	CompileOptions map[CompileOption]bool
 
 	StatelessOperators []string
 }
 
-func (cc *CompileConfig) getCosts(nodeType uint8, nodeName string) float64 {
+func (cc *Config) getCosts(nodeType uint8, nodeName string) float64 {
 	const (
 		defaultCost  float64 = 5
-		selectorCost float64 = 7
+		variableCost float64 = 7
 		operatorCost float64 = 10
 
-		selectorNode = "selector"
+		variableNode = "variable"
 		operatorNode = "operator"
 	)
 
@@ -148,11 +162,11 @@ func (cc *CompileConfig) getCosts(nodeType uint8, nodeName string) float64 {
 	}
 
 	switch nodeType {
-	case selector:
-		if v, exist := cc.CostsMap[selectorNode]; exist {
+	case variable:
+		if v, exist := cc.CostsMap[variableNode]; exist {
 			return v
 		}
-		return selectorCost
+		return variableCost
 	case operator, fastOperator:
 		if v, exist := cc.CostsMap[operatorNode]; exist {
 			return v
@@ -163,7 +177,7 @@ func (cc *CompileConfig) getCosts(nodeType uint8, nodeName string) float64 {
 	}
 }
 
-func Compile(originConf *CompileConfig, exprStr string) (*Expr, error) {
+func Compile(originConf *Config, exprStr string) (*Expr, error) {
 	ast, conf, err := newParser(originConf, exprStr).parse()
 	if err != nil {
 		return nil, err
@@ -181,7 +195,7 @@ func Compile(originConf *CompileConfig, exprStr string) (*Expr, error) {
 	return expr, nil
 }
 
-func optimize(cc *CompileConfig, root *astNode) {
+func optimize(cc *Config, root *astNode) {
 	for _, opt := range optimizations {
 		enabled, exist := cc.CompileOptions[opt]
 		if enabled || !exist {
@@ -190,7 +204,7 @@ func optimize(cc *CompileConfig, root *astNode) {
 	}
 }
 
-func optimizeReduceNesting(cc *CompileConfig, root *astNode) {
+func optimizeReduceNesting(cc *Config, root *astNode) {
 	for _, child := range root.children {
 		optimizeReduceNesting(cc, child)
 	}
@@ -205,7 +219,7 @@ func optimizeReduceNesting(cc *CompileConfig, root *astNode) {
 	rootOpType := isAndOpNode(n)
 	for _, child := range root.children {
 		cn := child.node
-		if typ := cn.getNodeType(); typ == constant || typ == selector {
+		if typ := cn.getNodeType(); typ == constant || typ == variable {
 			children = append(children, child)
 			continue
 		}
@@ -252,7 +266,7 @@ func parentNode(e *Expr, idx int16) (*node, int16) {
 	return e.nodes[pIdx], pIdx
 }
 
-func optimizeReordering(cc *CompileConfig, root *astNode) {
+func optimizeReordering(cc *Config, root *astNode) {
 	for _, child := range root.children {
 		optimizeReordering(cc, child)
 	}
@@ -269,7 +283,7 @@ func optimizeReordering(cc *CompileConfig, root *astNode) {
 	})
 }
 
-func calculateNodeCosts(conf *CompileConfig, root *astNode) {
+func calculateNodeCosts(conf *Config, root *astNode) {
 	children := root.children
 	const (
 		loops       float64 = 1
@@ -290,7 +304,7 @@ func calculateNodeCosts(conf *CompileConfig, root *astNode) {
 	switch nodeType {
 	case constant:
 		baseCost = inlinedCall
-	case selector:
+	case variable:
 		baseCost = funcCall
 	case fastOperator:
 		baseCost = funcCall
@@ -305,7 +319,7 @@ func calculateNodeCosts(conf *CompileConfig, root *astNode) {
 	}
 
 	// operation cost
-	if nodeType == selector ||
+	if nodeType == variable ||
 		nodeType == operator ||
 		nodeType == fastOperator {
 		operationCost = conf.getCosts(nodeType, n.value.(string))
@@ -322,7 +336,7 @@ func calculateNodeCosts(conf *CompileConfig, root *astNode) {
 	root.cost = baseCost + operationCost + childrenCost
 }
 
-func optimizeConstantFolding(cc *CompileConfig, root *astNode) {
+func optimizeConstantFolding(cc *Config, root *astNode) {
 	for _, child := range root.children {
 		optimizeConstantFolding(cc, child)
 	}
@@ -375,7 +389,7 @@ func optimizeConstantFolding(cc *CompileConfig, root *astNode) {
 	return
 }
 
-func isStatelessOp(c *CompileConfig, n *node) (bool, Operator) {
+func isStatelessOp(c *Config, n *node) (bool, Operator) {
 	if typ := n.getNodeType(); typ != operator && typ != fastOperator {
 		return false, nil
 	}
@@ -403,7 +417,7 @@ func isStatelessOp(c *CompileConfig, n *node) (bool, Operator) {
 	return false, fn
 }
 
-func optimizeFastEvaluation(cc *CompileConfig, root *astNode) {
+func optimizeFastEvaluation(cc *Config, root *astNode) {
 	for _, child := range root.children {
 		optimizeFastEvaluation(cc, child)
 	}
@@ -414,7 +428,7 @@ func optimizeFastEvaluation(cc *CompileConfig, root *astNode) {
 
 	for _, child := range root.children {
 		typ := child.node.getNodeType()
-		if typ == constant || typ == selector {
+		if typ == constant || typ == variable {
 			continue
 		}
 		return
@@ -460,7 +474,7 @@ func check(root *astNode) checkRes {
 	}
 }
 
-func buildExpr(cc *CompileConfig, ast *astNode, size int) *Expr {
+func buildExpr(cc *Config, ast *astNode, size int) *Expr {
 	e := &Expr{
 		nodes:     make([]*node, 0, size),
 		parentIdx: make([]int16, 0, size),
@@ -483,7 +497,7 @@ func calAndSetNodes(e *Expr, root *astNode) {
 	root.parentIdx = -1
 	n := root.node
 	switch n.getNodeType() {
-	case constant, selector:
+	case constant, variable:
 		e.nodes = append(e.nodes, n)
 		root.idx = len(e.nodes) - 1
 	case operator:
@@ -575,7 +589,7 @@ func calAndSetStackSize(e *Expr) {
 
 		n := e.nodes[i]
 		switch n.getNodeType() {
-		case constant, selector, fastOperator:
+		case constant, variable, fastOperator:
 			f[i] = f[prev] + 1
 		case operator:
 			f[i] = f[prev] - int16(n.childCnt) + 1
@@ -696,7 +710,7 @@ type NodeType uint8
 
 const (
 	ConstantNode     = NodeType(constant)
-	SelectorNode     = NodeType(selector)
+	VariableNode     = NodeType(variable)
 	OperatorNode     = NodeType(operator)
 	FastOperatorNode = NodeType(fastOperator)
 	CondNode         = NodeType(cond)
@@ -707,8 +721,8 @@ func (t NodeType) String() string {
 	switch t {
 	case ConstantNode:
 		return "constant"
-	case SelectorNode:
-		return "selector"
+	case VariableNode:
+		return "variable"
 	case OperatorNode:
 		return "operator"
 	case FastOperatorNode:
@@ -774,7 +788,7 @@ func calAndSetEventNode(e *Expr) {
 			childCnt: realNode.childCnt,
 			osTop:    realNode.osTop,
 			scIdx:    realNode.scIdx,
-			selKey:   realNode.selKey,
+			varKey:   realNode.varKey,
 			value: LoopEventData{
 				CurtIdx:   int16(len(res) + 1), // the real node index
 				NodeType:  NodeType(realNode.flag & nodeTypeMask),

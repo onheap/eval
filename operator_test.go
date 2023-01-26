@@ -34,11 +34,11 @@ func TestRegisterOperator(t *testing.T) {
 		return res, nil
 	}
 
-	cc := NewCompileConfig()
+	cc := NewConfig()
 	err := RegisterOperator(cc, "max", maxOp)
 	assertNil(t, err)
 
-	res, err := Eval(`(max 1 5 3)`, nil, cc)
+	res, err := Eval(`(max 1 5 3)`, nil, ExtendConf(cc))
 	assertNil(t, err)
 	assertEquals(t, res, int64(5))
 

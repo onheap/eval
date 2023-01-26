@@ -224,9 +224,9 @@ func TestExpr_Eval(t *testing.T) {
   true)
 `,
 			valMap: map[string]interface{}{
-				"select_true_1":  true,
-				"select_false_1": false,
-				"select_false":   false,
+				"var_true_1":  true,
+				"var_false_1": false,
+				"var_false":   false,
 			},
 		},
 		{
@@ -446,7 +446,9 @@ func TestExpr_Eval(t *testing.T) {
 
 	for _, c := range cs {
 		t.Run(c.s, func(t *testing.T) {
-			var options []CompileOption
+			var options []Option
+			options = append(options, RegVarAndOp(c.valMap))
+
 			if debugMode {
 				options = append(options, EnableDebug)
 			}
@@ -461,9 +463,9 @@ func TestExpr_Eval(t *testing.T) {
 				options = append(options, Optimizations(false), Optimizations(true, FastEvaluation))
 			}
 
-			cc := NewCompileConfig(options...)
+			cc := NewConfig(options...)
 
-			ctx := NewCtxWithMap(cc, c.valMap)
+			ctx := NewCtxFromVars(cc, c.valMap)
 
 			expr, err := Compile(cc, c.s)
 			assertNil(t, err)
@@ -588,11 +590,10 @@ func TestEval_Infix(t *testing.T) {
 	}
 	for _, c := range testCases {
 		t.Run(c.expr, func(t *testing.T) {
-			cc := NewCompileConfig(
+			got, err := Eval(c.expr, c.vals,
 				Optimizations(false),
 				EnableInfixNotation,
-				RegisterVals(c.vals))
-			got, err := Eval(c.expr, c.vals, cc)
+				RegVarAndOp(c.vals))
 
 			if len(c.errMsg) != 0 {
 				assertErrStrContains(t, err, c.errMsg)
@@ -605,9 +606,9 @@ func TestEval_Infix(t *testing.T) {
 	}
 }
 
-func TestEval_AllowUnknownSelector(t *testing.T) {
+func TestEval_AllowUnknownVariables(t *testing.T) {
 	testCases := []struct {
-		cc     *CompileConfig
+		cc     *Config
 		expr   string
 		want   Value
 		errMsg string
@@ -620,15 +621,15 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 		{
 			want: false,
 			expr: `(< age 18)`,
-			cc:   NewCompileConfig(EnableStringSelectors),
+			cc:   NewConfig(EnableUndefinedVariable),
 			vals: map[string]interface{}{
 				"age": int64(20),
 			},
 		},
 		{
 			expr:   `(< not_exist_key 18)`,
-			cc:     NewCompileConfig(EnableStringSelectors),
-			errMsg: "selectorKey not exist",
+			cc:     NewConfig(EnableUndefinedVariable),
+			errMsg: "variableKey not exist",
 		},
 		{
 			expr: `
@@ -647,7 +648,7 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
    (- 2 v3) (/ 6 3) 4)
  (* 5 -6 7)
 )`,
-			cc: NewCompileConfig(EnableStringSelectors),
+			cc: NewConfig(EnableUndefinedVariable),
 			vals: map[string]interface{}{
 				"v3": int64(3),
 			},
@@ -656,7 +657,7 @@ func TestEval_AllowUnknownSelector(t *testing.T) {
 
 	for _, c := range testCases {
 		t.Run(c.expr, func(t *testing.T) {
-			got, err := Eval(c.expr, c.vals, c.cc)
+			got, err := Eval(c.expr, c.vals, ExtendConf(c.cc))
 
 			if len(c.errMsg) != 0 {
 				assertErrStrContains(t, err, c.errMsg)
@@ -887,9 +888,9 @@ func TestExpr_TryEval(t *testing.T) {
   true)
 `,
 			valMap: map[string]interface{}{
-				"select_true_1":  true,
-				"select_false_1": false,
-				"select_false":   false,
+				"var_true_1":  true,
+				"var_false_1": false,
+				"var_false":   false,
 			},
 		},
 		{
@@ -1077,8 +1078,8 @@ func TestExpr_TryEval(t *testing.T) {
 
 	for _, c := range cs {
 		t.Run(c.s, func(t *testing.T) {
-			var options []CompileOption
-			options = append(options, EnableStringSelectors)
+			var options []Option
+			options = append(options, EnableUndefinedVariable)
 			if debugMode {
 				options = append(options, EnableDebug)
 			}
@@ -1093,9 +1094,9 @@ func TestExpr_TryEval(t *testing.T) {
 				options = append(options, Optimizations(false), Optimizations(true, FastEvaluation))
 			}
 
-			cc := NewCompileConfig(options...)
+			cc := NewConfig(options...)
 
-			ctx := NewCtxWithMap(cc, c.valMap)
+			ctx := NewCtxFromVars(cc, c.valMap)
 
 			expr, err := Compile(cc, c.s)
 			assertNil(t, err)
@@ -1141,32 +1142,32 @@ func TestRandomExpressions(t *testing.T) {
 
 	var random = rand.New(rand.NewSource(time.Now().UnixNano()))
 
-	conf := NewCompileConfig()
-	conf.SelectorMap = map[string]SelectorKey{
-		"select_true":  SelectorKey(1),
-		"select_false": SelectorKey(2),
+	conf := NewConfig()
+	conf.VariableKeyMap = map[string]VariableKey{
+		"var_true":  VariableKey(1),
+		"var_false": VariableKey(2),
 	}
 
 	valMap := map[string]interface{}{
-		"select_true":  true,
-		"select_false": false,
+		"var_true":  true,
+		"var_false": false,
 	}
 	for i := 0; i < 20; i++ {
 		v := random.Intn(200) - 100
 		var k string
 		if v < 0 {
-			k = "select_neg_" + strconv.Itoa(-v)
+			k = "var_neg_" + strconv.Itoa(-v)
 		} else {
-			k = "select_" + strconv.Itoa(v)
+			k = "var_" + strconv.Itoa(v)
 		}
 		valMap[k] = int64(v)
 		_ = GetOrRegisterKey(conf, k)
 	}
 
 	dneMap := map[string]interface{}{
-		"select_dne_1": DNE,
-		"select_dne_2": DNE,
-		"select_dne_3": DNE,
+		"var_dne_1": DNE,
+		"var_dne_2": DNE,
+		"var_dne_3": DNE,
 	}
 
 	type testCase struct {
@@ -1175,7 +1176,7 @@ func TestRandomExpressions(t *testing.T) {
 		expr  string
 		want  Value
 
-		cc  *CompileConfig
+		cc  *Config
 		got Value
 		err error
 	}
@@ -1213,11 +1214,11 @@ func TestRandomExpressions(t *testing.T) {
 				}
 
 				if v&0b0100 != 0 {
-					options = append(options, EnableSelector, GenSelectors(valMap))
+					options = append(options, EnableVariable, GenVariables(valMap))
 				}
 
 				if v&0b1100 == 0b1100 {
-					options = append(options, EnableRCO, GenSelectors(dneMap))
+					options = append(options, EnableTryEval, GenVariables(dneMap))
 				}
 
 				l := (i % level) + 1
@@ -1245,11 +1246,11 @@ func TestRandomExpressions(t *testing.T) {
 			for c := range exprChan {
 				v := r.Intn(0b10000)
 				// combination of optimizations
-				cc := CopyCompileConfig(conf)
+				cc := CopyConfig(conf)
 				cc.CompileOptions[Reordering] = v&0b1 != 0
 				cc.CompileOptions[FastEvaluation] = v&0b10 != 0
 				cc.CompileOptions[ConstantFolding] = v&0b100 != 0
-				cc.CompileOptions[AllowUnknownSelectors] = c.rco
+				cc.CompileOptions[AllowUndefinedVariable] = c.rco
 				cc.CompileOptions[ReportEvent] = v&0b1000 != 0 && c.level <= level/2
 
 				expr, err := Compile(cc, c.expr)
@@ -1264,7 +1265,7 @@ func TestRandomExpressions(t *testing.T) {
 				}
 
 				c.cc = cc
-				ctx := NewCtxWithMap(cc, valMap)
+				ctx := NewCtxFromVars(cc, valMap)
 				if c.rco {
 					c.got, c.err = safeExec(expr.TryEval, ctx)
 				} else {
@@ -1322,7 +1323,7 @@ func TestReportEvent(t *testing.T) {
 		"v3": 3,
 	}
 
-	cc := NewCompileConfig(EnableReportEvent, RegisterVals(vals))
+	cc := NewConfig(EnableReportEvent, RegVarAndOp(vals))
 
 	s := `(+ 1 v2 v3)`
 
@@ -1341,7 +1342,7 @@ func TestReportEvent(t *testing.T) {
 		wg.Done()
 	}()
 
-	res, err := e.Eval(NewCtxWithMap(cc, vals))
+	res, err := e.Eval(NewCtxFromVars(cc, vals))
 	close(e.EventChan)
 
 	wg.Wait()
@@ -1362,7 +1363,7 @@ func TestReportEvent(t *testing.T) {
 			Stack:     []Value{int64(1)},
 			Data: LoopEventData{
 				NodeValue: "v2",
-				NodeType:  SelectorNode,
+				NodeType:  VariableNode,
 				CurtIdx:   3,
 			},
 		},
@@ -1371,7 +1372,7 @@ func TestReportEvent(t *testing.T) {
 			Stack:     []Value{int64(1), int64(2)},
 			Data: LoopEventData{
 				NodeValue: "v3",
-				NodeType:  SelectorNode,
+				NodeType:  VariableNode,
 				CurtIdx:   5,
 			},
 		},
@@ -1398,7 +1399,7 @@ func TestReportEvent(t *testing.T) {
 }
 
 func TestStatelessOperators(t *testing.T) {
-	cc := &CompileConfig{
+	cc := &Config{
 		OperatorMap: map[string]Operator{
 			"to_set": func(_ *Ctx, params []Value) (Value, error) {
 				if len(params) != 1 {
@@ -1422,8 +1423,8 @@ func TestStatelessOperators(t *testing.T) {
 				}
 			},
 		},
-		SelectorMap: map[string]SelectorKey{
-			"num": SelectorKey(1),
+		VariableKeyMap: map[string]VariableKey{
+			"num": VariableKey(1),
 		},
 		StatelessOperators: []string{"to_set"},
 	}
@@ -1454,7 +1455,7 @@ func TestStatelessOperators(t *testing.T) {
 
 	expr, err := Compile(cc, s)
 	assertNil(t, err)
-	res, err := expr.EvalBool(NewCtxWithMap(cc, map[string]interface{}{
+	res, err := expr.EvalBool(NewCtxFromVars(cc, map[string]interface{}{
 		"num": 499,
 	}))
 

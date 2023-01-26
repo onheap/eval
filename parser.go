@@ -59,17 +59,17 @@ type astNode struct {
 
 type parser struct {
 	source string
-	conf   *CompileConfig
+	conf   *Config
 	tokens []token
 	idx    int
 
 	leafNodeParser []func() (*astNode, error)
 }
 
-func newParser(cc *CompileConfig, source string) *parser {
+func newParser(cc *Config, source string) *parser {
 	return &parser{
 		source: source,
-		conf:   CopyCompileConfig(cc),
+		conf:   CopyConfig(cc),
 	}
 }
 
@@ -260,7 +260,7 @@ func (p *parser) parseAstTree() (root *astNode, err error) {
 
 func (p *parser) setLeafNodeParsers() {
 	fns := []func() (*astNode, error){
-		p.parseInt, p.parseStr, p.parseConst, p.parseSelector, p.parseUnknownSelector}
+		p.parseInt, p.parseStr, p.parseConst, p.parseVariable, p.parseUnknownVariable}
 
 	if p.isInfixNotation() {
 		// For infix expressions only lists with brackets are supported
@@ -324,7 +324,7 @@ func (p *parser) check() error {
 	return nil
 }
 
-func (p *parser) parse() (*astNode, *CompileConfig, error) {
+func (p *parser) parse() (*astNode, *Config, error) {
 	err := p.lex()
 	if err != nil {
 		return nil, nil, err
@@ -340,8 +340,8 @@ func (p *parser) parse() (*astNode, *CompileConfig, error) {
 	return ast, p.conf, nil
 }
 
-func (p *parser) allowUnknownSelectors() bool {
-	return p.conf.CompileOptions[AllowUnknownSelectors]
+func (p *parser) allowUndefinedVariable() bool {
+	return p.conf.CompileOptions[AllowUndefinedVariable]
 }
 
 func (p *parser) isInfixNotation() bool {
@@ -560,7 +560,7 @@ func (p *parser) parseConst() (*astNode, error) {
 	return nil, nil
 }
 
-func (p *parser) parseSelector() (*astNode, error) {
+func (p *parser) parseVariable() (*astNode, error) {
 	t, err := p.peek()
 	if err != nil {
 		return nil, err
@@ -568,7 +568,7 @@ func (p *parser) parseSelector() (*astNode, error) {
 	if t.typ != ident {
 		return nil, nil
 	}
-	key, ok := p.conf.SelectorMap[t.val]
+	key, ok := p.conf.VariableKeyMap[t.val]
 	if !ok {
 		return nil, nil
 	}
@@ -576,15 +576,15 @@ func (p *parser) parseSelector() (*astNode, error) {
 	p.walk()
 	return &astNode{
 		node: &node{
-			flag:   selector,
+			flag:   variable,
 			value:  t.val,
-			selKey: key,
+			varKey: key,
 		},
 	}, nil
 }
 
-func (p *parser) parseUnknownSelector() (*astNode, error) {
-	if !p.allowUnknownSelectors() {
+func (p *parser) parseUnknownVariable() (*astNode, error) {
+	if !p.allowUndefinedVariable() {
 		return nil, nil
 	}
 
@@ -608,9 +608,9 @@ func (p *parser) parseUnknownSelector() (*astNode, error) {
 	p.walk()
 	return &astNode{
 		node: &node{
-			flag:   selector,
+			flag:   variable,
 			value:  t.val,
-			selKey: UndefinedSelKey,
+			varKey: UndefinedVarKey,
 		},
 	}, nil
 }
@@ -922,7 +922,7 @@ func (p *parser) parseConfig() error {
 				pair[i] = strings.TrimSpace(pair[i])
 			}
 
-			option := Option(pair[0])
+			option := CompileOption(pair[0])
 			enabled, err := strconv.ParseBool(pair[1])
 			if err != nil {
 				return p.errWithToken(fmt.Errorf("invalid config value %s, err %w", s, err), t)

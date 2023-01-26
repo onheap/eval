@@ -18,14 +18,14 @@ const (
 )
 
 type GenExprConfig struct {
-	EnableSelector  bool
+	EnableVariable  bool
 	EnableCondition bool
-	EnableRCO       bool
+	EnableTryEval   bool
 	WantError       bool
 	GenType         GenExprType
-	NumSelectors    []GenExprResult
-	BoolSelectors   []GenExprResult
-	DneSelectors    []GenExprResult
+	NumVariables    []GenExprResult
+	BoolVariables   []GenExprResult
+	DneVariables    []GenExprResult
 }
 
 type GenExprResult struct {
@@ -36,14 +36,14 @@ type GenExprResult struct {
 type GenExprOption func(conf *GenExprConfig)
 
 var (
-	EnableSelector GenExprOption = func(c *GenExprConfig) {
-		c.EnableSelector = true
+	EnableVariable GenExprOption = func(c *GenExprConfig) {
+		c.EnableVariable = true
 	}
 	EnableCondition GenExprOption = func(c *GenExprConfig) {
 		c.EnableCondition = true
 	}
-	EnableRCO GenExprOption = func(c *GenExprConfig) {
-		c.EnableRCO = true
+	EnableTryEval GenExprOption = func(c *GenExprConfig) {
+		c.EnableTryEval = true
 	}
 
 	GenType = func(genType GenExprType) GenExprOption {
@@ -52,27 +52,29 @@ var (
 		}
 	}
 
-	GenSelectors = func(m map[string]interface{}) GenExprOption {
+	GenVariables = func(m map[string]interface{}) GenExprOption {
 		return func(c *GenExprConfig) {
-			var ns []GenExprResult
-			var bs []GenExprResult
-			var ds []GenExprResult
+			var (
+				numVars  []GenExprResult
+				boolVars []GenExprResult
+				dneVars  []GenExprResult
+			)
 			for k, v := range m {
 				if v == DNE {
-					ds = append(ds, GenExprResult{Expr: k, Res: v})
+					dneVars = append(dneVars, GenExprResult{Expr: k, Res: v})
 					continue
 				}
 				v = UnifyType(v)
 				switch v.(type) {
 				case int64:
-					ns = append(ns, GenExprResult{Expr: k, Res: v})
+					numVars = append(numVars, GenExprResult{Expr: k, Res: v})
 				case bool:
-					bs = append(bs, GenExprResult{Expr: k, Res: v})
+					boolVars = append(boolVars, GenExprResult{Expr: k, Res: v})
 				}
 			}
-			c.NumSelectors = append(c.NumSelectors, ns...)
-			c.BoolSelectors = append(c.BoolSelectors, bs...)
-			c.DneSelectors = append(c.DneSelectors, ds...)
+			c.NumVariables = append(c.NumVariables, numVars...)
+			c.BoolVariables = append(c.BoolVariables, boolVars...)
+			c.DneVariables = append(c.DneVariables, dneVars...)
 		}
 	}
 )
@@ -120,12 +122,12 @@ func GenerateRandomExpr(level int, random *rand.Rand, opts ...GenExprOption) Gen
 			v := random.Intn(100)
 			if genType == GenBool {
 				switch {
-				case r == 1 && c.EnableRCO && len(c.DneSelectors) != 0:
-					idx := (v) % len(c.DneSelectors)
-					return c.DneSelectors[idx]
-				case r < 4 && c.EnableSelector && len(c.BoolSelectors) != 0:
-					idx := (v) % len(c.BoolSelectors)
-					return c.BoolSelectors[idx]
+				case r == 1 && c.EnableTryEval && len(c.DneVariables) != 0:
+					idx := (v) % len(c.DneVariables)
+					return c.DneVariables[idx]
+				case r < 4 && c.EnableVariable && len(c.BoolVariables) != 0:
+					idx := (v) % len(c.BoolVariables)
+					return c.BoolVariables[idx]
 				default:
 					if v < 50 {
 						return boolExprTrue
@@ -137,12 +139,12 @@ func GenerateRandomExpr(level int, random *rand.Rand, opts ...GenExprOption) Gen
 
 			if genType == GenNumber {
 				switch {
-				case r == 1 && c.EnableRCO && len(c.DneSelectors) != 0:
-					idx := (v) % len(c.DneSelectors)
-					return c.DneSelectors[idx]
-				case r < 4 && c.EnableSelector && len(c.NumSelectors) != 0:
-					idx := (v) % len(c.NumSelectors)
-					return c.NumSelectors[idx]
+				case r == 1 && c.EnableTryEval && len(c.DneVariables) != 0:
+					idx := (v) % len(c.DneVariables)
+					return c.DneVariables[idx]
+				case r < 4 && c.EnableVariable && len(c.NumVariables) != 0:
+					idx := (v) % len(c.NumVariables)
+					return c.NumVariables[idx]
 				default:
 					v = v - 50
 					return GenExprResult{
@@ -456,7 +458,7 @@ func dumpLeafNode(node *node) (string, bool) {
 	switch node.getNodeType() {
 	case event:
 		return "eventNode", false
-	case selector:
+	case variable:
 		return fmt.Sprint(node.value), true
 	case operator, fastOperator:
 		return fmt.Sprintf("(%v)", node.value), false
@@ -551,8 +553,8 @@ func DumpTable(expr *Expr, skipEventNode bool) string {
 			res = "OP"
 		case fastOperator:
 			res = "OPf"
-		case selector:
-			res = "S"
+		case variable:
+			res = "V"
 		case constant:
 			res = "C"
 		case cond:
