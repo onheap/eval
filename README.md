@@ -69,7 +69,7 @@ func main() {
 
 * **Dump / DumpTable / IndentByParentheses**
   * [Dump](util.go#L400) decompiles the compiled expressions into the corresponding string expressions.
-  * [DumpTable](util.go#524) dumps the compiled expressions into an easy-to-understand format.
+  * [DumpTable](util.go#L524) dumps the compiled expressions into an easy-to-understand format.
   * [IndentByParentheses](util.go#L290) formats string expressions.
 
 
