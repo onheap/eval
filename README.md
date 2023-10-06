@@ -11,7 +11,7 @@ result of the expression.
 * Fast, probably **the fastest** expression evaluation engine in the go world ([benchmark](#benchmark)).
 * Easy to use, support for registering custom operators, variables, constants and writing comments in expressions.
 * Useful tools:
-    * [Debug Panel](#debug-panel): a Terminal UI to helps you understand how your expressions are executed.
+    * [Debug Panel](#debug-panel): a Terminal UI to help you understand how your expressions are executed.
     * [Expression Cost Optimizer](#expression-cost-optimizer): it uses Machine Learning algorithms to optimize your expressions and make them even faster.
 
 ## Basic Usage
@@ -64,7 +64,7 @@ func main() {
   > It is typically used for the scenarios that fetching variables is expansive and the root operator is bool operators.
 
   
-* **ReportEvent** is a configuration option. If it is enabled, the evaluation engine will send events to the EventChannel for each execution step. We can use this feature to observe the internal execution of the engine and to collect statistics on the execution of expressions.
+* **ReportEvent** is a configuration option. If it is enabled, the evaluation engine will send events to the EventChannel for each execution step. We can use this feature to observe the internal execution of the engine and to collect statistics on the execution of expressions. [Debug Panel](#debug-panel) and [Expression Cost Optimizer](#expression-cost-optimizer) are two example usages of this feature.  
 
 
 * **Dump / DumpTable / IndentByParentheses**
