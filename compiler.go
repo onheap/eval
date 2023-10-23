@@ -210,7 +210,6 @@ func optimizeReduceNesting(cc *Config, root *astNode) {
 	}
 
 	n := root.node
-	// todo expand to operators with associative property
 	if !isBoolOpNode(n) {
 		return
 	}

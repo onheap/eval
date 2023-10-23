@@ -22,6 +22,9 @@ func RegisterOperator(cc *Config, name string, op Operator) error {
 }
 
 var (
+	// Currently builtinOperators are all stateless functions,
+	// and we use this assumption in optimizeConstantFolding,
+	// so be careful when adding new operators to builtinOperators.
 	builtinOperators = map[string]Operator{
 		// arithmetic
 		"add": arithmetic{mode: add}.execute,
