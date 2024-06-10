@@ -59,6 +59,92 @@ func main() {
 }
 ```
 
+### Key Concepts
+#### Expressions
+
+Currently, the evaluation expressions should be written in S-Expression syntax, A.K.A. Lisp-like syntax. And the Infix Notation is working in progress (Please let me know if you want this feature urgent).
+
+Please see examples below:
+
+One line string expression:
+```lisp
+(and (>= age 30) (= gender "Male"))
+```
+
+Multi-line string expression (two semicolons `;;` starts a comments):
+```lisp
+(and
+  (>= age 18) ;; Adult
+  (= locale "en-US"))
+```
+
+Example of creating a list with parentheses
+```lisp
+(in locale 
+  ("en-US" "en-CA")) ;; List of North America locales
+```
+
+Example of if-else statement
+```lisp
+(if is_student
+  (> balance 100) ;; Students only require a $100 balance
+  (> balance 3000))
+```
+
+Example of using Operators `(to_version "2.3.4")`,  `(now)` and Constant `DAY`
+```lisp
+(and       
+  ;; Account created more than a week 
+  (>= 
+    (- (now) created_at)
+    (* 7 DAY)) ;; DAY is a constant  
+  
+  ;; Using the latest app
+  (>= app_version 
+    (to_version "2.3.4")))
+```
+
+### Variables
+In the above expression examples you have already seen the variables. For example, in expression: `(and (>= age 30) (= gender "Male"))`, `age` and `gender` are variables. The variable associated values are retrieved through the `VariableFetcher` during the expression evaluation.
+
+```go
+type VariableFetcher interface {
+    Get(varKey VariableKey, strKey string) (Value, error)
+}
+```
+Please note that there are two types of keys in method parameters `varKey` is of type _VariableKey_, `strKey` is of type _string_.
+
+`VariableKey` typed keys require to be registered in code explicitly to build the connections between `varKey` and variable string literal representations in expressions. String typed keys can be used directly without the registration step. the value of a `strKey` the string literal representations in expressions.
+
+`varKey` offers better performance, `strKey` offers more flexibility. You can use any of them (or hybrid), as they both are passed in during the expression evaluation. But we recommend to use `varKey` to get better performance.
+
+### Operators
+Operators are functions in the expression, here are the built-in operators
+
+| Operator | Alias                   | Example                                                                                       |   | Description                                                                                                       |
+|----------|-------------------------|-----------------------------------------------------------------------------------------------|:--|-------------------------------------------------------------------------------------------------------------------|
+| add      | +                       | `(+ 1 1)`                                                                                     |   | Addition operation for two or more numbers                                                                        |
+| sub      | -                       | `(- 3 2)`                                                                                     |   | Subtraction operation for two or more numbers                                                                     |
+| mul      | *                       | `(* 1 2 3)`                                                                                   |   | Multiplication operation for two or more numbers                                                                  |
+| div      | /                       | `(/ 6 3)`                                                                                     |   | Division operation for two or more numbers                                                                        |
+| mod      | %                       | `(% 3 7)`                                                                                     |   | Modulus operation for two or more numbers                                                                         |
+| and      | &, &&                   | `(and (>= age 30) (= gender "Male"))`                                                         |   | Logical AND operation for two or more booleans                                                                    |
+| or       | \|,   \|\|              | `(or (< age 18) (> age 80))`                                                                  |   | Logical OR operation for two or more booleans                                                                     |
+| not      | !                       | `(not is_student))`                                                                           |   | Logical NOT operation for a boolean value                                                                         |
+| xor      | N/A                     | `(xor true false)`                                                                            |   | Logical OR operation for two or more booleans                                                                     |
+| eq       | =, ==                   | `(= gender "Female")`                                                                         |   | Two values are equal                                                                                              |
+| ne       | !=                      | `(!= gender "Female")`                                                                        |   | Two values are not equal                                                                                          |
+| gt       | >                       | `(> 2 1)`                                                                                     |   | Greater than                                                                                                      |
+| ge       | >=                      | `(>= age 18)`                                                                                 |   | Greater than or equal to                                                                                          |
+| lt       | <                       | `(< 3 5)`                                                                                     |   | Less than                                                                                                         |
+| le       | <=                      | `(<= score 80)`                                                                               |   | Less than or equal to                                                                                             |
+| between  | N/A                     | `(between age 18 80)`                                                                         |   | Checking if the value is between the range. The between operator is inclusive: begin and end values are included. |
+| in       | N/A                     | `(in locale ("en-US" "en-CA"))`                                                               |   | Checking if the value is in the list                                                                              |
+| overlap  | N/A                     | `(overlap languages ("en" "zh"))`                                                             |   | Checking if the two lists are overlapped                                                                          |
+| date     | t_date, to_date         | `(date "2021-01-01")`<br/>  `(date "2021-01-01" "2006-01-02")`                                |   | Parse a string literal to date. The second parameter stands for layout and it is optional                         |
+| datetime | t_datetime, to_datetime | `(datetime "2021-01-01 11:58:56")`<br/>  `(date "2021-01-01 11:58:56" "2006-01-02 15:04:05")` |   | Parse a string literal to datetime. The second parameter stands for layout and it is optional                     |
+| version  | t_version, to_version   | `(to_version "2.3.4")` <br/> `(to_version "2.3" 2)`                                           |   | Parse a string literal to version. The second parameter stands for valid version numbers count                    | 
+
 ### Useful Features
 * **TryEval** tries to execute the expression when only partial variables are fetched. It skips sub-expressions where no variables were fetched, tries to find at least one sub-branch that can be fully executed with the currently fetched variables, and returns the final result.
   > It is typically used for the scenarios that fetching variables is expansive and the root operator is bool operators.

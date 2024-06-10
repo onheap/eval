@@ -67,8 +67,10 @@ var (
 		"overlap": listOverlap,
 
 		// time
-		"date":     timeConvert{mode: date, layout: defaultDateLayout}.execute,
-		"datetime": timeConvert{mode: datetime, layout: defaultDatetimeLayout}.execute,
+		"date":        timeConvert{mode: date, layout: defaultDateLayout}.execute,
+		"datetime":    timeConvert{mode: datetime, layout: defaultDatetimeLayout}.execute,
+		"to_date":     timeConvert{mode: date, layout: defaultDateLayout}.execute,
+		"to_datetime": timeConvert{mode: datetime, layout: defaultDatetimeLayout}.execute,
 
 		"t_time":  timeConvert{mode: toTime}.execute,
 		"t_date":  timeConvert{mode: toDate}.execute,
