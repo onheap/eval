@@ -78,8 +78,9 @@ var (
 		"td_date": timeConvert{mode: toDefaultDate, layout: defaultDateLayout}.execute,
 
 		// version
-		"version":   versionConvert{mode: version, validLen: 3}.execute,
-		"t_version": versionConvert{mode: toVersion, validLen: 3}.execute,
+		"version":    versionConvert{mode: version, validLen: 3}.execute,
+		"t_version":  versionConvert{mode: toVersion, validLen: 3}.execute,
+		"to_version": versionConvert{mode: version, validLen: 3}.execute,
 
 		// infix notation patch
 		"==": comparisonEquals,

@@ -112,11 +112,11 @@ type VariableFetcher interface {
     Get(varKey VariableKey, strKey string) (Value, error)
 }
 ```
-Please note that there are two types of keys in method parameters `varKey` is of type _[VariableKey](engine.go#L9)_, `strKey` is of type _string_.
+Please note that there are two types of keys in method parameters. The `varKey` is of type _[VariableKey](engine.go#L9)_, the `strKey` is of type _string_.
 
 The `VariableKey` typed keys require to be [registered](variable.go#L47) in code explicitly to build the connections between `varKey` and variable string literal representations in expressions. String typed keys can be used directly without the registration step. the value of a `strKey` the string literal representations in expressions.
 
-The `varKey` offers better performance, the `strKey` offers more flexibility. You can use any of them (or hybrid), as they both are passed in during the expression evaluation. But we recommend to use the `varKey` to get better performance.
+The `varKey` offers better performance, the `strKey` offers more flexibility. You can use any of them (or hybrid), as they both are passed in during the expression evaluation. But we recommend using the `varKey` to get better performance.
 
 ### Operators
 Operators are functions in the expression. Here are the built-in operators
