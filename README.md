@@ -30,32 +30,32 @@ go get github.com/onheap/eval
 package main
 
 import (
-	"fmt"
-	"github.com/onheap/eval"
+    "fmt"
+    "github.com/onheap/eval"
 )
 
 func main() {
-	expr := `(and (>= age 30) (= gender "Male"))`
+    expr := `(and (>= age 30) (= gender "Male"))`
 
-	vars := map[string]interface{}{
-		"age":    30,
-		"gender": "Male",
-	}
+    vars := map[string]interface{}{
+        "age":    30,
+        "gender": "Male",
+    }
 
-	// new config and register variables
-	config := eval.NewConfig(eval.RegVarAndOp(vars))
+    // new config and register variables
+    config := eval.NewConfig(eval.RegVarAndOp(vars))
 
-	// compile string expression to program
-	program, err := eval.Compile(config, expr)
+    // compile string expression to program
+    program, err := eval.Compile(config, expr)
+    
+    // evaluation expression with the variables
+    res, err := program.Eval(eval.NewCtxFromVars(config, vars))
 
-	// evaluation expression with variables
-	res, err := program.Eval(eval.NewCtxFromVars(config, vars))
+    if err != nil {
+        panic(err)
+    }
 
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Printf("%v", res)
+    fmt.Printf("%v", res)
 }
 ```
 
@@ -91,15 +91,10 @@ Example of if-else statement:
   (> balance 3000))
 ```
 
-Example of using Operators `(to_version "2.3.4")`,  `(now)` and Constant `DAY`. Customized constants need to be predefined in [ConstantMap](compiler.go#L137).
+Example of using Constant and Operator. The `IOS` is a customized constant which can be predefined in [ConstantMap](compiler.go#L137). The sub-expression `(to_version "2.3.4")` calls the `to_version` operator to parse the string literal `2.3.4` to specific number for outer comparison expression. 
 ```lisp
-(and       
-  ;; Account created more than a week 
-  (>= 
-    (- (now) created_at)
-    (* 7 DAY)) ;; DAY is a constant  
-  
-  ;; Using the latest app
+(and           
+  (= platform IOS) ;; IOS is a constant  
   (>= app_version 
     (to_version "2.3.4")))
 ```
@@ -114,12 +109,12 @@ type VariableFetcher interface {
 ```
 Please note that there are two types of keys in method parameters. The `varKey` is of type _[VariableKey](engine.go#L9)_, the `strKey` is of type _string_.
 
-The `VariableKey` typed keys require to be [registered](variable.go#L47) in code explicitly to build the connections between `varKey` and variable string literal representations in expressions. String typed keys can be used directly without the registration step. the value of a `strKey` the string literal representations in expressions.
+The `VariableKey` typed keys are required to be [registered](variable.go#L47) or pre-defined into the [VariableKeyMap](compiler.go#L139) explicitly, to build the connections between `varKey` and variable string literal in expressions. String typed keys can be used directly without the registration step. the value of a `strKey` the string literal in expressions.
 
 The `varKey` offers better performance, the `strKey` offers more flexibility. You can use any of them (or hybrid), as they both are passed in during the expression evaluation. But we recommend using the `varKey` to get better performance.
 
 ### Operators
-Operators are functions in the expression. Here are the built-in operators
+Operators are functions in the expression. Below is a list of the built-in operators. Customized operators can be [registered](operator.go#L11) or pre-defined into the [OperatorMap](compiler.go#L138)  
 
 | Operator | Alias                   | Example                                                                                       | Description                                                                                                                |
 |----------|-------------------------|-----------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------|
