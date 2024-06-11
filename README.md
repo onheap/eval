@@ -71,7 +71,7 @@ One line string expression:
 (and (>= age 30) (= gender "Male"))
 ```
 
-Multi-line string expression (two semicolons `;;` starts a comments):
+Multi-line string expression (two semicolons `;;` starts a comment):
 ```lisp
 (and
   (>= age 18) ;; Adult
@@ -91,7 +91,7 @@ Example of if-else statement:
   (> balance 3000))
 ```
 
-Example of using Constant and Operator. The `IOS` is a customized constant which can be predefined in [ConstantMap](compiler.go#L137). The sub-expression `(to_version "2.3.4")` calls the `to_version` operator to parse the string literal `"2.3.4"` into a specially formatted number for the outer comparison expression.
+Example of using Constant and Operator. The `IOS` is a customized constant which can be pre-defined in [ConstantMap](compiler.go#L137). The sub-expression `(to_version "2.3.4")` calls the `to_version` operator to parse the string literal `"2.3.4"` into a specially formatted number for the outer comparison expression.
 ```lisp
 (and           
   (= platform IOS) ;; IOS is a constant  
