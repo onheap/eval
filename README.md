@@ -62,9 +62,9 @@ func main() {
 ### Key Concepts
 #### Expressions
 
-Currently, the evaluation expressions should be written in [S-Expression](https://en.wikipedia.org/wiki/S-expression) syntax, A.K.A. Lisp-like syntax. And the Infix Notation is working in progress (Please let me know if you want this feature urgent).
+Currently, the evaluation expressions should be written in [S-Expression](https://en.wikipedia.org/wiki/S-expression) syntax, also known as Lisp-like syntax. The implementation of Infix Notation is still a work in progress. Please let me know if you require this feature urgently.
 
-Please see examples below:
+Below are some example expressions.
 
 One line string expression:
 ```lisp
@@ -91,7 +91,7 @@ Example of if-else statement:
   (> balance 3000))
 ```
 
-Example of using Constant and Operator. The `IOS` is a customized constant which can be predefined in [ConstantMap](compiler.go#L137). The sub-expression `(to_version "2.3.4")` calls the `to_version` operator to parse the string literal `"2.3.4"` to specific number for outer comparison expression. 
+Example of using Constant and Operator. The `IOS` is a customized constant which can be predefined in [ConstantMap](compiler.go#L137). The sub-expression `(to_version "2.3.4")` calls the `to_version` operator to parse the string literal `"2.3.4"` into a specially formatted number for the outer comparison expression.
 ```lisp
 (and           
   (= platform IOS) ;; IOS is a constant  
@@ -100,7 +100,7 @@ Example of using Constant and Operator. The `IOS` is a customized constant which
 ```
 
 ### Variables
-In the above expression examples you have already seen the variables. For example, in expression: `(and (>= age 30) (= gender "Male"))`. The `age` and `gender` are variables. The variable associated values are retrieved through the [VariableFetcher](variable.go#L38) during the expression evaluation.
+In the above example expressions you have already seen the variables. For example, in the expression: `(and (>= age 30) (= gender "Male"))`. The `age` and `gender` are variables. The variable associated values are retrieved through the [VariableFetcher](variable.go#L38) during the expression evaluation.
 
 ```go
 type VariableFetcher interface {
@@ -114,7 +114,7 @@ The `VariableKey` typed keys are required to be [registered](variable.go#L47) or
 The `varKey` offers better performance, the `strKey` offers more flexibility. You can use any of them (or hybrid), as they both are passed in during the expression evaluation. But we recommend using the `varKey` to get better performance.
 
 ### Operators
-Operators are functions in the expression. Below is a list of the built-in operators. Customized operators can be [registered](operator.go#L11) or pre-defined into the [OperatorMap](compiler.go#L138).
+Operators are functions in expressions. Below is a list of the [built-in operators](operator.go#L25). Customized operators can be [registered](operator.go#L11) or pre-defined into the [OperatorMap](compiler.go#L138).
 
 | Operator | Alias                   | Example                                                                                       | Description                                                                                                                |
 |----------|-------------------------|-----------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------|
