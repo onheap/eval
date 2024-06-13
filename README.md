@@ -30,34 +30,115 @@ go get github.com/onheap/eval
 package main
 
 import (
-	"fmt"
-	"github.com/onheap/eval"
+    "fmt"
+    "github.com/onheap/eval"
 )
 
 func main() {
-	expr := `(and (>= age 30) (= gender "Male"))`
+    expr := `(and (>= age 30) (= gender "Male"))`
 
-	vars := map[string]interface{}{
-		"age":    30,
-		"gender": "Male",
-	}
+    vars := map[string]interface{}{
+        "age":    30,
+        "gender": "Male",
+    }
 
-	// new config and register variables
-	config := eval.NewConfig(eval.RegVarAndOp(vars))
+    // new config and register variables
+    config := eval.NewConfig(eval.RegVarAndOp(vars))
 
-	// compile string expression to program
-	program, err := eval.Compile(config, expr)
+    // compile string expression to program
+    program, err := eval.Compile(config, expr)
+    
+    // evaluation expression with the variables
+    res, err := program.Eval(eval.NewCtxFromVars(config, vars))
 
-	// evaluation expression with variables
-	res, err := program.Eval(eval.NewCtxFromVars(config, vars))
+    if err != nil {
+        panic(err)
+    }
 
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Printf("%v", res)
+    fmt.Printf("%v", res)
 }
 ```
+
+### Key Concepts
+#### Expressions
+
+Currently, the evaluation expressions should be written in [S-Expression](https://en.wikipedia.org/wiki/S-expression) syntax, also known as Lisp-like syntax. The implementation of Infix Notation is still a work in progress. Please let me know if you require this feature urgently.
+
+Below are some example expressions.
+
+One line string expression:
+```lisp
+(and (>= age 30) (= gender "Male"))
+```
+
+Multi-line string expression (two semicolons `;;` starts a comment):
+```lisp
+(and
+  (>= age 18) ;; Adult
+  (= locale "en-US"))
+```
+
+Example of creating a list with parentheses:
+```lisp
+(in locale 
+  ("en-US" "en-CA")) ;; List of North America locales
+```
+
+Example of if-else statement:
+```lisp
+(if is_student
+  (> balance 100) ;; Students only require a $100 balance
+  (> balance 3000))
+```
+
+Example of using Constant and Operator. The `IOS` is a customized constant which can be pre-defined in [ConstantMap](compiler.go#L137). The sub-expression `(to_version "2.3.4")` calls the `to_version` operator to parse the string literal `"2.3.4"` into a specially formatted number for the outer comparison expression.
+```lisp
+(and           
+  (= platform IOS) ;; IOS is a constant  
+  (>= app_version 
+    (to_version "2.3.4")))
+```
+
+### Variables
+In the above example expressions you have already seen the variables. For example, in the expression: `(and (>= age 30) (= gender "Male"))`. The `age` and `gender` are variables. The variable associated values are retrieved through the [VariableFetcher](variable.go#L38) during the expression evaluation.
+
+```go
+type VariableFetcher interface {
+    Get(varKey VariableKey, strKey string) (Value, error)
+}
+```
+Please note that there are two types of keys in method parameters. The `varKey` is of type _[VariableKey](engine.go#L9)_, the `strKey` is of type _string_.
+
+The `VariableKey` typed keys are required to be [registered](variable.go#L47) or pre-defined into the [VariableKeyMap](compiler.go#L139) explicitly, to build the connections between `varKey` and variable string literal in expressions. String typed keys can be used directly without the registration step. the value of a `strKey` the string literal in expressions.
+
+The `varKey` offers better performance, the `strKey` offers more flexibility. You can use any of them (or hybrid), as they both are passed in during the expression evaluation. But we recommend using the `varKey` to get better performance.
+
+### Operators
+Operators are functions in expressions. Below is a list of the [built-in operators](operator.go#L25). Customized operators can be [registered](operator.go#L11) or pre-defined into the [OperatorMap](compiler.go#L138).
+
+| Operator | Alias                   | Example                                                                                       | Description                                                                                                                |
+|----------|-------------------------|-----------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------|
+| add      | +                       | `(+ 1 1)`                                                                                     | Addition operation for two or more numbers.                                                                                |
+| sub      | -                       | `(- 3 2)`                                                                                     | Subtraction operation for two or more numbers.                                                                             |
+| mul      | *                       | `(* 1 2 3)`                                                                                   | Multiplication operation for two or more numbers.                                                                          |
+| div      | /                       | `(/ 6 3)`                                                                                     | Division operation for two or more numbers.                                                                                |
+| mod      | %                       | `(% 3 7)`                                                                                     | Modulus operation for two or more numbers.                                                                                 |
+| and      | &, &&                   | `(and (>= age 30) (= gender "Male"))`                                                         | Logical AND operation for two or more booleans.                                                                            |
+| or       | \|,   \|\|              | `(or (< age 18) (> age 80))`                                                                  | Logical OR operation for two or more booleans.                                                                             |
+| not      | !                       | `(not is_student))`                                                                           | Logical NOT operation for a boolean value.                                                                                 |
+| xor      | N/A                     | `(xor true false)`                                                                            | Logical OR operation for two or more booleans.                                                                             |
+| eq       | =, ==                   | `(= gender "Female")`                                                                         | Two values are equal.                                                                                                      |
+| ne       | !=                      | `(!= gender "Female")`                                                                        | Two values are not equal.                                                                                                  |
+| gt       | >                       | `(> 2 1)`                                                                                     | Greater than.                                                                                                              |
+| ge       | >=                      | `(>= age 18)`                                                                                 | Greater than or equal to.                                                                                                  |
+| lt       | <                       | `(< 3 5)`                                                                                     | Less than.                                                                                                                 |
+| le       | <=                      | `(<= score 80)`                                                                               | Less than or equal to.                                                                                                     |
+| between  | N/A                     | `(between age 18 80)`                                                                         | Checking if the value is between the range. The between operator is inclusive: begin and end values are included.          |
+| in       | N/A                     | `(in locale ("en-US" "en-CA"))`                                                               | Checking if the value is in the list.                                                                                      |
+| overlap  | N/A                     | `(overlap languages ("en" "zh"))`                                                             | Checking if the two lists are overlapped.                                                                                  |
+| date     | t_date, to_date         | `(date "2021-01-01")`<br/>  `(date "2021-01-01" "2006-01-02")`                                | Parse a string literal into date. The second parameter represents for layout and is optional.                              |
+| datetime | t_datetime, to_datetime | `(datetime "2021-01-01 11:58:56")`<br/>  `(date "2021-01-01 11:58:56" "2006-01-02 15:04:05")` | Parse a string literal into datetime. The second parameter represents for layout and is optional.                          |
+| version  | t_version, to_version   | `(to_version "2.3.4")` <br/> `(to_version "2.3" 2)`                                           | Parse a string literal into a version. The second parameter represents the count of valid version numbers and is optional. | 
 
 ### Useful Features
 * **TryEval** tries to execute the expression when only partial variables are fetched. It skips sub-expressions where no variables were fetched, tries to find at least one sub-branch that can be fully executed with the currently fetched variables, and returns the final result.

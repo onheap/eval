@@ -31,10 +31,10 @@ var ErrDNE = errors.New("DNE")
 
 // VariableFetcher is used to fetch values of the expression variables.
 // Note that there are two types of keys in each method parameters,
-// varKey is of type VariableKey, strKey is of type string,
-// varKey offers better performance, strKey offers more flexibility,
-// we can use any of them, as they will all be passed in during the expression execution.
-// we recommend using varKey (if it satisfies your requirements) to get better performance.
+// The varKey is of type VariableKey, the strKey is of type string,
+// The varKey offers better performance, the strKey offers more flexibility,
+// we can use any of them (or hybrid), as they both are passed in during the expression execution.
+// we recommend using varKey (as much as possible) to get better performance.
 type VariableFetcher interface {
 	// Get gets a value from the variable
 	Get(varKey VariableKey, strKey string) (Value, error)

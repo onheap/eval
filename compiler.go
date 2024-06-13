@@ -144,6 +144,8 @@ type Config struct {
 	// compile options
 	CompileOptions map[CompileOption]bool
 
+	// StatelessOperators will be used in optimizeConstantFolding,
+	// so please make sure when adding new operators into StatelessOperators
 	StatelessOperators []string
 }
 
@@ -398,22 +400,23 @@ func isStatelessOp(c *Config, n *node) (bool, Operator) {
 		return false, nil
 	}
 
-	// builtinOperators are all stateless functions
-	fn, exist := builtinOperators[op]
-	if exist {
-		return true, fn
+	// builtinOperators stateless functions
+	for _, so := range builtinStatelessOperations {
+		if so == op {
+			return true, builtinOperators[op]
+		}
 	}
 
 	for _, so := range c.StatelessOperators {
 		if so == op {
-			if fn = c.OperatorMap[op]; fn != nil {
+			if fn := c.OperatorMap[op]; fn != nil {
 				return true, fn
 			}
 			break
 		}
 	}
 
-	return false, fn
+	return false, nil
 }
 
 func optimizeFastEvaluation(cc *Config, root *astNode) {
