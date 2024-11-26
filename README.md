@@ -141,7 +141,13 @@ Operators are functions in expressions. Below is a list of the [built-in operato
 | version  | t_version, to_version   | `(to_version "2.3.4")` <br/> `(to_version "2.3" 2)`                                           | Parse a string literal into a version. The second parameter represents the count of valid version numbers and is optional. | 
 
 ### Useful Features
-* **TryEval** tries to execute the expression when only partial variables are fetched. It skips sub-expressions where no variables were fetched, tries to find at least one sub-branch that can be fully executed with the currently fetched variables, and returns the final result.
+* **TryEval** tries to execute the expression when only partial variables are available. It skips sub-expressions where variables are not all fetched, tries to find at least one sub-branch that can be fully executed with the currently available variables, and returns the result when the result of the sub-expressoin determines the final result of the whole expression.
+  > For example, in the following expression. There are two variables in the expression: `locale` and `age`. Currently, only the variable `age` is fetched. In that case, **TryEval** function will skip executing the sub-expression `(= locale "en-US")` , and execute `(>= age 18)` first, if value of `age` is less then 18, the sub-expression returns `false`, then the result of this sub-expression determines the final result of the entire expression. 
+  > ```lisp
+  > (and
+  >  (= locale "en-US")  ;; this sub-expression is skiped due to the `locale` variable is not available
+  >  (>= age 18))        ;; when this sub-expression returns `false`, the result of the entire expression is `false`
+  > ```
   > It is typically used for the scenarios that fetching variables is expansive and the root operator is bool operators.
 
   
